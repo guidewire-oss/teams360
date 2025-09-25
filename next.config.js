@@ -1,7 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  swcMinify: false,
+  // Remove deprecated swcMinify option
   experimental: {
+    // Disable SWC transforms to use Babel instead on problematic systems
     forceSwcTransforms: false,
   },
 }

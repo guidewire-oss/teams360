@@ -10,10 +10,34 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000)
 
+### 🛠 Mac ARM64 Troubleshooting
+
+If you encounter SWC-related errors on Mac ARM64:
+
+```bash
+# Clear cache and reinstall
+npm cache clean --force
+rm -rf node_modules package-lock.json .next
+npm install
+
+# If still having issues, force reinstall SWC
+npm install --force @next/swc-darwin-arm64
+```
+
+If module resolution fails:
+```bash
+# Ensure you're in project root and restart dev server
+npm run dev
+```
+
 ## 🔑 Login Credentials
 
+### Hierarchy Levels (all passwords are "demo" except admin):
+- **Vice President**: `vp/demo`
+- **Directors**: `director1/demo`, `director2/demo`  
+- **Managers**: `manager1/demo`, `manager2/demo`, `manager3/demo`
+- **Team Leads**: `teamlead1/demo`, `teamlead2/demo`, `teamlead3/demo`, `teamlead4/demo`
 - **Team Member**: `demo/demo`
-- **Manager**: `manager/manager`  
 - **Administrator**: `admin/admin`
 
 ## 📋 Features
