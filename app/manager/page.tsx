@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, getAllUsers } from '@/lib/auth';
 import { TEAMS, HEALTH_DIMENSIONS, getTeamHealthSummary, getHealthCheckSessions } from '@/lib/data';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
-import { Users, TrendingUp, Calendar, LogOut, Activity, Clock, Target, MessageSquare, ChevronDown, ChevronRight } from 'lucide-react';
+import { Users, TrendingUp, Calendar, LogOut, Activity, Clock, Target, MessageSquare, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
 
 export default function ManagerPage() {
   const router = useRouter();
@@ -78,6 +78,15 @@ export default function ManagerPage() {
                 <p className="text-sm text-gray-500">Logged in as</p>
                 <p className="font-semibold text-gray-900">{user.name}</p>
               </div>
+              {user.hierarchyLevelId === 'level-4' && (
+                <button
+                  onClick={() => router.push('/survey')}
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Take Survey
+                </button>
+              )}
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"

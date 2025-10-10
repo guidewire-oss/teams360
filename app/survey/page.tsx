@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS, TEAMS, saveHealthCheckSession } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
-import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3 } from 'lucide-react';
 
 export default function SurveyPage() {
   const router = useRouter();
@@ -84,16 +84,18 @@ export default function SurveyPage() {
 
   const handleSubmit = () => {
     if (!user) return;
-    
+
+    const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
+
     const session = {
       id: `session-${Date.now()}`,
-      teamId: user.teamId || 'team1',
+      teamId: userTeamId,
       userId: user.id,
       date: new Date().toISOString().split('T')[0],
       responses,
       completed: true
     };
-    
+
     saveHealthCheckSession(session);
     setSubmitted(true);
   };
@@ -106,6 +108,9 @@ export default function SurveyPage() {
   if (!user) return null;
   
   if (submitted) {
+    const isTeamLead = user.hierarchyLevelId === 'level-4';
+    const dashboardPath = isTeamLead ? '/manager' : '/survey';
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
@@ -113,10 +118,10 @@ export default function SurveyPage() {
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h1>
           <p className="text-gray-600 mb-8">Your health check responses have been submitted successfully.</p>
           <button
-            onClick={() => router.push('/survey')}
+            onClick={() => router.push(dashboardPath)}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
           >
-            Back to Dashboard
+            {isTeamLead ? 'Back to Team Dashboard' : 'Back to Dashboard'}
           </button>
         </div>
       </div>
@@ -129,7 +134,18 @@ export default function SurveyPage() {
   const isLastDimension = currentDimension === HEALTH_DIMENSIONS.length - 1;
   const canSubmit = responses.length === HEALTH_DIMENSIONS.length;
 
-  const team = TEAMS.find(t => t.id === user.teamId);
+  const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : null;
+  const team = TEAMS.find(t => t.id === userTeamId);
+  const isTeamLead = user.hierarchyLevelId === 'level-4';
+
+  // Get current quarter and year
+  const now = new Date();
+  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
+  const currentYear = now.getFullYear();
+  const surveyPeriod = `Q${currentQuarter} ${currentYear}`;
+
+  // Get next check date for the team
+  const nextCheckDate = team?.nextCheckDate ? new Date(team.nextCheckDate) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -140,17 +156,32 @@ export default function SurveyPage() {
               <div>
                 <h1 className="text-2xl font-bold">Squad Health Check</h1>
                 <p className="text-indigo-200">Team: {team?.name || 'Unknown Team'}</p>
+                <p className="text-indigo-100 text-sm mt-1">
+                  Period: {surveyPeriod}
+                  {team?.cadence && ` • ${team.cadence.charAt(0).toUpperCase() + team.cadence.slice(1)} Check`}
+                </p>
               </div>
               <div className="text-right">
                 <p className="text-sm text-indigo-200">Logged in as</p>
                 <p className="font-semibold">{user.name}</p>
-                <button
-                  onClick={handleLogout}
-                  className="mt-2 flex items-center gap-1 text-sm text-indigo-200 hover:text-white transition-colors"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Logout
-                </button>
+                <div className="mt-2 flex flex-col gap-1">
+                  {isTeamLead && (
+                    <button
+                      onClick={() => router.push('/manager')}
+                      className="flex items-center gap-1 text-sm text-indigo-200 hover:text-white transition-colors"
+                    >
+                      <BarChart3 className="w-4 h-4" />
+                      View Team Dashboard
+                    </button>
+                  )}
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-1 text-sm text-indigo-200 hover:text-white transition-colors"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </button>
+                </div>
               </div>
             </div>
             <div className="w-full bg-indigo-800 rounded-full h-2">
