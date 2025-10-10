@@ -91,17 +91,51 @@ let healthCheckSessions: HealthCheckSession[] = [
   {
     id: 'session1',
     teamId: 'team1',
-    userId: '1',
+    userId: 'mem1',
     date: '2024-01-15',
     completed: true,
     responses: [
-      { dimensionId: 'mission', score: 3, trend: 'stable' },
-      { dimensionId: 'value', score: 2, trend: 'improving' },
+      { dimensionId: 'mission', score: 3, trend: 'stable', comment: 'We have a clear vision and everyone is aligned on our goals.' },
+      { dimensionId: 'value', score: 2, trend: 'improving', comment: 'Getting better but still some stakeholder concerns about delivery pace.' },
       { dimensionId: 'speed', score: 2, trend: 'stable' },
-      { dimensionId: 'fun', score: 3, trend: 'stable' },
-      { dimensionId: 'health', score: 1, trend: 'declining' },
-      { dimensionId: 'learning', score: 2, trend: 'improving' },
+      { dimensionId: 'fun', score: 3, trend: 'stable', comment: 'Great team dynamic! Love working with everyone here.' },
+      { dimensionId: 'health', score: 1, trend: 'declining', comment: 'Technical debt is piling up and we need to address it soon.' },
+      { dimensionId: 'learning', score: 2, trend: 'improving', comment: 'More training opportunities lately which is great.' },
       { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable', comment: 'We have some autonomy but would like more input on product direction.' }
+    ]
+  },
+  {
+    id: 'session2',
+    teamId: 'team1',
+    userId: 'mem2',
+    date: '2024-01-15',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'improving', comment: 'Our quarterly goals are well communicated.' },
+      { dimensionId: 'value', score: 3, trend: 'improving', comment: 'Customers love our recent releases!' },
+      { dimensionId: 'speed', score: 2, trend: 'declining', comment: 'Too many meetings slowing us down.' },
+      { dimensionId: 'fun', score: 3, trend: 'stable' },
+      { dimensionId: 'health', score: 2, trend: 'stable', comment: 'Code quality is okay but could use some refactoring.' },
+      { dimensionId: 'learning', score: 3, trend: 'improving', comment: 'Attended 2 great conferences this quarter!' },
+      { dimensionId: 'support', score: 2, trend: 'stable', comment: 'Support is available but sometimes delayed.' },
+      { dimensionId: 'pawns', score: 3, trend: 'improving' }
+    ]
+  },
+  {
+    id: 'session3',
+    teamId: 'team1',
+    userId: 'mem3',
+    date: '2024-01-15',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'stable', comment: 'We deliver good work but sometimes miss the mark on expectations.' },
+      { dimensionId: 'speed', score: 1, trend: 'declining', comment: 'Constant context switching and dependencies blocking us.' },
+      { dimensionId: 'fun', score: 2, trend: 'declining', comment: 'Stress levels are higher than usual.' },
+      { dimensionId: 'health', score: 1, trend: 'declining', comment: 'Our test coverage is too low and we have lots of legacy code issues.' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 3, trend: 'stable', comment: 'Team lead is very supportive and helpful.' },
       { dimensionId: 'pawns', score: 2, trend: 'stable' }
     ]
   }

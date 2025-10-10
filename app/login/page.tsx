@@ -16,7 +16,7 @@ export default function LoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const user = authenticate(username, password);
-    
+
     if (user) {
       // Route based on permissions
       if (user.isAdmin) {
@@ -24,8 +24,11 @@ export default function LoginPage() {
       } else if (user.hierarchyLevelId === 'level-5') {
         // Team members go to survey
         router.push('/survey');
+      } else if (user.hierarchyLevelId === 'level-4') {
+        // Team leads go to manager page with individual responses
+        router.push('/manager');
       } else {
-        // Everyone else goes to dashboard
+        // VPs, Directors, Managers go to hierarchical dashboard
         router.push('/dashboard');
       }
     } else {
@@ -42,6 +45,9 @@ export default function LoginPage() {
         router.push('/admin');
       } else if (user.hierarchyLevelId === 'level-5') {
         router.push('/survey');
+      } else if (user.hierarchyLevelId === 'level-4') {
+        // Team leads go to manager page with individual responses
+        router.push('/manager');
       } else {
         router.push('/dashboard');
       }
