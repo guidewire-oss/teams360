@@ -69,7 +69,12 @@ export default function LoginPage() {
       { username: 'teamlead1', password: 'demo', name: 'Phoenix Squad' },
       { username: 'teamlead2', password: 'demo', name: 'Dragon Squad' },
       { username: 'teamlead3', password: 'demo', name: 'Titan Squad' },
-      { username: 'teamlead4', password: 'demo', name: 'Falcon Squad' }
+      { username: 'teamlead4', password: 'demo', name: 'Falcon Squad' },
+      { username: 'teamlead5', password: 'demo', name: 'Eagle Squad' },
+      { username: 'teamlead6', password: 'demo', name: 'Hawk Squad' },
+      { username: 'teamlead7', password: 'demo', name: 'Raven Squad' },
+      { username: 'teamlead8', password: 'demo', name: 'Wolf Squad' },
+      { username: 'teamlead9', password: 'demo', name: 'Panther Squad' }
     ], color: '#EA580C', description: 'Team health tracking' },
     { level: 'Team Members', username: 'demo', password: 'demo', color: '#6B7280', description: 'Submit health checks' },
     { level: 'Administrator', username: 'admin', password: 'admin', color: '#DC2626', description: 'System configuration' }

@@ -8,7 +8,7 @@ export const TEAMS_DATA: Team[] = [
     name: 'Phoenix Squad',
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
-    members: ['mem1', 'mem2', 'mem3', 'mem4', 'mem5'],
+    members: ['lead1', 'mem1', 'mem2', 'mem3', 'mem4', 'mem5'],
     supervisorChain: [
       { userId: 'lead1', levelId: 'level-4' }, // Team Lead
       { userId: 'mgr1', levelId: 'level-3' },  // Manager
@@ -23,9 +23,24 @@ export const TEAMS_DATA: Team[] = [
     name: 'Dragon Squad',
     cadence: 'monthly',
     nextCheckDate: '2024-02-01',
-    members: ['mem6', 'mem7', 'mem8', 'mem9'],
+    members: ['lead2', 'mem6', 'mem7', 'mem8', 'mem9', 'mem10'],
     supervisorChain: [
       { userId: 'lead2', levelId: 'level-4' },
+      { userId: 'mgr1', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Engineering',
+    division: 'Product Development'
+  },
+  {
+    id: 'team6',
+    name: 'Hawk Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-15',
+    members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
+    supervisorChain: [
+      { userId: 'lead6', levelId: 'level-4' },
       { userId: 'mgr1', levelId: 'level-3' },
       { userId: 'dir1', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
@@ -40,9 +55,39 @@ export const TEAMS_DATA: Team[] = [
     name: 'Titan Squad',
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
-    members: ['mem10', 'mem11', 'mem12', 'mem13'],
+    members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
     supervisorChain: [
       { userId: 'lead3', levelId: 'level-4' },
+      { userId: 'mgr2', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Engineering',
+    division: 'Product Development'
+  },
+  {
+    id: 'team7',
+    name: 'Raven Squad',
+    cadence: 'quarterly',
+    nextCheckDate: '2024-03-20',
+    members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
+    supervisorChain: [
+      { userId: 'lead7', levelId: 'level-4' },
+      { userId: 'mgr2', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Engineering',
+    division: 'Product Development'
+  },
+  {
+    id: 'team9',
+    name: 'Panther Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-10',
+    members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
+    supervisorChain: [
+      { userId: 'lead9', levelId: 'level-4' },
       { userId: 'mgr2', levelId: 'level-3' },
       { userId: 'dir1', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
@@ -57,7 +102,7 @@ export const TEAMS_DATA: Team[] = [
     name: 'Falcon Squad',
     cadence: 'biweekly',
     nextCheckDate: '2024-01-15',
-    members: ['mem14', 'mem15', 'mem16'],
+    members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
     supervisorChain: [
       { userId: 'lead4', levelId: 'level-4' },
       { userId: 'mgr3', levelId: 'level-3' },
@@ -72,9 +117,24 @@ export const TEAMS_DATA: Team[] = [
     name: 'Eagle Squad',
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
-    members: ['mem17', 'mem18', 'mem19', 'mem20'],
+    members: ['lead5', 'mem21', 'mem22', 'mem23', 'mem24', 'mem25'],
     supervisorChain: [
       { userId: 'lead5', levelId: 'level-4' },
+      { userId: 'mgr3', levelId: 'level-3' },
+      { userId: 'dir2', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Quality Assurance',
+    division: 'Product Development'
+  },
+  {
+    id: 'team8',
+    name: 'Wolf Squad',
+    cadence: 'biweekly',
+    nextCheckDate: '2024-01-25',
+    members: ['lead8', 'mem36', 'mem37', 'mem38', 'mem39', 'mem40'],
+    supervisorChain: [
+      { userId: 'lead8', levelId: 'level-4' },
       { userId: 'mgr3', levelId: 'level-3' },
       { userId: 'dir2', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
