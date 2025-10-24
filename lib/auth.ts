@@ -95,13 +95,13 @@ export const USERS: User[] = [
     teamIds: ['team2'],
     isAdmin: false
   },
-  { 
-    id: 'lead3', 
-    username: 'teamlead3', 
-    password: 'demo', 
-    name: 'James Lee (Team Lead)', 
+  {
+    id: 'lead3',
+    username: 'teamlead3',
+    password: 'demo',
+    name: 'James Lee (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr2',
+    reportsTo: 'mgr1',
     teamIds: ['team3'],
     isAdmin: false
   },
@@ -111,7 +111,7 @@ export const USERS: User[] = [
     password: 'demo',
     name: 'Nina Patel (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr3',
+    reportsTo: 'mgr2',
     teamIds: ['team4'],
     isAdmin: false
   },
@@ -121,7 +121,7 @@ export const USERS: User[] = [
     password: 'demo',
     name: 'Carlos Mendez (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr3',
+    reportsTo: 'mgr2',
     teamIds: ['team5'],
     isAdmin: false
   },
@@ -131,7 +131,7 @@ export const USERS: User[] = [
     password: 'demo',
     name: 'Sophie Zhang (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr1',
+    reportsTo: 'mgr2',
     teamIds: ['team6'],
     isAdmin: false
   },
@@ -141,7 +141,7 @@ export const USERS: User[] = [
     password: 'demo',
     name: 'Marcus Johnson (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr2',
+    reportsTo: 'mgr3',
     teamIds: ['team7'],
     isAdmin: false
   },
@@ -161,7 +161,7 @@ export const USERS: User[] = [
     password: 'demo',
     name: 'Raj Sharma (Team Lead)',
     hierarchyLevelId: 'level-4',
-    reportsTo: 'mgr2',
+    reportsTo: 'mgr3',
     teamIds: ['team9'],
     isAdmin: false
   },

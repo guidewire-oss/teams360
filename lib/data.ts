@@ -81,6 +81,9 @@ export const HEALTH_DIMENSIONS: HealthDimension[] = [
   }
 ];
 
+// Team assignments version - increment this when manager assignments change
+export const TEAM_ASSIGNMENTS_VERSION = 2;
+
 export const TEAMS: Team[] = [
   {
     id: 'team1',
@@ -104,7 +107,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
     members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
-    managerId: 'mgr2'
+    managerId: 'mgr1'
   },
   {
     id: 'team4',
@@ -112,7 +115,7 @@ export const TEAMS: Team[] = [
     cadence: 'biweekly',
     nextCheckDate: '2024-01-15',
     members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
-    managerId: 'mgr3'
+    managerId: 'mgr2'
   },
   {
     id: 'team5',
@@ -120,7 +123,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
     members: ['lead5', 'mem21', 'mem22', 'mem23', 'mem24', 'mem25'],
-    managerId: 'mgr3'
+    managerId: 'mgr2'
   },
   {
     id: 'team6',
@@ -128,7 +131,7 @@ export const TEAMS: Team[] = [
     cadence: 'monthly',
     nextCheckDate: '2024-02-15',
     members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
-    managerId: 'mgr1'
+    managerId: 'mgr2'
   },
   {
     id: 'team7',
@@ -136,7 +139,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-20',
     members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
-    managerId: 'mgr2'
+    managerId: 'mgr3'
   },
   {
     id: 'team8',
@@ -152,7 +155,7 @@ export const TEAMS: Team[] = [
     cadence: 'monthly',
     nextCheckDate: '2024-02-10',
     members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
-    managerId: 'mgr2'
+    managerId: 'mgr3'
   }
 ];
 
