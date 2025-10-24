@@ -92,6 +92,7 @@ export interface HealthCheckSession {
   teamId: string;
   userId: string;
   date: string;
+  assessmentPeriod?: string; // e.g., "2024 - 1st Half"
   responses: HealthCheckResponse[];
   completed: boolean;
 }

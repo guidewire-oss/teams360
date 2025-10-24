@@ -70,7 +70,9 @@ export default function ManagerPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+              <h1 className="text-2xl font-bold text-gray-900">
+                {user.hierarchyLevelId === 'level-4' ? 'Team Lead Dashboard' : 'Manager Dashboard'}
+              </h1>
               <p className="text-gray-500">Team Health Check Overview</p>
             </div>
             <div className="flex items-center gap-4">

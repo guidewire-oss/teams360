@@ -87,7 +87,7 @@ export const TEAMS_DATA: Team[] = [
 // Generate mock health check sessions with varied scores
 export function generateMockHealthSessions(): HealthCheckSession[] {
   const sessions: HealthCheckSession[] = [];
-  const dimensions = ['mission', 'value', 'speed', 'fun', 'health', 'learning', 'support', 'pawns'];
+  const dimensions = ['mission', 'value', 'speed', 'fun', 'health', 'learning', 'support', 'pawns', 'release', 'process', 'teamwork'];
   
   TEAMS_DATA.forEach(team => {
     // Generate 3 months of history for each team
@@ -97,12 +97,19 @@ export function generateMockHealthSessions(): HealthCheckSession[] {
       
       // Generate sessions for some team members
       const memberCount = Math.floor(team.members.length * (0.7 + Math.random() * 0.3)); // 70-100% participation
+
+      // Determine assessment period based on date
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const assessmentPeriod = month < 6 ? `${year} - 1st Half` : `${year} - 2nd Half`;
+
       for (let i = 0; i < memberCount; i++) {
         const session: HealthCheckSession = {
           id: `session-${team.id}-${monthsAgo}-${i}`,
           teamId: team.id,
           userId: team.members[i] || 'mem1',
           date: date.toISOString().split('T')[0],
+          assessmentPeriod,
           completed: true,
           responses: dimensions.map(dim => {
             // Generate realistic scores with some patterns
@@ -117,6 +124,19 @@ export function generateMockHealthSessions(): HealthCheckSession[] {
             if (team.department === 'Quality Assurance') {
               if (dim === 'health' || dim === 'speed') {
                 baseScore += 0.5; // QA teams excel at code health
+              }
+              if (dim === 'process') {
+                baseScore += 0.4; // QA teams have good processes
+              }
+            }
+
+            // Engineering teams have better release processes
+            if (team.department === 'Engineering') {
+              if (dim === 'release') {
+                baseScore += 0.4; // Engineering teams have better CI/CD
+              }
+              if (dim === 'teamwork') {
+                baseScore += 0.3; // Strong collaboration
               }
             }
             

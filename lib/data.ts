@@ -56,6 +56,27 @@ export const HEALTH_DIMENSIONS: HealthDimension[] = [
     description: 'We are in control of our destiny! We decide what to build and how to build it',
     goodDescription: 'We are in control of our destiny! We decide what to build and how to build it',
     badDescription: 'We are just pawns in a game of chess, with no influence over what we build or how we build it'
+  },
+  {
+    id: 'release',
+    name: 'Easy to Release',
+    description: 'Releasing is simple, safe, painless and mostly automated',
+    goodDescription: 'Releasing is simple, safe, painless and mostly automated',
+    badDescription: 'Releasing is risky, painful, lots of manual work, and takes forever'
+  },
+  {
+    id: 'process',
+    name: 'Suitable Process',
+    description: 'Our way of working fits us perfectly',
+    goodDescription: 'Our way of working fits us perfectly',
+    badDescription: 'Our way of working sucks'
+  },
+  {
+    id: 'teamwork',
+    name: 'Teamwork',
+    description: 'We are a tight-knit team that works together really well',
+    goodDescription: 'We are a tight-knit team that works together really well',
+    badDescription: 'We are a bunch of individuals that neither know nor care about what the others are doing'
   }
 ];
 
@@ -102,7 +123,10 @@ let healthCheckSessions: HealthCheckSession[] = [
       { dimensionId: 'health', score: 1, trend: 'declining', comment: 'Technical debt is piling up and we need to address it soon.' },
       { dimensionId: 'learning', score: 2, trend: 'improving', comment: 'More training opportunities lately which is great.' },
       { dimensionId: 'support', score: 3, trend: 'stable' },
-      { dimensionId: 'pawns', score: 2, trend: 'stable', comment: 'We have some autonomy but would like more input on product direction.' }
+      { dimensionId: 'pawns', score: 2, trend: 'stable', comment: 'We have some autonomy but would like more input on product direction.' },
+      { dimensionId: 'release', score: 2, trend: 'improving', comment: 'Deployments are getting easier with our new CI/CD pipeline.' },
+      { dimensionId: 'process', score: 3, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable', comment: 'Team collaboration is excellent!' }
     ]
   },
   {
@@ -119,7 +143,10 @@ let healthCheckSessions: HealthCheckSession[] = [
       { dimensionId: 'health', score: 2, trend: 'stable', comment: 'Code quality is okay but could use some refactoring.' },
       { dimensionId: 'learning', score: 3, trend: 'improving', comment: 'Attended 2 great conferences this quarter!' },
       { dimensionId: 'support', score: 2, trend: 'stable', comment: 'Support is available but sometimes delayed.' },
-      { dimensionId: 'pawns', score: 3, trend: 'improving' }
+      { dimensionId: 'pawns', score: 3, trend: 'improving' },
+      { dimensionId: 'release', score: 3, trend: 'improving', comment: 'One-click deployments are a game changer!' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable' }
     ]
   },
   {
@@ -136,7 +163,182 @@ let healthCheckSessions: HealthCheckSession[] = [
       { dimensionId: 'health', score: 1, trend: 'declining', comment: 'Our test coverage is too low and we have lots of legacy code issues.' },
       { dimensionId: 'learning', score: 2, trend: 'stable' },
       { dimensionId: 'support', score: 3, trend: 'stable', comment: 'Team lead is very supportive and helpful.' },
-      { dimensionId: 'pawns', score: 2, trend: 'stable' }
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 1, trend: 'declining', comment: 'Releases are still very manual and error-prone.' },
+      { dimensionId: 'process', score: 2, trend: 'stable', comment: 'Process works but could be streamlined.' },
+      { dimensionId: 'teamwork', score: 2, trend: 'declining', comment: 'Some communication gaps between team members.' }
+    ]
+  },
+  // Team 2 (Dragon Squad) Sessions
+  {
+    id: 'session4',
+    teamId: 'team2',
+    userId: 'mem6',
+    date: '2024-01-20',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'stable', comment: 'Clear mission and objectives.' },
+      { dimensionId: 'value', score: 3, trend: 'improving' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 3, trend: 'improving', comment: 'Team events have been great!' },
+      { dimensionId: 'health', score: 2, trend: 'improving', comment: 'Making progress on technical debt.' },
+      { dimensionId: 'learning', score: 3, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'stable' },
+      { dimensionId: 'release', score: 3, trend: 'improving', comment: 'New CI/CD pipeline is excellent!' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable', comment: 'Great collaboration across the team.' }
+    ]
+  },
+  {
+    id: 'session5',
+    teamId: 'team2',
+    userId: 'mem7',
+    date: '2024-01-20',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 3, trend: 'stable', comment: 'Delivering good value consistently.' },
+      { dimensionId: 'speed', score: 2, trend: 'declining', comment: 'Some delays in recent sprints.' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 2, trend: 'stable' },
+      { dimensionId: 'learning', score: 2, trend: 'improving', comment: 'More learning opportunities now.' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 2, trend: 'stable' },
+      { dimensionId: 'process', score: 3, trend: 'stable', comment: 'Process works well for us.' },
+      { dimensionId: 'teamwork', score: 3, trend: 'improving' }
+    ]
+  },
+  // Team 3 (Titan Squad) Sessions
+  {
+    id: 'session6',
+    teamId: 'team3',
+    userId: 'mem10',
+    date: '2024-01-18',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'improving', comment: 'Getting clearer on our goals.' },
+      { dimensionId: 'value', score: 2, trend: 'stable' },
+      { dimensionId: 'speed', score: 3, trend: 'improving', comment: 'Workflow improvements paying off!' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 2, trend: 'declining', comment: 'Need to address growing technical debt.' },
+      { dimensionId: 'learning', score: 3, trend: 'improving' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'improving' },
+      { dimensionId: 'release', score: 2, trend: 'stable', comment: 'Releases are okay but could be smoother.' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable' }
+    ]
+  },
+  {
+    id: 'session7',
+    teamId: 'team3',
+    userId: 'mem11',
+    date: '2024-01-18',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'improving', comment: 'Stakeholder feedback is positive.' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 3, trend: 'stable', comment: 'Love the team culture!' },
+      { dimensionId: 'health', score: 1, trend: 'declining', comment: 'Code quality needs urgent attention.' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'improving', comment: 'More autonomy lately.' },
+      { dimensionId: 'release', score: 3, trend: 'improving' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  // Team 4 (Falcon Squad) Sessions
+  {
+    id: 'session8',
+    teamId: 'team4',
+    userId: 'mem14',
+    date: '2024-01-22',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'stable', comment: 'Mission is crystal clear.' },
+      { dimensionId: 'value', score: 3, trend: 'stable' },
+      { dimensionId: 'speed', score: 3, trend: 'improving', comment: 'QA automation is speeding things up.' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 3, trend: 'stable', comment: 'QA ensures good code quality.' },
+      { dimensionId: 'learning', score: 2, trend: 'improving' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 2, trend: 'improving', comment: 'Release process improving with automation.' },
+      { dimensionId: 'process', score: 3, trend: 'stable', comment: 'QA process is well-defined.' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  {
+    id: 'session9',
+    teamId: 'team4',
+    userId: 'mem15',
+    date: '2024-01-22',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 3, trend: 'improving', comment: 'Finding more bugs early.' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 3, trend: 'improving' },
+      { dimensionId: 'health', score: 3, trend: 'improving', comment: 'Code quality standards are high.' },
+      { dimensionId: 'learning', score: 3, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'stable' },
+      { dimensionId: 'release', score: 2, trend: 'stable' },
+      { dimensionId: 'process', score: 3, trend: 'improving', comment: 'Process improvements are working.' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable' }
+    ]
+  },
+  // Team 5 (Eagle Squad) Sessions
+  {
+    id: 'session10',
+    teamId: 'team5',
+    userId: 'mem17',
+    date: '2024-01-19',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'improving', comment: 'Direction becoming clearer.' },
+      { dimensionId: 'value', score: 2, trend: 'stable' },
+      { dimensionId: 'speed', score: 3, trend: 'stable', comment: 'Good velocity lately.' },
+      { dimensionId: 'fun', score: 2, trend: 'declining', comment: 'Some stress from tight deadlines.' },
+      { dimensionId: 'health', score: 3, trend: 'stable' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'declining', comment: 'Could use more support from management.' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 2, trend: 'improving' },
+      { dimensionId: 'process', score: 3, trend: 'stable', comment: 'Good QA processes in place.' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  {
+    id: 'session11',
+    teamId: 'team5',
+    userId: 'mem18',
+    date: '2024-01-19',
+    assessmentPeriod: '2024 - 1st Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'improving', comment: 'Quality focus is appreciated.' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 3, trend: 'stable', comment: 'Team chemistry is excellent.' },
+      { dimensionId: 'health', score: 2, trend: 'stable' },
+      { dimensionId: 'learning', score: 3, trend: 'improving', comment: 'Learning new testing frameworks.' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 1, trend: 'declining', comment: 'Release process has too many manual steps.' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'improving', comment: 'Collaboration has improved significantly.' }
     ]
   }
 ];
