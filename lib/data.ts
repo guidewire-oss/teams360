@@ -1,4 +1,5 @@
 import { Team, HealthDimension, HealthCheckSession, TeamHealthSummary } from './types';
+import { generateMockHealthSessions } from './teams-data';
 
 export const HEALTH_DIMENSIONS: HealthDimension[] = [
   {
@@ -86,29 +87,78 @@ export const TEAMS: Team[] = [
     name: 'Phoenix Squad',
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
-    members: ['1', '3', '4', '5'],
-    managerId: '3'
+    members: ['lead1', 'mem1', 'mem2', 'mem3', 'mem4', 'mem5'],
+    managerId: 'mgr1'
   },
   {
     id: 'team2',
     name: 'Dragon Squad',
     cadence: 'monthly',
     nextCheckDate: '2024-02-01',
-    members: ['6', '7', '8'],
-    managerId: '3'
+    members: ['lead2', 'mem6', 'mem7', 'mem8', 'mem9', 'mem10'],
+    managerId: 'mgr1'
   },
   {
     id: 'team3',
     name: 'Titan Squad',
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
-    members: ['9', '10', '11'],
-    managerId: '3'
+    members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
+    managerId: 'mgr2'
+  },
+  {
+    id: 'team4',
+    name: 'Falcon Squad',
+    cadence: 'biweekly',
+    nextCheckDate: '2024-01-15',
+    members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
+    managerId: 'mgr3'
+  },
+  {
+    id: 'team5',
+    name: 'Eagle Squad',
+    cadence: 'quarterly',
+    nextCheckDate: '2024-03-31',
+    members: ['lead5', 'mem21', 'mem22', 'mem23', 'mem24', 'mem25'],
+    managerId: 'mgr3'
+  },
+  {
+    id: 'team6',
+    name: 'Hawk Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-15',
+    members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
+    managerId: 'mgr1'
+  },
+  {
+    id: 'team7',
+    name: 'Raven Squad',
+    cadence: 'quarterly',
+    nextCheckDate: '2024-03-20',
+    members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
+    managerId: 'mgr2'
+  },
+  {
+    id: 'team8',
+    name: 'Wolf Squad',
+    cadence: 'biweekly',
+    nextCheckDate: '2024-01-25',
+    members: ['lead8', 'mem36', 'mem37', 'mem38', 'mem39', 'mem40'],
+    managerId: 'mgr3'
+  },
+  {
+    id: 'team9',
+    name: 'Panther Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-10',
+    members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
+    managerId: 'mgr2'
   }
 ];
 
 // Mock data storage (in a real app, this would be a database)
-let healthCheckSessions: HealthCheckSession[] = [
+// Manual detailed sessions with comments for demonstration
+const MANUAL_DEMO_SESSIONS: HealthCheckSession[] = [
   {
     id: 'session1',
     teamId: 'team1',
@@ -340,8 +390,185 @@ let healthCheckSessions: HealthCheckSession[] = [
       { dimensionId: 'process', score: 2, trend: 'stable' },
       { dimensionId: 'teamwork', score: 3, trend: 'improving', comment: 'Collaboration has improved significantly.' }
     ]
+  },
+  // Historical data - Team 1 (Phoenix Squad) - 2023 2nd Half
+  {
+    id: 'session12',
+    teamId: 'team1',
+    userId: 'mem1',
+    date: '2023-09-15',
+    assessmentPeriod: '2023 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'stable' },
+      { dimensionId: 'speed', score: 2, trend: 'declining' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 1, trend: 'declining' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 1, trend: 'declining' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  {
+    id: 'session13',
+    teamId: 'team1',
+    userId: 'mem2',
+    date: '2023-09-15',
+    assessmentPeriod: '2023 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'declining' },
+      { dimensionId: 'speed', score: 1, trend: 'declining' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 1, trend: 'declining' },
+      { dimensionId: 'learning', score: 1, trend: 'declining' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 1, trend: 'declining' },
+      { dimensionId: 'release', score: 1, trend: 'stable' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 2, trend: 'declining' }
+    ]
+  },
+  // Recent data - Team 1 (Phoenix Squad) - 2024 2nd Half
+  {
+    id: 'session14',
+    teamId: 'team1',
+    userId: 'mem1',
+    date: '2024-09-20',
+    assessmentPeriod: '2024 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'improving' },
+      { dimensionId: 'value', score: 3, trend: 'improving' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 3, trend: 'improving' },
+      { dimensionId: 'health', score: 2, trend: 'improving', comment: 'Technical debt decreasing.' },
+      { dimensionId: 'learning', score: 3, trend: 'improving' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'improving' },
+      { dimensionId: 'release', score: 2, trend: 'improving' },
+      { dimensionId: 'process', score: 3, trend: 'improving' },
+      { dimensionId: 'teamwork', score: 3, trend: 'improving' }
+    ]
+  },
+  {
+    id: 'session15',
+    teamId: 'team1',
+    userId: 'mem2',
+    date: '2024-09-20',
+    assessmentPeriod: '2024 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'stable' },
+      { dimensionId: 'value', score: 3, trend: 'improving' },
+      { dimensionId: 'speed', score: 2, trend: 'improving' },
+      { dimensionId: 'fun', score: 3, trend: 'stable' },
+      { dimensionId: 'health', score: 2, trend: 'stable' },
+      { dimensionId: 'learning', score: 3, trend: 'improving' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'stable' },
+      { dimensionId: 'release', score: 3, trend: 'improving', comment: 'Automation has greatly improved releases.' },
+      { dimensionId: 'process', score: 3, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'stable' }
+    ]
+  },
+  // Historical data - Team 2 (Dragon Squad) - 2023 2nd Half
+  {
+    id: 'session16',
+    teamId: 'team2',
+    userId: 'mem6',
+    date: '2023-10-10',
+    assessmentPeriod: '2023 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'stable' },
+      { dimensionId: 'value', score: 2, trend: 'stable' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 1, trend: 'declining' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 2, trend: 'stable' },
+      { dimensionId: 'release', score: 2, trend: 'stable' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  // Team 2 - 2024 2nd Half
+  {
+    id: 'session17',
+    teamId: 'team2',
+    userId: 'mem6',
+    date: '2024-10-05',
+    assessmentPeriod: '2024 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 3, trend: 'improving' },
+      { dimensionId: 'value', score: 3, trend: 'improving' },
+      { dimensionId: 'speed', score: 2, trend: 'improving' },
+      { dimensionId: 'fun', score: 3, trend: 'improving' },
+      { dimensionId: 'health', score: 2, trend: 'improving' },
+      { dimensionId: 'learning', score: 3, trend: 'stable' },
+      { dimensionId: 'support', score: 3, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'stable' },
+      { dimensionId: 'release', score: 3, trend: 'improving' },
+      { dimensionId: 'process', score: 3, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'improving' }
+    ]
+  },
+  // Historical data - Team 3 (Titan Squad) - 2023 2nd Half
+  {
+    id: 'session18',
+    teamId: 'team3',
+    userId: 'mem10',
+    date: '2023-11-05',
+    assessmentPeriod: '2023 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 1, trend: 'declining' },
+      { dimensionId: 'value', score: 2, trend: 'stable' },
+      { dimensionId: 'speed', score: 2, trend: 'stable' },
+      { dimensionId: 'fun', score: 2, trend: 'declining' },
+      { dimensionId: 'health', score: 1, trend: 'declining' },
+      { dimensionId: 'learning', score: 2, trend: 'stable' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 1, trend: 'declining' },
+      { dimensionId: 'release', score: 1, trend: 'declining' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 2, trend: 'stable' }
+    ]
+  },
+  // Team 3 - 2024 2nd Half
+  {
+    id: 'session19',
+    teamId: 'team3',
+    userId: 'mem10',
+    date: '2024-09-25',
+    assessmentPeriod: '2024 - 2nd Half',
+    completed: true,
+    responses: [
+      { dimensionId: 'mission', score: 2, trend: 'improving' },
+      { dimensionId: 'value', score: 3, trend: 'improving' },
+      { dimensionId: 'speed', score: 3, trend: 'improving' },
+      { dimensionId: 'fun', score: 2, trend: 'stable' },
+      { dimensionId: 'health', score: 2, trend: 'improving' },
+      { dimensionId: 'learning', score: 3, trend: 'improving' },
+      { dimensionId: 'support', score: 2, trend: 'stable' },
+      { dimensionId: 'pawns', score: 3, trend: 'improving' },
+      { dimensionId: 'release', score: 2, trend: 'improving' },
+      { dimensionId: 'process', score: 2, trend: 'stable' },
+      { dimensionId: 'teamwork', score: 3, trend: 'improving' }
+    ]
   }
 ];
+
+// Generate comprehensive health check sessions for all teams and members
+let healthCheckSessions: HealthCheckSession[] = generateMockHealthSessions().concat(MANUAL_DEMO_SESSIONS);
 
 export const saveHealthCheckSession = (session: HealthCheckSession) => {
   healthCheckSessions.push(session);
@@ -351,7 +578,21 @@ export const saveHealthCheckSession = (session: HealthCheckSession) => {
 export const getHealthCheckSessions = (): HealthCheckSession[] => {
   const stored = localStorage.getItem('healthCheckSessions');
   if (stored) {
-    healthCheckSessions = JSON.parse(stored);
+    const parsedSessions = JSON.parse(stored);
+
+    // Validate that we have data for all teams
+    const teamIds = TEAMS.map(t => t.id);
+    const sessionsTeamIds = new Set(parsedSessions.map((s: HealthCheckSession) => s.teamId));
+    const hasAllTeams = teamIds.every(id => sessionsTeamIds.has(id));
+
+    // If we're missing teams, regenerate all data
+    if (!hasAllTeams) {
+      console.log('Missing team data detected, regenerating health check sessions...');
+      healthCheckSessions = generateMockHealthSessions().concat(MANUAL_DEMO_SESSIONS);
+      localStorage.setItem('healthCheckSessions', JSON.stringify(healthCheckSessions));
+    } else {
+      healthCheckSessions = parsedSessions;
+    }
   }
   return healthCheckSessions;
 };
