@@ -24,7 +24,20 @@ export default function ManagerPage() {
     } else {
       // Allow team leads (level-4), managers (level-3), directors (level-2), VPs (level-1), and admins
       setUser(currentUser);
-      setSelectedTeam(TEAMS[0].id);
+
+      // Filter teams based on user role
+      let availableTeams = TEAMS;
+      if (currentUser.hierarchyLevelId === 'level-3') {
+        // Managers only see their own teams
+        availableTeams = TEAMS.filter(t => t.managerId === currentUser.id);
+      } else if (currentUser.hierarchyLevelId === 'level-4') {
+        // Team leads only see their own team
+        availableTeams = TEAMS.filter(t => currentUser.teamIds?.includes(t.id));
+      }
+
+      if (availableTeams.length > 0) {
+        setSelectedTeam(availableTeams[0].id);
+      }
     }
   }, [router]);
 
@@ -35,7 +48,17 @@ export default function ManagerPage() {
 
   if (!user) return null;
 
-  const selectedTeamData = TEAMS.find(t => t.id === selectedTeam);
+  // Filter teams based on user role
+  let availableTeams = TEAMS;
+  if (user.hierarchyLevelId === 'level-3') {
+    // Managers only see their own teams
+    availableTeams = TEAMS.filter(t => t.managerId === user.id);
+  } else if (user.hierarchyLevelId === 'level-4') {
+    // Team leads only see their own team
+    availableTeams = TEAMS.filter(t => user.teamIds?.includes(t.id));
+  }
+
+  const selectedTeamData = availableTeams.find(t => t.id === selectedTeam);
   const teamSummary = getTeamHealthSummary(selectedTeam);
 
   const getScoreColor = (score: number) => {
@@ -102,9 +125,12 @@ export default function ManagerPage() {
     return trendPoints;
   };
 
-  // Calculate overall trend data across all teams
+  // Calculate overall trend data across all teams (filtered by manager's teams)
   const calculateOverallTrendData = () => {
-    const allSessions = getHealthCheckSessions().filter(s => s.completed && s.assessmentPeriod);
+    const teamIds = availableTeams.map(t => t.id);
+    const allSessions = getHealthCheckSessions().filter(s =>
+      s.completed && s.assessmentPeriod && teamIds.includes(s.teamId)
+    );
 
     // Group sessions by assessment period across all teams
     const periodMap = new Map<string, { scores: number[], count: number }>();
@@ -195,7 +221,7 @@ export default function ManagerPage() {
               onChange={(e) => setSelectedTeam(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
-              {TEAMS.map(team => (
+              {availableTeams.map(team => (
                 <option key={team.id} value={team.id}>{team.name}</option>
               ))}
             </select>

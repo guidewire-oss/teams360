@@ -33,14 +33,15 @@ export const TEAMS_DATA: Team[] = [
     department: 'Engineering',
     division: 'Product Development'
   },
+  // Team 3 under Manager John Smith (mgr1) -> Director Mike Chen (dir1) -> VP Sarah Johnson (vp1)
   {
-    id: 'team6',
-    name: 'Hawk Squad',
-    cadence: 'monthly',
-    nextCheckDate: '2024-02-15',
-    members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
+    id: 'team3',
+    name: 'Titan Squad',
+    cadence: 'quarterly',
+    nextCheckDate: '2024-03-31',
+    members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
     supervisorChain: [
-      { userId: 'lead6', levelId: 'level-4' },
+      { userId: 'lead3', levelId: 'level-4' },
       { userId: 'mgr1', levelId: 'level-3' },
       { userId: 'dir1', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
@@ -51,53 +52,6 @@ export const TEAMS_DATA: Team[] = [
 
   // Teams under Manager Emma Wilson (mgr2) -> Director Mike Chen (dir1) -> VP Sarah Johnson (vp1)
   {
-    id: 'team3',
-    name: 'Titan Squad',
-    cadence: 'quarterly',
-    nextCheckDate: '2024-03-31',
-    members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
-    supervisorChain: [
-      { userId: 'lead3', levelId: 'level-4' },
-      { userId: 'mgr2', levelId: 'level-3' },
-      { userId: 'dir1', levelId: 'level-2' },
-      { userId: 'vp1', levelId: 'level-1' }
-    ],
-    department: 'Engineering',
-    division: 'Product Development'
-  },
-  {
-    id: 'team7',
-    name: 'Raven Squad',
-    cadence: 'quarterly',
-    nextCheckDate: '2024-03-20',
-    members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
-    supervisorChain: [
-      { userId: 'lead7', levelId: 'level-4' },
-      { userId: 'mgr2', levelId: 'level-3' },
-      { userId: 'dir1', levelId: 'level-2' },
-      { userId: 'vp1', levelId: 'level-1' }
-    ],
-    department: 'Engineering',
-    division: 'Product Development'
-  },
-  {
-    id: 'team9',
-    name: 'Panther Squad',
-    cadence: 'monthly',
-    nextCheckDate: '2024-02-10',
-    members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
-    supervisorChain: [
-      { userId: 'lead9', levelId: 'level-4' },
-      { userId: 'mgr2', levelId: 'level-3' },
-      { userId: 'dir1', levelId: 'level-2' },
-      { userId: 'vp1', levelId: 'level-1' }
-    ],
-    department: 'Engineering',
-    division: 'Product Development'
-  },
-
-  // Teams under Manager David Brown (mgr3) -> Director Lisa Anderson (dir2) -> VP Sarah Johnson (vp1)
-  {
     id: 'team4',
     name: 'Falcon Squad',
     cadence: 'biweekly',
@@ -105,11 +59,11 @@ export const TEAMS_DATA: Team[] = [
     members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
     supervisorChain: [
       { userId: 'lead4', levelId: 'level-4' },
-      { userId: 'mgr3', levelId: 'level-3' },
-      { userId: 'dir2', levelId: 'level-2' },
+      { userId: 'mgr2', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
     ],
-    department: 'Quality Assurance',
+    department: 'Engineering',
     division: 'Product Development'
   },
   {
@@ -120,6 +74,38 @@ export const TEAMS_DATA: Team[] = [
     members: ['lead5', 'mem21', 'mem22', 'mem23', 'mem24', 'mem25'],
     supervisorChain: [
       { userId: 'lead5', levelId: 'level-4' },
+      { userId: 'mgr2', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Engineering',
+    division: 'Product Development'
+  },
+  {
+    id: 'team6',
+    name: 'Hawk Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-15',
+    members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
+    supervisorChain: [
+      { userId: 'lead6', levelId: 'level-4' },
+      { userId: 'mgr2', levelId: 'level-3' },
+      { userId: 'dir1', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Engineering',
+    division: 'Product Development'
+  },
+
+  // Teams under Manager David Brown (mgr3) -> Director Lisa Anderson (dir2) -> VP Sarah Johnson (vp1)
+  {
+    id: 'team7',
+    name: 'Raven Squad',
+    cadence: 'quarterly',
+    nextCheckDate: '2024-03-20',
+    members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
+    supervisorChain: [
+      { userId: 'lead7', levelId: 'level-4' },
       { userId: 'mgr3', levelId: 'level-3' },
       { userId: 'dir2', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
@@ -135,6 +121,21 @@ export const TEAMS_DATA: Team[] = [
     members: ['lead8', 'mem36', 'mem37', 'mem38', 'mem39', 'mem40'],
     supervisorChain: [
       { userId: 'lead8', levelId: 'level-4' },
+      { userId: 'mgr3', levelId: 'level-3' },
+      { userId: 'dir2', levelId: 'level-2' },
+      { userId: 'vp1', levelId: 'level-1' }
+    ],
+    department: 'Quality Assurance',
+    division: 'Product Development'
+  },
+  {
+    id: 'team9',
+    name: 'Panther Squad',
+    cadence: 'monthly',
+    nextCheckDate: '2024-02-10',
+    members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
+    supervisorChain: [
+      { userId: 'lead9', levelId: 'level-4' },
       { userId: 'mgr3', levelId: 'level-3' },
       { userId: 'dir2', levelId: 'level-2' },
       { userId: 'vp1', levelId: 'level-1' }
