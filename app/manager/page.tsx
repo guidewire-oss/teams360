@@ -57,12 +57,98 @@ export default function ManagerPage() {
     green: d.distribution.green
   })) || [];
 
-  const trendData = [
-    { month: 'Oct', overall: 2.1 },
-    { month: 'Nov', overall: 2.3 },
-    { month: 'Dec', overall: 2.2 },
-    { month: 'Jan', overall: 2.4 }
-  ];
+  // Calculate trend data based on assessment periods for selected team
+  const calculateTrendData = () => {
+    const sessions = getHealthCheckSessions().filter(s => s.teamId === selectedTeam && s.completed && s.assessmentPeriod);
+
+    // Group sessions by assessment period
+    const periodMap = new Map<string, { scores: number[], count: number }>();
+
+    sessions.forEach(session => {
+      const period = session.assessmentPeriod!;
+      if (!periodMap.has(period)) {
+        periodMap.set(period, { scores: [], count: 0 });
+      }
+
+      const periodData = periodMap.get(period)!;
+      // Calculate average score for this session
+      const sessionScores = session.responses.map(r => r.score);
+      const sessionAvg = sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length;
+      periodData.scores.push(sessionAvg);
+      periodData.count++;
+    });
+
+    // Calculate average for each period and format for chart
+    const trendPoints = Array.from(periodMap.entries()).map(([period, data]) => {
+      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+      return {
+        period,
+        overall: Number(avgScore.toFixed(2))
+      };
+    });
+
+    // Sort by period (year and half)
+    trendPoints.sort((a, b) => {
+      const [yearA, halfA] = a.period.split(' - ');
+      const [yearB, halfB] = b.period.split(' - ');
+
+      if (yearA !== yearB) {
+        return parseInt(yearA) - parseInt(yearB);
+      }
+      // If same year, sort by half (1st before 2nd)
+      return halfA.localeCompare(halfB);
+    });
+
+    return trendPoints;
+  };
+
+  // Calculate overall trend data across all teams
+  const calculateOverallTrendData = () => {
+    const allSessions = getHealthCheckSessions().filter(s => s.completed && s.assessmentPeriod);
+
+    // Group sessions by assessment period across all teams
+    const periodMap = new Map<string, { scores: number[], count: number }>();
+
+    allSessions.forEach(session => {
+      const period = session.assessmentPeriod!;
+      if (!periodMap.has(period)) {
+        periodMap.set(period, { scores: [], count: 0 });
+      }
+
+      const periodData = periodMap.get(period)!;
+      // Calculate average score for this session
+      const sessionScores = session.responses.map(r => r.score);
+      const sessionAvg = sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length;
+      periodData.scores.push(sessionAvg);
+      periodData.count++;
+    });
+
+    // Calculate average for each period and format for chart
+    const trendPoints = Array.from(periodMap.entries()).map(([period, data]) => {
+      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
+      return {
+        period,
+        overall: Number(avgScore.toFixed(2))
+      };
+    });
+
+    // Sort by period (year and half)
+    trendPoints.sort((a, b) => {
+      const [yearA, halfA] = a.period.split(' - ');
+      const [yearB, halfB] = b.period.split(' - ');
+
+      if (yearA !== yearB) {
+        return parseInt(yearA) - parseInt(yearB);
+      }
+      // If same year, sort by half (1st before 2nd)
+      return halfA.localeCompare(halfB);
+    });
+
+    return trendPoints;
+  };
+
+  const trendData = calculateTrendData();
+  const overallTrendData = calculateOverallTrendData();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -199,43 +285,86 @@ export default function ManagerPage() {
           </div>
         )}
 
-        {viewType === 'overview' && teamSummary && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Radar</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <RadarChart data={radarData}>
-                  <PolarGrid strokeDasharray="3 3" />
-                  <PolarAngleAxis dataKey="dimension" />
-                  <PolarRadiusAxis angle={90} domain={[0, 3]} ticks={[1, 2, 3]} />
-                  <Radar 
-                    name="Score" 
-                    dataKey="score" 
-                    stroke="#6366f1" 
-                    fill="#6366f1" 
-                    fillOpacity={0.6} 
-                  />
-                  <Tooltip />
-                </RadarChart>
-              </ResponsiveContainer>
-            </div>
+        {viewType === 'overview' && (
+          <>
+            {teamSummary ? (
+              <>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+                  <div className="bg-white p-6 rounded-xl shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Radar</h3>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <RadarChart data={radarData}>
+                        <PolarGrid strokeDasharray="3 3" />
+                        <PolarAngleAxis dataKey="dimension" />
+                        <PolarRadiusAxis angle={90} domain={[0, 3]} ticks={[1, 2, 3]} />
+                        <Radar
+                          name="Score"
+                          dataKey="score"
+                          stroke="#6366f1"
+                          fill="#6366f1"
+                          fillOpacity={0.6}
+                        />
+                        <Tooltip />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Response Distribution</h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={barData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="red" stackId="a" fill="#ef4444" />
-                  <Bar dataKey="yellow" stackId="a" fill="#eab308" />
-                  <Bar dataKey="green" stackId="a" fill="#22c55e" />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
+                  <div className="bg-white p-6 rounded-xl shadow-sm border">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Response Distribution</h3>
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={barData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                        <YAxis />
+                        <Tooltip />
+                        <Legend />
+                        <Bar dataKey="red" stackId="a" fill="#ef4444" />
+                        <Bar dataKey="yellow" stackId="a" fill="#eab308" />
+                        <Bar dataKey="green" stackId="a" fill="#22c55e" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Overall Trend Chart - Visible to All Management Levels */}
+                <div className="bg-white p-6 rounded-xl shadow-sm border">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Overall Health Trend Across All Teams by Assessment Period
+                  </h3>
+                  <ResponsiveContainer width="100%" height={400}>
+                    <LineChart data={overallTrendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis
+                        dataKey="period"
+                        angle={-45}
+                        textAnchor="end"
+                        height={80}
+                      />
+                      <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
+                      <Tooltip />
+                      <Legend />
+                      <Line
+                        type="monotone"
+                        dataKey="overall"
+                        stroke="#6366f1"
+                        strokeWidth={3}
+                        dot={{ fill: '#6366f1', r: 6 }}
+                        name="Overall Health Score"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </>
+            ) : (
+              <div className="bg-white p-12 rounded-xl shadow-sm border text-center">
+                <Activity className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Health Check Data Available</h3>
+                <p className="text-gray-600">
+                  This team hasn't completed any health check surveys yet. Check back after the team completes their first assessment.
+                </p>
+              </div>
+            )}
+          </>
         )}
 
         {viewType === 'details' && teamSummary && (
@@ -433,24 +562,64 @@ export default function ManagerPage() {
         })()}
 
         {viewType === 'trends' && (
-          <div className="bg-white p-6 rounded-xl shadow-sm border">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Overall Health Trend</h3>
-            <ResponsiveContainer width="100%" height={400}>
-              <LineChart data={trendData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="month" />
-                <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
-                <Tooltip />
-                <Legend />
-                <Line
-                  type="monotone"
-                  dataKey="overall"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  dot={{ fill: '#6366f1', r: 6 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+          <div className="space-y-8">
+            {/* Overall Trend Across All Teams */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Overall Health Trend Across All Teams by Assessment Period
+              </h3>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={overallTrendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="period"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="overall"
+                    stroke="#6366f1"
+                    strokeWidth={3}
+                    dot={{ fill: '#6366f1', r: 6 }}
+                    name="Overall Health Score"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Selected Team Trend */}
+            <div className="bg-white p-6 rounded-xl shadow-sm border">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                {selectedTeamData?.name} - Health Trend by Assessment Period
+              </h3>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart data={trendData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="period"
+                    angle={-45}
+                    textAnchor="end"
+                    height={80}
+                  />
+                  <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
+                  <Tooltip />
+                  <Legend />
+                  <Line
+                    type="monotone"
+                    dataKey="overall"
+                    stroke="#10b981"
+                    strokeWidth={2}
+                    dot={{ fill: '#10b981', r: 6 }}
+                    name="Team Health Score"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         )}
       </div>
