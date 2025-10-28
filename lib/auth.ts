@@ -285,3 +285,30 @@ export const isAuthenticated = (): boolean => {
 export const getAllUsers = (): User[] => {
   return USERS;
 };
+
+export const addUser = (user: Omit<User, 'id'>): User => {
+  const newUser: User = {
+    ...user,
+    id: `user-${Date.now()}`,
+  };
+  USERS.push(newUser);
+  return newUser;
+};
+
+export const updateUser = (userId: string, updates: Partial<User>): User | null => {
+  const index = USERS.findIndex(u => u.id === userId);
+  if (index !== -1) {
+    USERS[index] = { ...USERS[index], ...updates };
+    return USERS[index];
+  }
+  return null;
+};
+
+export const deleteUser = (userId: string): boolean => {
+  const index = USERS.findIndex(u => u.id === userId);
+  if (index !== -1) {
+    USERS.splice(index, 1);
+    return true;
+  }
+  return false;
+};
