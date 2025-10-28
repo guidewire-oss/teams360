@@ -2,10 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, getAllUsers, addUser, updateUser, deleteUser } from '@/lib/auth';
 import { TEAMS, HEALTH_DIMENSIONS } from '@/lib/data';
 import { Settings, Users, Calendar, Plus, Edit2, Trash2, LogOut, Shield, Clock, Save, X, Building2 } from 'lucide-react';
 import HierarchyConfig from '@/components/HierarchyConfig';
+import { getOrgConfig } from '@/lib/org-config';
+import { User } from '@/lib/types';
 
 export default function AdminPage() {
   const router = useRouter();
@@ -13,6 +15,18 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'teams' | 'users' | 'settings'>('hierarchy');
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [showNewTeamForm, setShowNewTeamForm] = useState(false);
+  const [users, setUsers] = useState<User[]>([]);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [userFormData, setUserFormData] = useState({
+    name: '',
+    username: '',
+    password: '',
+    email: '',
+    hierarchyLevelId: 'level-5',
+    teamIds: [] as string[],
+    isAdmin: false,
+  });
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -22,6 +36,7 @@ export default function AdminPage() {
       router.push('/survey');
     } else {
       setUser(currentUser);
+      setUsers(getAllUsers());
     }
   }, [router]);
 
@@ -35,6 +50,83 @@ export default function AdminPage() {
     console.log('Saving team:', team);
     setEditingTeam(null);
     setShowNewTeamForm(false);
+  };
+
+  const handleAddUser = () => {
+    setUserFormData({
+      name: '',
+      username: '',
+      password: '',
+      email: '',
+      hierarchyLevelId: 'level-5',
+      teamIds: [],
+      isAdmin: false,
+    });
+    setEditingUser(null);
+    setShowUserForm(true);
+  };
+
+  const handleSaveUser = () => {
+    if (!userFormData.name || !userFormData.username || !userFormData.password) {
+      alert('Please fill in all required fields (Name, Username, Password)');
+      return;
+    }
+
+    if (editingUser) {
+      // Update existing user
+      updateUser(editingUser.id, userFormData);
+    } else {
+      // Add new user
+      addUser(userFormData);
+    }
+
+    setUsers(getAllUsers());
+    setShowUserForm(false);
+    setEditingUser(null);
+  };
+
+  const handleEditUser = (user: User) => {
+    setUserFormData({
+      name: user.name,
+      username: user.username,
+      password: user.password,
+      email: user.email || '',
+      hierarchyLevelId: user.hierarchyLevelId || 'level-5',
+      teamIds: user.teamIds || [],
+      isAdmin: user.isAdmin || false,
+    });
+    setEditingUser(user);
+    setShowUserForm(true);
+  };
+
+  const handleDeleteUser = (userId: string) => {
+    if (confirm('Are you sure you want to delete this user?')) {
+      deleteUser(userId);
+      setUsers(getAllUsers());
+    }
+  };
+
+  const getUserRole = (user: User) => {
+    if (user.isAdmin) return { label: 'Administrator', color: 'purple' };
+    const orgConfig = getOrgConfig();
+    const level = orgConfig.hierarchyLevels.find(l => l.id === user.hierarchyLevelId);
+    return {
+      label: level?.name || 'Unknown',
+      color: user.hierarchyLevelId === 'level-1' ? 'purple' :
+             user.hierarchyLevelId === 'level-2' ? 'blue' :
+             user.hierarchyLevelId === 'level-3' ? 'green' :
+             user.hierarchyLevelId === 'level-4' ? 'orange' :
+             'gray'
+    };
+  };
+
+  const getUserTeams = (user: User) => {
+    if (!user.teamIds || user.teamIds.length === 0) return '-';
+    const teamNames = user.teamIds.map(teamId => {
+      const team = TEAMS.find(t => t.id === teamId);
+      return team?.name || teamId;
+    });
+    return teamNames.join(', ');
   };
 
   if (!user) return null;
@@ -292,12 +384,125 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Manage Users</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+              <button
+                onClick={handleAddUser}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
                 <Plus className="w-5 h-5" />
                 Add User
               </button>
             </div>
-            
+
+            {showUserForm && (
+              <div className="bg-white p-6 rounded-xl shadow-sm border mb-6">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                  {editingUser ? 'Edit User' : 'New User'}
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Name *</label>
+                    <input
+                      type="text"
+                      value={userFormData.name}
+                      onChange={(e) => setUserFormData({ ...userFormData, name: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Username *</label>
+                    <input
+                      type="text"
+                      value={userFormData.username}
+                      onChange={(e) => setUserFormData({ ...userFormData, username: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Password *</label>
+                    <input
+                      type="password"
+                      value={userFormData.password}
+                      onChange={(e) => setUserFormData({ ...userFormData, password: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={userFormData.email}
+                      onChange={(e) => setUserFormData({ ...userFormData, email: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter email"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Hierarchy Level</label>
+                    <select
+                      value={userFormData.hierarchyLevelId}
+                      onChange={(e) => setUserFormData({ ...userFormData, hierarchyLevelId: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {getOrgConfig().hierarchyLevels.map(level => (
+                        <option key={level.id} value={level.id}>{level.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Teams</label>
+                    <select
+                      multiple
+                      value={userFormData.teamIds}
+                      onChange={(e) => {
+                        const selected = Array.from(e.target.selectedOptions, option => option.value);
+                        setUserFormData({ ...userFormData, teamIds: selected });
+                      }}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      size={4}
+                    >
+                      {TEAMS.map(team => (
+                        <option key={team.id} value={team.id}>{team.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple teams</p>
+                  </div>
+                  <div className="md:col-span-2">
+                    <label className="flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={userFormData.isAdmin}
+                        onChange={(e) => setUserFormData({ ...userFormData, isAdmin: e.target.checked })}
+                        className="w-4 h-4 text-indigo-600 rounded"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Administrator</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={handleSaveUser}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save User
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowUserForm(false);
+                      setEditingUser(null);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
               <table className="w-full">
                 <thead className="bg-gray-50">
@@ -310,48 +515,39 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  <tr>
-                    <td className="px-6 py-4">Demo User</td>
-                    <td className="px-6 py-4">demo</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">Team Member</span>
-                    </td>
-                    <td className="px-6 py-4">Phoenix Squad</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                        <button className="text-red-600 hover:text-red-900">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4">Manager User</td>
-                    <td className="px-6 py-4">manager</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm">Manager</span>
-                    </td>
-                    <td className="px-6 py-4">All Teams</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                        <button className="text-red-600 hover:text-red-900">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td className="px-6 py-4">Admin User</td>
-                    <td className="px-6 py-4">admin</td>
-                    <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">Administrator</span>
-                    </td>
-                    <td className="px-6 py-4">-</td>
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
-                        <button className="text-gray-400 cursor-not-allowed">Delete</button>
-                      </div>
-                    </td>
-                  </tr>
+                  {users.map(u => {
+                    const role = getUserRole(u);
+                    const teams = getUserTeams(u);
+                    return (
+                      <tr key={u.id}>
+                        <td className="px-6 py-4">{u.name}</td>
+                        <td className="px-6 py-4">{u.username}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-2 py-1 bg-${role.color}-100 text-${role.color}-700 rounded-full text-sm`}>
+                            {role.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">{teams}</td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditUser(u)}
+                              className="text-indigo-600 hover:text-indigo-900"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(u.id)}
+                              className={`${u.isAdmin ? 'text-gray-400 cursor-not-allowed' : 'text-red-600 hover:text-red-900'}`}
+                              disabled={u.isAdmin}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
