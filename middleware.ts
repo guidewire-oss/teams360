@@ -12,12 +12,14 @@ export function middleware(request: NextRequest) {
 
   if (userCookie && isLoginPage) {
     const user = JSON.parse(userCookie.value);
-    if (user.role === 'admin') {
+    if (user.isAdmin) {
       return NextResponse.redirect(new URL('/admin', request.url));
-    } else if (user.role === 'manager') {
+    } else if (user.hierarchyLevelId === 'level-5') {
+      return NextResponse.redirect(new URL('/survey', request.url));
+    } else if (user.hierarchyLevelId === 'level-4') {
       return NextResponse.redirect(new URL('/manager', request.url));
     } else {
-      return NextResponse.redirect(new URL('/survey', request.url));
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
