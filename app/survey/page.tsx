@@ -5,13 +5,13 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS, TEAMS, saveHealthCheckSession } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
+import { getAssessmentPeriod } from '@/lib/assessment-period';
 import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3 } from 'lucide-react';
 
 export default function SurveyPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
-  const [currentDimension, setCurrentDimension] = useState(-1); // Start at -1 for time period selection
-  const [assessmentPeriod, setAssessmentPeriod] = useState<string>('');
+  const [currentDimension, setCurrentDimension] = useState(0); // Start at first health dimension
   const [responses, setResponses] = useState<HealthCheckResponse[]>([]);
   const [submitted, setSubmitted] = useState(false);
 
@@ -78,7 +78,7 @@ export default function SurveyPage() {
   };
 
   const handlePrevious = () => {
-    if (currentDimension > -1) {
+    if (currentDimension > 0) {
       setCurrentDimension(currentDimension - 1);
     }
   };
@@ -88,11 +88,15 @@ export default function SurveyPage() {
 
     const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
 
+    // Automatically determine assessment period based on submission date
+    const submissionDate = new Date();
+    const assessmentPeriod = getAssessmentPeriod(submissionDate);
+
     const session = {
       id: `session-${Date.now()}`,
       teamId: userTeamId,
       userId: user.id,
-      date: new Date().toISOString().split('T')[0],
+      date: submissionDate.toISOString().split('T')[0],
       assessmentPeriod,
       responses,
       completed: true
@@ -130,15 +134,14 @@ export default function SurveyPage() {
     );
   }
 
-  const totalQuestions = HEALTH_DIMENSIONS.length + 1; // +1 for assessment period
-  const currentQuestionNumber = currentDimension + 2; // +2 because we start at -1
+  const totalQuestions = HEALTH_DIMENSIONS.length; // Total health dimensions
+  const currentQuestionNumber = currentDimension + 1; // +1 for display (1-indexed)
   const progress = (currentQuestionNumber / totalQuestions) * 100;
-  const isTimePeriodQuestion = currentDimension === -1;
   const isLastDimension = currentDimension === HEALTH_DIMENSIONS.length - 1;
-  const canSubmit = responses.length === HEALTH_DIMENSIONS.length && assessmentPeriod !== '';
+  const canSubmit = responses.length === HEALTH_DIMENSIONS.length;
 
-  const dimension = !isTimePeriodQuestion ? HEALTH_DIMENSIONS[currentDimension] : null;
-  const currentResponse = !isTimePeriodQuestion ? getCurrentResponse() : null;
+  const dimension = HEALTH_DIMENSIONS[currentDimension];
+  const currentResponse = getCurrentResponse();
 
   const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : null;
   const team = TEAMS.find(t => t.id === userTeamId);
@@ -202,39 +205,10 @@ export default function SurveyPage() {
           </div>
 
           <div className="p-8">
-            {isTimePeriodQuestion ? (
-              <div className="mb-8">
-                <h2 className="text-3xl font-bold text-gray-900 mb-4">Assessment Time Period</h2>
-                <p className="text-gray-600 text-lg mb-6">Please select the assessment time period from the list below</p>
-
-                <div className="max-w-md">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Time Period
-                  </label>
-                  <select
-                    value={assessmentPeriod}
-                    onChange={(e) => setAssessmentPeriod(e.target.value)}
-                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 text-lg"
-                  >
-                    <option value="">Select a time period...</option>
-                    <option value="2023 - 2nd Half">2023 - 2nd Half</option>
-                    <option value="2024 - 1st Half">2024 - 1st Half</option>
-                    <option value="2024 - 2nd Half">2024 - 2nd Half</option>
-                    <option value="2025 - 1st Half">2025 - 1st Half</option>
-                    <option value="2025 - 2nd Half">2025 - 2nd Half</option>
-                    <option value="2026 - 1st Half">2026 - 1st Half</option>
-                    <option value="2026 - 2nd Half">2026 - 2nd Half</option>
-                    <option value="2027 - 1st Half">2027 - 1st Half</option>
-                    <option value="2027 - 2nd Half">2027 - 2nd Half</option>
-                  </select>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="mb-8">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-4">{dimension?.name}</h2>
-                  <p className="text-gray-600 text-lg">{dimension?.description}</p>
-                </div>
+            <div className="mb-8">
+              <h2 className="text-3xl font-bold text-gray-900 mb-4">{dimension?.name}</h2>
+              <p className="text-gray-600 text-lg">{dimension?.description}</p>
+            </div>
 
             <div className="grid md:grid-cols-3 gap-4 mb-8">
               <button
@@ -330,15 +304,13 @@ export default function SurveyPage() {
                 </div>
               </div>
             )}
-              </>
-            )}
 
             <div className="flex justify-between">
               <button
                 onClick={handlePrevious}
-                disabled={currentDimension === -1}
+                disabled={currentDimension === 0}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  currentDimension === -1
+                  currentDimension === 0
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
@@ -363,9 +335,9 @@ export default function SurveyPage() {
               ) : (
                 <button
                   onClick={handleNext}
-                  disabled={isTimePeriodQuestion ? !assessmentPeriod : !currentResponse?.score}
+                  disabled={!currentResponse?.score}
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    (isTimePeriodQuestion ? assessmentPeriod : currentResponse?.score)
+                    currentResponse?.score
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
