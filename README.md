@@ -1,14 +1,39 @@
 # Team360 Health Check
 
-A comprehensive web application implementing the Spotify Squad Health Check Model for tracking and improving team health metrics.
+An open-source (Apache 2.0) full-stack application implementing the Spotify Squad Health Check Model for tracking and improving team health metrics across organizational hierarchies.
+
+**Architecture**: Next.js 15 frontend + Go 1.25 backend (Gin framework) following Domain-Driven Design (DDD) and Test-Driven Development (TDD) principles.
 
 ## 🚀 Quick Start
 
+### Run Both Services
+
 ```bash
-npm install
-npm run dev
+# Install all dependencies
+make install
+
+# Run frontend and backend together
+make dev
 ```
-Open [http://localhost:3000](http://localhost:3000)
+
+- **Frontend**: [http://localhost:3000](http://localhost:3000)
+- **Backend API**: [http://localhost:8080](http://localhost:8080)
+
+### Run Services Separately
+
+```bash
+# Frontend only (Next.js)
+make run-frontend
+
+# Backend only (Go API)
+make run-backend
+```
+
+### View All Available Commands
+
+```bash
+make help
+```
 
 ### 🛠 Mac ARM64 Troubleshooting
 
@@ -75,28 +100,47 @@ Based on Spotify's model, teams assess:
 
 ## 🛠 Technology Stack
 
+### Frontend (`/frontend`)
 - **Next.js 15** - React framework with App Router
-- **TypeScript** - Type safety
-- **Tailwind CSS** - Styling
+- **TypeScript** - Type safety and developer experience
+- **Tailwind CSS** - Utility-first styling
 - **Recharts** - Data visualization
-- **Lucide React** - Icons
-- **React Hook Form** - Form handling
-- **js-cookie** - Cookie management
+- **Lucide React** - Modern icon library
+- **React Hook Form** - Efficient form handling
 
-## 📁 Project Structure
+### Backend (`/backend`)
+- **Go 1.25** - High-performance backend language
+- **Gin** - Fast HTTP web framework
+- **Ginkgo v2** - BDD testing framework
+- **Gomega** - Matcher/assertion library
+- **Architecture**: Domain-Driven Design (DDD)
+- **Testing**: Test-Driven Development (TDD) with outer-loop testing
+
+## 📁 Monorepo Structure
 
 ```
-/app
-  /login          - Authentication page
-  /survey         - Health check survey for team members
-  /manager        - Manager dashboard with analytics
-  /admin          - Administration panel
-/lib
-  /auth.ts        - Authentication logic
-  /data.ts        - Data management and storage
-  /types.ts       - TypeScript type definitions
-/middleware.ts    - Route protection and redirects
+team360/
+├── frontend/              # Next.js application
+│   ├── app/              # Next.js App Router pages
+│   ├── lib/              # Utilities and business logic
+│   ├── components/       # React components
+│   └── ...
+├── backend/              # Go API server
+│   ├── cmd/api/         # Application entry point
+│   ├── domain/          # Domain layer (DDD)
+│   ├── application/     # Application layer (use cases)
+│   ├── infrastructure/  # Infrastructure layer
+│   ├── interfaces/      # Interface layer (API handlers)
+│   └── tests/           # Ginkgo/Gomega tests
+├── docs/                # Documentation
+├── scripts/             # Build and deployment scripts
+├── Makefile             # Root orchestration
+└── CLAUDE.md            # AI development guide
 ```
+
+See individual READMEs for details:
+- [Frontend README](./frontend/README.md)
+- [Backend README](./backend/README.md)
 
 ## 🎨 Key Features
 
@@ -127,41 +171,85 @@ Based on Spotify's model, teams assess:
 - **Line Charts** - Trend analysis over time
 - **Color-coded Metrics** - Instant visual feedback
 
+## 🧪 Testing
+
+```bash
+# Run all tests
+make test
+
+# Run backend tests with Ginkgo
+make test-backend
+
+# Run backend tests with coverage
+make test-backend-coverage
+
+# Run tests in watch mode
+make test-backend-watch
+```
+
+## 🏗️ Building
+
+```bash
+# Build both frontend and backend
+make build
+
+# Build individually
+make build-frontend  # Next.js production build
+make build-backend   # Go binary in backend/bin/
+```
+
 ## 🚀 Deployment
 
-### Production Build
+### Full Build Pipeline
 ```bash
-npm run build
-npm start
+make all  # Runs: clean, install, lint, test, build
 ```
 
 ### Environment Variables
-Create a `.env.local` file for production:
+
+**Frontend** (`.env.local`):
 ```env
-# Add your environment variables here
-NEXT_PUBLIC_API_URL=your-api-url
+NEXT_PUBLIC_API_URL=http://localhost:8080
 ```
 
-## 🔄 Future Enhancements
+**Backend**:
+```env
+PORT=8080
+GIN_MODE=release
+# Database configuration (TBD)
+```
 
+## 🔄 Development Roadmap
+
+### Current Status
+- ✅ Frontend: Fully functional demo with localStorage
+- 🚧 Backend: DDD structure in place, TDD implementation in progress
+
+### Planned Features
+- [ ] Backend API implementation (Go/Gin with DDD)
+- [ ] Database persistence (PostgreSQL + GORM/sqlx)
+- [ ] JWT/session-based authentication
+- [ ] Frontend-backend integration
 - [ ] Email notifications for upcoming checks
 - [ ] CSV/Excel export functionality
-- [ ] Team comparison features
-- [ ] Historical trend analysis
+- [ ] Real-time updates and collaboration
+- [ ] Integration with Slack/Teams
 - [ ] Mobile responsive improvements
-- [ ] Real-time collaboration
-- [ ] Integration with project management tools
-- [ ] Backend API integration
-- [ ] Database persistence
+- [ ] Docker & Kubernetes deployment configs
 
-## 📚 References
+## 📚 Learn More
 
-- [Spotify Engineering - Squad Health Check Model](https://engineering.atspotify.com/2014/09/squad-health-check-model/)
+- [Spotify Squad Health Check Model](https://engineering.atspotify.com/2014/09/squad-health-check-model/) - Original inspiration
+- [CLAUDE.md](./CLAUDE.md) - Comprehensive development guide
+- [Frontend README](./frontend/README.md) - Next.js application details
+- [Backend README](./backend/README.md) - Go API details
 - [Next.js Documentation](https://nextjs.org/docs)
+- [Gin Framework](https://gin-gonic.com/docs/)
+- [Ginkgo Testing](https://onsi.github.io/ginkgo/)
 
 ## 📝 License
 
-MIT
+Apache 2.0 - Open source for the benefit of all organizations
 
 ## 🤝 Contributing
 

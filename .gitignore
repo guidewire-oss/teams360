@@ -1,6 +1,12 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# IMPORTANT: Un-ignore lib directories (overrides global gitignore)
+!lib/
+!frontend/lib/
+!**/lib/
+
 # Dependencies
+node_modules/
 /node_modules
 /.pnp
 .pnp.*
@@ -11,16 +17,31 @@
 !.yarn/versions
 .yarn-integrity
 
+# Go dependencies
+vendor/
+
 # Testing
 /coverage
 *.lcov
 .nyc_output
 
 # Next.js
+.next/
 /.next/
 /out/
 /build
 /dist
+
+# Go build artifacts
+backend/bin/
+backend/tmp/
+backend/coverage.out
+backend/coverage.html
+*.test
+*.exe
+*.dll
+*.so
+*.dylib
 
 # Production
 *.pid
@@ -68,6 +89,9 @@ desktop.ini
 !.vscode/*.code-snippets
 .history/
 *.vsix
+
+# Claude Code local settings
+.claude/
 
 # IDE - IntelliJ/WebStorm
 .idea/
