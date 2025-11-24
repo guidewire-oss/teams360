@@ -34,13 +34,13 @@ func SetupRoutes(router *gin.Engine) {
 			teams.DELETE("/:id", deleteTeam)
 		}
 
-		// Health check routes
-		healthChecks := v1.Group("/health-checks")
-		{
-			healthChecks.GET("", listHealthChecks)
-			healthChecks.GET("/:id", getHealthCheck)
-			healthChecks.POST("", submitHealthCheck)
-		}
+		// Health check routes - Commented out as they are registered in SetupHealthCheckRoutesWithDB
+		// healthChecks := v1.Group("/health-checks")
+		// {
+		// 	healthChecks.GET("", listHealthChecks)
+		// 	healthChecks.GET("/:id", getHealthCheck)
+		// 	healthChecks.POST("", submitHealthCheck)
+		// }
 
 		// Organization routes
 		orgs := v1.Group("/organizations")

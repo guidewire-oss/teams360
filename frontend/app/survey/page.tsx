@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
-import { HEALTH_DIMENSIONS, TEAMS, saveHealthCheckSession } from '@/lib/data';
+import { HEALTH_DIMENSIONS, TEAMS } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
 import { getAssessmentPeriod } from '@/lib/assessment-period';
-import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3 } from 'lucide-react';
+import { submitHealthCheck, formatDateForAPI, HealthCheckAPIError } from '@/lib/api/health-checks';
+import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
 
 export default function SurveyPage() {
   const router = useRouter();
@@ -14,6 +15,9 @@ export default function SurveyPage() {
   const [currentDimension, setCurrentDimension] = useState(0); // Start at first health dimension
   const [responses, setResponses] = useState<HealthCheckResponse[]>([]);
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionId, setSessionId] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -83,27 +87,48 @@ export default function SurveyPage() {
     }
   };
 
-  const handleSubmit = () => {
-    if (!user) return;
+  const handleSubmit = async () => {
+    if (!user || submitting) return;
 
-    const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
+    setSubmitting(true);
+    setError(null);
 
-    // Automatically determine assessment period based on submission date
-    const submissionDate = new Date();
-    const assessmentPeriod = getAssessmentPeriod(submissionDate);
+    try {
+      const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
 
-    const session = {
-      id: `session-${Date.now()}`,
-      teamId: userTeamId,
-      userId: user.id,
-      date: submissionDate.toISOString().split('T')[0],
-      assessmentPeriod,
-      responses,
-      completed: true
-    };
+      // Automatically determine assessment period based on submission date
+      const submissionDate = new Date();
+      const assessmentPeriod = getAssessmentPeriod(submissionDate);
 
-    saveHealthCheckSession(session);
-    setSubmitted(true);
+      // Submit to backend API
+      const session = await submitHealthCheck({
+        teamId: userTeamId,
+        userId: user.id,
+        date: formatDateForAPI(submissionDate),
+        assessmentPeriod,
+        responses: responses.map(r => ({
+          dimensionId: r.dimensionId,
+          score: r.score,
+          trend: r.trend,
+          comment: r.comment || ''
+        })),
+        completed: true
+      });
+
+      // Store session ID for success page
+      setSessionId(session.id);
+      setSubmitted(true);
+    } catch (err) {
+      console.error('Failed to submit health check:', err);
+
+      if (err instanceof HealthCheckAPIError) {
+        setError(err.message || 'Failed to submit your responses. Please try again.');
+      } else {
+        setError('An unexpected error occurred. Please check your connection and try again.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleLogout = () => {
@@ -122,7 +147,10 @@ export default function SurveyPage() {
         <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
           <CheckCircle className="w-20 h-20 text-green-500 mx-auto mb-6" />
           <h1 className="text-3xl font-bold text-gray-900 mb-4">Thank You!</h1>
-          <p className="text-gray-600 mb-8">Your health check responses have been submitted successfully.</p>
+          <p className="text-gray-600 mb-4">Your health check responses have been submitted successfully.</p>
+          {sessionId && (
+            <p className="text-sm text-gray-500 mb-8 font-mono">Session ID: {sessionId}</p>
+          )}
           <button
             onClick={() => router.push(dashboardPath)}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
@@ -213,6 +241,8 @@ export default function SurveyPage() {
             <div className="grid md:grid-cols-3 gap-4 mb-8">
               <button
                 onClick={() => handleScoreSelect(1)}
+                data-dimension={dimension.id}
+                data-score="1"
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 1
                     ? 'border-red-500 bg-red-50'
@@ -226,6 +256,8 @@ export default function SurveyPage() {
 
               <button
                 onClick={() => handleScoreSelect(2)}
+                data-dimension={dimension.id}
+                data-score="2"
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 2
                     ? 'border-yellow-500 bg-yellow-50'
@@ -239,6 +271,8 @@ export default function SurveyPage() {
 
               <button
                 onClick={() => handleScoreSelect(3)}
+                data-dimension={dimension.id}
+                data-score="3"
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 3
                     ? 'border-green-500 bg-green-50'
@@ -257,6 +291,8 @@ export default function SurveyPage() {
                 <div className="flex gap-4">
                   <button
                     onClick={() => handleTrendSelect('improving')}
+                    data-dimension={dimension.id}
+                    data-trend="improving"
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'improving'
                         ? 'border-green-500 bg-green-50 text-green-700'
@@ -268,6 +304,8 @@ export default function SurveyPage() {
                   </button>
                   <button
                     onClick={() => handleTrendSelect('stable')}
+                    data-dimension={dimension.id}
+                    data-trend="stable"
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'stable'
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -279,6 +317,8 @@ export default function SurveyPage() {
                   </button>
                   <button
                     onClick={() => handleTrendSelect('declining')}
+                    data-dimension={dimension.id}
+                    data-trend="declining"
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'declining'
                         ? 'border-red-500 bg-red-50 text-red-700'
@@ -297,6 +337,7 @@ export default function SurveyPage() {
                   <textarea
                     value={currentResponse?.comment || ''}
                     onChange={(e) => handleCommentChange(e.target.value)}
+                    data-dimension={dimension.id}
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                     rows={3}
                     placeholder="Add any additional context..."
@@ -305,12 +346,22 @@ export default function SurveyPage() {
               </div>
             )}
 
+            {error && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-900 mb-1">Submission Failed</p>
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              </div>
+            )}
+
             <div className="flex justify-between">
               <button
                 onClick={handlePrevious}
-                disabled={currentDimension === 0}
+                disabled={currentDimension === 0 || submitting}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                  currentDimension === 0
+                  currentDimension === 0 || submitting
                     ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                     : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                 }`}
@@ -322,22 +373,32 @@ export default function SurveyPage() {
               {isLastDimension ? (
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSubmit}
+                  disabled={!canSubmit || submitting}
+                  type="submit"
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    canSubmit
+                    canSubmit && !submitting
                       ? 'bg-green-600 text-white hover:bg-green-700'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
                 >
-                  <Save className="w-5 h-5" />
-                  Submit Responses
+                  {submitting ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-5 h-5" />
+                      Submit Responses
+                    </>
+                  )}
                 </button>
               ) : (
                 <button
                   onClick={handleNext}
-                  disabled={!currentResponse?.score}
+                  disabled={!currentResponse?.score || submitting}
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    currentResponse?.score
+                    currentResponse?.score && !submitting
                       ? 'bg-indigo-600 text-white hover:bg-indigo-700'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'
                   }`}
