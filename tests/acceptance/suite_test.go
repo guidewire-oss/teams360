@@ -5,11 +5,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 	"testing"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gexec"
 	"github.com/playwright-community/playwright-go"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -20,11 +22,11 @@ import (
 
 // Shared test resources accessible to all specs
 var (
-	db          *sql.DB
-	backendCmd  *exec.Cmd
-	frontendCmd *exec.Cmd
-	pw          *playwright.Playwright
-	browser     playwright.Browser
+	db              *sql.DB
+	backendSession  *gexec.Session
+	frontendSession *gexec.Session
+	pw              *playwright.Playwright
+	browser         playwright.Browser
 
 	// Test environment URLs
 	backendURL  = "http://localhost:8080"
@@ -43,6 +45,17 @@ var _ = SynchronizedBeforeSuite(
 	// Phase 1: Runs on process #1 only - setup database and servers
 	func() []byte {
 		By("Phase 1: Setting up shared test infrastructure (database, servers)")
+
+		// Kill any existing processes on ports 3000 and 8080
+		By("Cleaning up existing backend and frontend processes")
+		// Force kill any processes holding the ports
+		exec.Command("bash", "-c", "lsof -ti:8080 | xargs kill -9 2>/dev/null").Run()
+		exec.Command("bash", "-c", "lsof -ti:3000 | xargs kill -9 2>/dev/null").Run()
+		// Also kill by process name as fallback
+		exec.Command("pkill", "-9", "-f", "go run cmd/api/main.go").Run()
+		exec.Command("pkill", "-9", "-f", "npm run dev").Run()
+		exec.Command("pkill", "-9", "-f", "next dev").Run()
+		time.Sleep(3 * time.Second) // Give processes time to die
 
 		// Setup test database
 		databaseURL := os.Getenv("TEST_DATABASE_URL")
@@ -73,17 +86,109 @@ var _ = SynchronizedBeforeSuite(
 		err = migrationEngine.Up()
 		Expect(err).NotTo(HaveOccurred())
 
-		// Start backend API server
+		// Seed test data
+		By("Seeding test users, teams, and health check data")
+
+		// Insert test-specific users to avoid conflicts with seed migration
+		// Using test-specific IDs (e2e_*) to avoid conflicts with existing seed data
+		// Schema: id, username, email, full_name, hierarchy_level_id, reports_to, password_hash
+		// Password 'demo' bcrypt hash: $2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG
+		demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
+			('e2e_demo', 'e2e_demo', 'e2e_demo@teams360.demo', 'E2E Demo User', 'level-5', 'e2e_lead1', $1),
+			('e2e_manager1', 'e2e_manager1', 'e2e_manager1@teams360.demo', 'E2E Manager One', 'level-3', NULL, $1),
+			('e2e_testmanager1', 'e2e_testmanager1', 'e2e_testmanager@teams360.demo', 'E2E Test Manager', 'level-3', NULL, $1),
+			('e2e_lead1', 'e2e_lead1', 'e2e_lead1@teams360.demo', 'E2E Lead One', 'level-4', 'e2e_manager1', $1),
+			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1),
+			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member One', 'level-5', 'e2e_lead1', $1),
+			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member Two', 'level-5', 'e2e_lead2', $1),
+			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1)
+			ON CONFLICT (id) DO NOTHING
+		`, demoPasswordHash)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert E2E test teams (schema: id, name, team_lead_id)
+		// Note: No manager_id column - managers tracked via team_supervisors table
+		_, err = db.Exec(`
+			INSERT INTO teams (id, name, team_lead_id) VALUES
+			('e2e_team1', 'E2E Team Alpha', 'e2e_lead1'),
+			('e2e_team2', 'E2E Team Beta', 'e2e_lead2'),
+			('e2e_team3', 'E2E Team Gamma', 'e2e_lead1')
+			ON CONFLICT (id) DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert team supervisors for manager access
+		// This is how managers are associated with teams
+		_, err = db.Exec(`
+			INSERT INTO team_supervisors (team_id, user_id, hierarchy_level_id, position) VALUES
+			('e2e_team1', 'e2e_lead1', 'level-4', 1),
+			('e2e_team1', 'e2e_manager1', 'level-3', 2),
+			('e2e_team2', 'e2e_lead2', 'level-4', 1),
+			('e2e_team2', 'e2e_manager1', 'level-3', 2),
+			('e2e_team3', 'e2e_lead1', 'level-4', 1),
+			('e2e_team3', 'e2e_testmanager1', 'level-3', 2)
+			ON CONFLICT (team_id, user_id) DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert team members
+		_, err = db.Exec(`
+			INSERT INTO team_members (team_id, user_id) VALUES
+			('e2e_team1', 'e2e_demo'),
+			('e2e_team1', 'e2e_member1'),
+			('e2e_team1', 'e2e_member2'),
+			('e2e_team2', 'e2e_member2'),
+			('e2e_team2', 'e2e_member3'),
+			('e2e_team3', 'e2e_member1')
+			ON CONFLICT DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert sample health check sessions
+		_, err = db.Exec(`
+			INSERT INTO health_check_sessions (id, team_id, user_id, date, assessment_period, completed) VALUES
+			('e2e_session1', 'e2e_team1', 'e2e_member1', '2024-01-15', '2023 - 2nd Half', true),
+			('e2e_session2', 'e2e_team1', 'e2e_member2', '2024-01-16', '2023 - 2nd Half', true),
+			('e2e_session3', 'e2e_team2', 'e2e_member2', '2024-07-15', '2024 - 1st Half', true),
+			('e2e_session4', 'e2e_team2', 'e2e_member3', '2024-07-16', '2024 - 1st Half', true)
+			ON CONFLICT (id) DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Insert health check responses
+		_, err = db.Exec(`
+			INSERT INTO health_check_responses (session_id, dimension_id, score, trend, comment) VALUES
+			('e2e_session1', 'mission', 3, 'improving', 'Clear direction'),
+			('e2e_session1', 'value', 2, 'stable', 'Good delivery'),
+			('e2e_session1', 'speed', 2, 'stable', 'Reasonable pace'),
+			('e2e_session2', 'mission', 3, 'improving', 'Well understood'),
+			('e2e_session2', 'value', 3, 'improving', 'Great value'),
+			('e2e_session2', 'speed', 2, 'declining', 'Some blockers'),
+			('e2e_session3', 'mission', 1, 'declining', 'Unclear goals'),
+			('e2e_session3', 'value', 2, 'stable', 'Moderate value'),
+			('e2e_session3', 'speed', 3, 'improving', 'Fast delivery'),
+			('e2e_session4', 'mission', 2, 'stable', 'Okay clarity'),
+			('e2e_session4', 'value', 2, 'stable', 'Standard delivery'),
+			('e2e_session4', 'speed', 2, 'stable', 'Normal pace')
+			ON CONFLICT DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
+		GinkgoWriter.Printf("✅ Test data seeded successfully\n")
+
+		// Start backend API server using gexec for proper process management
 		By("Starting backend API server")
-		backendCmd = exec.Command("go", "run", "cmd/api/main.go")
+		backendCmd := exec.Command("go", "run", "cmd/api/main.go")
 		backendCmd.Dir = "../../backend"
 		backendCmd.Env = append(os.Environ(),
 			"PORT=8080",
 			fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		)
-		backendCmd.Stdout = GinkgoWriter
-		backendCmd.Stderr = GinkgoWriter
-		err = backendCmd.Start()
+		// Set process group so we can kill all child processes
+		backendCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		backendSession, err = gexec.Start(backendCmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for backend to be ready
@@ -98,16 +203,18 @@ var _ = SynchronizedBeforeSuite(
 			return nil
 		}, 30*time.Second, 1*time.Second).Should(Succeed(), "Backend API should start successfully")
 
-		// Start frontend Next.js server
+		// Start frontend Next.js server using gexec for proper process management
 		By("Starting frontend Next.js server")
-		frontendCmd = exec.Command("npm", "run", "dev")
+		// Clear .next cache to ensure config changes (like rewrites) take effect
+		exec.Command("rm", "-rf", "../../frontend/.next").Run()
+		frontendCmd := exec.Command("npm", "run", "dev")
 		frontendCmd.Dir = "../../frontend"
 		frontendCmd.Env = append(os.Environ(),
 			fmt.Sprintf("NEXT_PUBLIC_API_URL=%s", backendURL),
 		)
-		frontendCmd.Stdout = GinkgoWriter
-		frontendCmd.Stderr = GinkgoWriter
-		err = frontendCmd.Start()
+		// Set process group so we can kill all child processes (Next.js spawns multiple)
+		frontendCmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+		frontendSession, err = gexec.Start(frontendCmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Wait for frontend to be ready
@@ -180,17 +287,42 @@ var _ = SynchronizedAfterSuite(
 	func() {
 		By("Phase 2: Cleaning up shared test infrastructure (database, servers)")
 
-		if backendCmd != nil && backendCmd.Process != nil {
-			backendCmd.Process.Kill()
-			backendCmd.Wait()
+		// Terminate sessions using gexec - this sends SIGTERM first
+		// Then kill the entire process group to ensure child processes are killed
+		if backendSession != nil {
+			GinkgoWriter.Printf("Terminating backend server...\n")
+			// Kill the process group (negative PID kills the group)
+			if backendSession.Command.Process != nil {
+				pgid, err := syscall.Getpgid(backendSession.Command.Process.Pid)
+				if err == nil {
+					syscall.Kill(-pgid, syscall.SIGKILL)
+				}
+			}
+			backendSession.Kill()
+			Eventually(backendSession, 10*time.Second).Should(gexec.Exit())
+			GinkgoWriter.Printf("Backend server terminated\n")
 		}
 
-		if frontendCmd != nil && frontendCmd.Process != nil {
-			frontendCmd.Process.Kill()
-			frontendCmd.Wait()
+		if frontendSession != nil {
+			GinkgoWriter.Printf("Terminating frontend server...\n")
+			// Kill the process group (negative PID kills the group)
+			if frontendSession.Command.Process != nil {
+				pgid, err := syscall.Getpgid(frontendSession.Command.Process.Pid)
+				if err == nil {
+					syscall.Kill(-pgid, syscall.SIGKILL)
+				}
+			}
+			frontendSession.Kill()
+			Eventually(frontendSession, 10*time.Second).Should(gexec.Exit())
+			GinkgoWriter.Printf("Frontend server terminated\n")
 		}
 
-		// Final database cleanup happens when db.Close() is called in Phase 1
+		// Also cleanup any orphaned processes by port (belt and suspenders)
+		exec.Command("bash", "-c", "lsof -ti:8080 | xargs kill -9 2>/dev/null").Run()
+		exec.Command("bash", "-c", "lsof -ti:3000 | xargs kill -9 2>/dev/null").Run()
+
+		// Clean up gexec build artifacts
+		gexec.CleanupBuildArtifacts()
 
 		GinkgoWriter.Printf("✅ Test infrastructure shut down\n")
 	},

@@ -38,7 +38,7 @@ install: ## Install dependencies and tools
 	@echo "Installing Ginkgo CLI..."
 	$(GOCMD) install github.com/onsi/ginkgo/v2/ginkgo@latest
 	@echo "Installing development tools..."
-	$(GOCMD) install github.com/cosmtrek/air@latest
+	$(GOCMD) install github.com/air-verse/air@latest
 	@echo "Dependencies installed successfully!"
 
 tidy: ## Tidy go.mod and go.sum

@@ -13,72 +13,48 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const config = getOrgConfig();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = authenticate(username, password);
+    setError('');
 
-    if (user) {
+    try {
+      // Call backend authentication API
+      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        setError(errorData.error || 'Invalid username or password');
+        return;
+      }
+
+      const data = await response.json();
+      const user = data.user;
+
+      // Store user in cookie (for now using localStorage until we implement proper session management)
+      document.cookie = `user=${JSON.stringify(user)}; path=/; max-age=86400`; // 1 day
+
       // Route based on permissions
-      if (user.isAdmin) {
-        router.push('/admin');
-      } else if (user.hierarchyLevelId === 'level-5') {
+      if (user.hierarchyLevel === 'level-1' || user.hierarchyLevel === 'level-2' || user.hierarchyLevel === 'level-3') {
+        // VPs, Directors, Managers go to manager dashboard
+        router.push('/manager');
+      } else if (user.hierarchyLevel === 'level-4') {
+        // Team leads also go to manager page
+        router.push('/manager');
+      } else {
         // Team members go to survey
         router.push('/survey');
-      } else if (user.hierarchyLevelId === 'level-4') {
-        // Team leads go to manager page with individual responses
-        router.push('/manager');
-      } else {
-        // VPs, Directors, Managers go to hierarchical dashboard
-        router.push('/dashboard');
       }
-    } else {
-      setError('Invalid username or password');
+    } catch (err) {
+      setError('Network error. Please make sure the backend server is running.');
     }
   };
 
-  const quickLogin = (username: string, password: string) => {
-    setUsername(username);
-    setPassword(password);
-    const user = authenticate(username, password);
-    if (user) {
-      if (user.isAdmin) {
-        router.push('/admin');
-      } else if (user.hierarchyLevelId === 'level-5') {
-        router.push('/survey');
-      } else if (user.hierarchyLevelId === 'level-4') {
-        // Team leads go to manager page with individual responses
-        router.push('/manager');
-      } else {
-        router.push('/dashboard');
-      }
-    }
-  };
-
-  const hierarchyLogins = [
-    { level: 'Vice President', username: 'vp', password: 'demo', color: '#7C3AED', description: 'Full organizational view' },
-    { level: 'Directors', users: [
-      { username: 'director1', password: 'demo', name: 'Mike Chen' },
-      { username: 'director2', password: 'demo', name: 'Lisa Anderson' }
-    ], color: '#2563EB', description: 'Department overview' },
-    { level: 'Managers', users: [
-      { username: 'manager1', password: 'demo', name: 'John Smith' },
-      { username: 'manager2', password: 'demo', name: 'Emma Wilson' },
-      { username: 'manager3', password: 'demo', name: 'David Brown' }
-    ], color: '#059669', description: 'Team management' },
-    { level: 'Team Leads', users: [
-      { username: 'teamlead1', password: 'demo', name: 'Phoenix Squad' },
-      { username: 'teamlead2', password: 'demo', name: 'Dragon Squad' },
-      { username: 'teamlead3', password: 'demo', name: 'Titan Squad' },
-      { username: 'teamlead4', password: 'demo', name: 'Falcon Squad' },
-      { username: 'teamlead5', password: 'demo', name: 'Eagle Squad' },
-      { username: 'teamlead6', password: 'demo', name: 'Hawk Squad' },
-      { username: 'teamlead7', password: 'demo', name: 'Raven Squad' },
-      { username: 'teamlead8', password: 'demo', name: 'Wolf Squad' },
-      { username: 'teamlead9', password: 'demo', name: 'Panther Squad' }
-    ], color: '#EA580C', description: 'Team health tracking' },
-    { level: 'Team Members', username: 'demo', password: 'demo', color: '#6B7280', description: 'Submit health checks' },
-    { level: 'Administrator', username: 'admin', password: 'admin', color: '#DC2626', description: 'System configuration' }
-  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -103,14 +79,15 @@ export default function LoginPage() {
                   <div className="relative">
                     <input
                       id="username"
+                      name="username"
                       type="text"
                       value={username}
                       onChange={(e) => setUsername(e.target.value)}
-                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-500"
                       placeholder="Enter username"
                       required
                     />
-                    <User className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <User className="w-5 h-5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
@@ -121,14 +98,15 @@ export default function LoginPage() {
                   <div className="relative">
                     <input
                       id="password"
+                      name="password"
                       type="password"
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-4 py-3 pl-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-500"
                       placeholder="Enter password"
                       required
                     />
-                    <Lock className="w-5 h-5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <Lock className="w-5 h-5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
                   </div>
                 </div>
 
@@ -148,61 +126,62 @@ export default function LoginPage() {
               </form>
             </div>
 
-            {/* Quick Login Options */}
-            <div className="bg-gray-50 p-8 border-l">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Login - Organizational Hierarchy</h3>
-              <div className="space-y-3">
-                {hierarchyLogins.map((item, index) => (
-                  <div key={index} className="space-y-2">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div 
-                        className="w-3 h-3 rounded-full" 
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm font-semibold text-gray-700">{item.level}</span>
-                      <span className="text-xs text-gray-500">- {item.description}</span>
+            {/* Demo Credentials Info */}
+            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-8 border-l">
+              <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
+                <Users className="w-5 h-5 text-indigo-600" />
+                Demo Login Credentials
+              </h3>
+
+              <div className="space-y-4">
+                <div className="bg-white rounded-lg p-4 border border-indigo-100">
+                  <h4 className="font-semibold text-gray-900 mb-3 text-sm">Organizational Hierarchy</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-gray-700 font-medium">VP:</span>
+                      <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-800">vp/demo</code>
                     </div>
-                    
-                    {item.username ? (
-                      <button
-                        onClick={() => quickLogin(item.username, item.password)}
-                        className="w-full text-left px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-indigo-300 transition-all group"
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Users className="w-4 h-4 text-gray-400" />
-                            <span className="text-sm">{item.username}/{item.password}</span>
-                          </div>
-                          <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                        </div>
-                      </button>
-                    ) : item.users ? (
-                      <div className="grid grid-cols-1 gap-1">
-                        {item.users.map((user, idx) => (
-                          <button
-                            key={idx}
-                            onClick={() => quickLogin(user.username, user.password)}
-                            className="text-left px-3 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-indigo-300 transition-all group"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <span className="text-sm font-medium">{user.name}</span>
-                                <span className="text-xs text-gray-500 ml-2">({user.username})</span>
-                              </div>
-                              <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-indigo-600" />
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : null}
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-gray-700 font-medium">Director:</span>
+                      <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-800">director1/demo</code>
+                    </div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-gray-700 font-medium">Manager:</span>
+                      <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-800">manager1/demo</code>
+                    </div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-gray-700 font-medium">Team Lead:</span>
+                      <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-800">teamlead1/demo</code>
+                    </div>
+                    <div className="flex justify-between items-center py-1">
+                      <span className="text-gray-700 font-medium">Team Member:</span>
+                      <code className="bg-gray-200 px-2 py-1 rounded text-xs font-mono text-gray-800">demo/demo</code>
+                    </div>
+                    <div className="flex justify-between items-center py-1 border-t border-gray-200 mt-2 pt-2">
+                      <span className="text-gray-700 font-medium">Admin:</span>
+                      <code className="bg-red-100 px-2 py-1 rounded text-xs font-mono text-red-800 font-semibold">admin/admin</code>
+                    </div>
                   </div>
-                ))}
-              </div>
-              
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-                <p className="text-xs text-blue-700">
-                  <strong>Demo Mode:</strong> All passwords are "demo" except admin (admin/admin)
-                </p>
+                </div>
+
+                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                  <p className="text-xs text-blue-700 leading-relaxed">
+                    <strong className="block mb-2">All Accounts:</strong>
+                    • All passwords are <strong>"demo"</strong> except admin<br/>
+                    • Use director1, director2, manager1-3, teamlead1-5<br/>
+                    • Or team members: alice, bob, carol, david, eve<br/>
+                    • Admin password is <strong>"admin"</strong>
+                  </p>
+                </div>
+
+                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                  <p className="text-xs text-green-700 leading-relaxed">
+                    <strong className="block mb-1">What Each User Sees:</strong>
+                    • <strong>VP/Directors/Managers/Team Leads:</strong> Manager Dashboard<br/>
+                    • <strong>Team Members:</strong> Health Check Survey<br/>
+                    • <strong>Admin:</strong> System Configuration
+                  </p>
+                </div>
               </div>
             </div>
           </div>

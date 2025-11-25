@@ -15,6 +15,8 @@ help: ## Display this help message
 	@echo "$(BOLD)Team360 - Squad Health Check Application$(RESET)"
 	@echo "Full-stack application with Go backend and Next.js frontend"
 	@echo ""
+	@echo "$(BOLD)$(CYAN)🚀 QUICK START:$(RESET) make setup-and-run"
+	@echo ""
 	@echo "$(CYAN)Usage:$(RESET) make [target]"
 	@echo ""
 	@echo "$(CYAN)Main Targets:$(RESET)"
@@ -50,6 +52,15 @@ dev: ## Run both frontend and backend in development mode (parallel)
 	@echo "$(CYAN)Starting Team360 in development mode...$(RESET)"
 	@echo "$(CYAN)Frontend will run on http://localhost:3000$(RESET)"
 	@echo "$(CYAN)Backend will run on http://localhost:8080$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Demo Login Credentials:$(RESET)"
+	@echo "  VP:           vp/demo"
+	@echo "  Director:     director1/demo or director2/demo"
+	@echo "  Manager:      manager1/demo, manager2/demo, or manager3/demo"
+	@echo "  Team Lead:    teamlead1/demo through teamlead5/demo"
+	@echo "  Team Member:  demo/demo or alice/demo"
+	@echo "  Admin:        admin/admin"
+	@echo ""
 	@$(MAKE) -j2 run-frontend run-backend
 
 run: dev ## Alias for dev (run both services)
@@ -64,6 +75,57 @@ run-backend: ## [Backend] Run Go API server
 
 dev-backend: ## [Backend] Run backend with hot reload (air)
 	@cd backend && $(MAKE) dev
+
+# =============================================================================
+# Database Setup
+# =============================================================================
+
+setup-and-run: ## 🚀 ONE COMMAND: Install deps, create DB, setup with demo users, and run app
+	@echo "$(BOLD)$(CYAN)🚀 Team360 Complete Setup & Run$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Step 1/3: Installing dependencies...$(RESET)"
+	@$(MAKE) install
+	@echo ""
+	@echo "$(CYAN)Step 2/3: Setting up database and running migrations...$(RESET)"
+	@cd backend && DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable" go run cmd/api/main.go &
+	@sleep 5
+	@pkill -f "go run cmd/api/main.go" 2>/dev/null || true
+	@echo "$(CYAN)✅ Database setup complete! Demo users created.$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Step 3/3: Starting application...$(RESET)"
+	@echo "$(CYAN)Frontend: http://localhost:3000$(RESET)"
+	@echo "$(CYAN)Backend:  http://localhost:8080$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Demo Login Credentials:$(RESET)"
+	@echo "  VP:           vp/demo"
+	@echo "  Director:     director1/demo or director2/demo"
+	@echo "  Manager:      manager1/demo, manager2/demo, or manager3/demo"
+	@echo "  Team Lead:    teamlead1/demo through teamlead5/demo"
+	@echo "  Team Member:  demo/demo or alice/demo"
+	@echo "  Admin:        admin/admin"
+	@echo ""
+	@echo "$(BOLD)$(CYAN)Press Ctrl+C to stop both services$(RESET)"
+	@echo ""
+	@$(MAKE) -j2 run-frontend run-backend
+
+db-setup: ## Setup production database with migrations and seed data
+	@echo "$(CYAN)Setting up production database...$(RESET)"
+	@cd backend && DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable" go run cmd/api/main.go &
+	@sleep 3
+	@pkill -f "go run cmd/api/main.go"
+	@echo "$(CYAN)Database setup complete! Demo users created.$(RESET)"
+
+db-reset: ## Reset production database (WARNING: deletes all data)
+	@echo "$(CYAN)Resetting production database...$(RESET)"
+	@psql -U postgres -d teams360 -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+	@$(MAKE) db-setup
+
+db-test-setup: ## Setup test database with migrations and seed data
+	@echo "$(CYAN)Setting up test database...$(RESET)"
+	@cd backend && TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go &
+	@sleep 3
+	@pkill -f "go run cmd/api/main.go"
+	@echo "$(CYAN)Test database setup complete!$(RESET)"
 
 # =============================================================================
 # Build
@@ -103,6 +165,60 @@ test-backend-watch: ## [Backend] Run backend tests in watch mode
 
 test-acceptance: ## [Backend] Run acceptance tests only
 	@cd backend && $(MAKE) test-acceptance
+
+test-e2e: ## 🚀 Run E2E tests with both frontend and backend servers
+	@echo "$(BOLD)$(CYAN)🧪 Running E2E Tests with Full Stack$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Killing any existing servers...$(RESET)"
+	@pkill -f "go run cmd/api/main.go" 2>/dev/null || true
+	@pkill -f "npm run dev|next dev" 2>/dev/null || true
+	@sleep 2
+	@echo ""
+	@echo "$(CYAN)Starting backend server (port 8080)...$(RESET)"
+	@cd backend && TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go > /tmp/backend-e2e.log 2>&1 & echo $$! > /tmp/backend.pid
+	@sleep 3
+	@echo ""
+	@echo "$(CYAN)Starting frontend server (port 3000)...$(RESET)"
+	@cd frontend && npm run dev > /tmp/frontend-e2e.log 2>&1 & echo $$! > /tmp/frontend.pid
+	@sleep 5
+	@echo ""
+	@echo "$(CYAN)Waiting for servers to be healthy...$(RESET)"
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/health | grep -q "200"; then \
+			echo "$(CYAN)✅ Backend is healthy!$(RESET)"; \
+			break; \
+		fi; \
+		if [ $$i -eq 10 ]; then \
+			echo "$(CYAN)❌ Backend failed to start$(RESET)"; \
+			cat /tmp/backend-e2e.log; \
+			kill $$(cat /tmp/backend.pid) $$(cat /tmp/frontend.pid) 2>/dev/null || true; \
+			rm /tmp/backend.pid /tmp/frontend.pid; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		if curl -s -o /dev/null -w "%{http_code}" http://localhost:3000 | grep -q "200"; then \
+			echo "$(CYAN)✅ Frontend is healthy!$(RESET)"; \
+			break; \
+		fi; \
+		if [ $$i -eq 10 ]; then \
+			echo "$(CYAN)❌ Frontend failed to start$(RESET)"; \
+			cat /tmp/frontend-e2e.log; \
+			kill $$(cat /tmp/backend.pid) $$(cat /tmp/frontend.pid) 2>/dev/null || true; \
+			rm /tmp/backend.pid /tmp/frontend.pid; \
+			exit 1; \
+		fi; \
+		sleep 1; \
+	done
+	@echo ""
+	@echo "$(CYAN)Running E2E tests...$(RESET)"
+	@export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" && ginkgo -v tests/acceptance/ 2>&1 | tee /tmp/e2e_test_results.log || (kill $$(cat /tmp/backend.pid) $$(cat /tmp/frontend.pid) 2>/dev/null || true; rm /tmp/backend.pid /tmp/frontend.pid; exit 1)
+	@echo ""
+	@echo "$(CYAN)Cleaning up servers...$(RESET)"
+	@kill $$(cat /tmp/backend.pid) $$(cat /tmp/frontend.pid) 2>/dev/null || true
+	@rm /tmp/backend.pid /tmp/frontend.pid
+	@echo "$(BOLD)$(CYAN)✅ E2E tests complete!$(RESET)"
 
 # Note: Frontend tests to be added when test framework is configured
 test-frontend: ## [Frontend] Run frontend tests (TODO: setup test framework)

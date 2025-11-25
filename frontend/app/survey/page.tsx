@@ -18,6 +18,7 @@ export default function SurveyPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -31,7 +32,7 @@ export default function SurveyPage() {
   const handleScoreSelect = (score: 1 | 2 | 3) => {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
     const existingIndex = responses.findIndex(r => r.dimensionId === dimension.id);
-    
+
     const newResponse: HealthCheckResponse = {
       dimensionId: dimension.id,
       score,
@@ -46,17 +47,23 @@ export default function SurveyPage() {
     } else {
       setResponses([...responses, newResponse]);
     }
+
+    // Clear validation error when user makes a selection
+    setValidationError(null);
   };
 
   const handleTrendSelect = (trend: 'improving' | 'stable' | 'declining') => {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
     const existingIndex = responses.findIndex(r => r.dimensionId === dimension.id);
-    
+
     if (existingIndex >= 0) {
       const newResponses = [...responses];
       newResponses[existingIndex].trend = trend;
       setResponses(newResponses);
     }
+
+    // Clear validation error when user makes a selection
+    setValidationError(null);
   };
 
   const handleCommentChange = (comment: string) => {
@@ -76,12 +83,29 @@ export default function SurveyPage() {
   };
 
   const handleNext = () => {
+    const currentResponse = getCurrentResponse();
+
+    // Validate that both score and trend are selected
+    if (!currentResponse?.score) {
+      setValidationError('Please select a score (Red, Yellow, or Green) before continuing.');
+      return;
+    }
+
+    if (!currentResponse?.trend) {
+      setValidationError('Please select a trend (Improving, Stable, or Declining) before continuing.');
+      return;
+    }
+
+    // Clear validation error and proceed
+    setValidationError(null);
     if (currentDimension < HEALTH_DIMENSIONS.length - 1) {
       setCurrentDimension(currentDimension + 1);
     }
   };
 
   const handlePrevious = () => {
+    // Clear validation error when navigating
+    setValidationError(null);
     if (currentDimension > 0) {
       setCurrentDimension(currentDimension - 1);
     }
@@ -90,8 +114,22 @@ export default function SurveyPage() {
   const handleSubmit = async () => {
     if (!user || submitting) return;
 
+    // Validate all responses are complete
+    if (responses.length !== HEALTH_DIMENSIONS.length) {
+      setValidationError('Please fill out all health check dimensions before submitting.');
+      return;
+    }
+
+    // Validate each response has both score and trend
+    const incompleteResponses = responses.filter(r => !r.score || !r.trend);
+    if (incompleteResponses.length > 0) {
+      setValidationError('Please select both a score and trend for all dimensions before submitting.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
+    setValidationError(null);
 
     try {
       const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
@@ -346,6 +384,16 @@ export default function SurveyPage() {
               </div>
             )}
 
+            {validationError && (
+              <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-red-900 mb-1">Validation Error</p>
+                  <p className="text-sm text-red-700">{validationError}</p>
+                </div>
+              </div>
+            )}
+
             {error && (
               <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
                 <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -373,12 +421,12 @@ export default function SurveyPage() {
               {isLastDimension ? (
                 <button
                   onClick={handleSubmit}
-                  disabled={!canSubmit || submitting}
+                  disabled={submitting}
                   type="submit"
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    canSubmit && !submitting
-                      ? 'bg-green-600 text-white hover:bg-green-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    submitting
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-green-600 text-white hover:bg-green-700'
                   }`}
                 >
                   {submitting ? (
@@ -396,11 +444,11 @@ export default function SurveyPage() {
               ) : (
                 <button
                   onClick={handleNext}
-                  disabled={!currentResponse?.score || submitting}
+                  disabled={submitting}
                   className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-colors ${
-                    currentResponse?.score && !submitting
-                      ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    submitting
+                      ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
                 >
                   Next

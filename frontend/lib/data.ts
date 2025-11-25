@@ -1,5 +1,7 @@
-import { Team, HealthDimension, HealthCheckSession, TeamHealthSummary } from './types';
+import { Team, HealthDimension, HealthCheckSession, TeamHealthSummary, User } from './types';
 import { generateMockHealthSessions } from './teams-data';
+import { DEFAULT_ORG_CONFIG } from './org-config';
+import { USERS } from './auth';
 
 export const HEALTH_DIMENSIONS: HealthDimension[] = [
   {
@@ -91,7 +93,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
     members: ['lead1', 'mem1', 'mem2', 'mem3', 'mem4', 'mem5'],
-    managerId: 'mgr1'
+    supervisorChain: []
   },
   {
     id: 'team2',
@@ -99,7 +101,7 @@ export const TEAMS: Team[] = [
     cadence: 'monthly',
     nextCheckDate: '2024-02-01',
     members: ['lead2', 'mem6', 'mem7', 'mem8', 'mem9', 'mem10'],
-    managerId: 'mgr1'
+    supervisorChain: []
   },
   {
     id: 'team3',
@@ -107,7 +109,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
     members: ['lead3', 'mem11', 'mem12', 'mem13', 'mem14', 'mem15'],
-    managerId: 'mgr1'
+    supervisorChain: []
   },
   {
     id: 'team4',
@@ -115,7 +117,7 @@ export const TEAMS: Team[] = [
     cadence: 'biweekly',
     nextCheckDate: '2024-01-15',
     members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
-    managerId: 'mgr2'
+    supervisorChain: []
   },
   {
     id: 'team5',
@@ -123,7 +125,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-31',
     members: ['lead5', 'mem21', 'mem22', 'mem23', 'mem24', 'mem25'],
-    managerId: 'mgr2'
+    supervisorChain: []
   },
   {
     id: 'team6',
@@ -131,7 +133,7 @@ export const TEAMS: Team[] = [
     cadence: 'monthly',
     nextCheckDate: '2024-02-15',
     members: ['lead6', 'mem26', 'mem27', 'mem28', 'mem29', 'mem30'],
-    managerId: 'mgr2'
+    supervisorChain: []
   },
   {
     id: 'team7',
@@ -139,7 +141,7 @@ export const TEAMS: Team[] = [
     cadence: 'quarterly',
     nextCheckDate: '2024-03-20',
     members: ['lead7', 'mem31', 'mem32', 'mem33', 'mem34', 'mem35'],
-    managerId: 'mgr3'
+    supervisorChain: []
   },
   {
     id: 'team8',
@@ -147,7 +149,7 @@ export const TEAMS: Team[] = [
     cadence: 'biweekly',
     nextCheckDate: '2024-01-25',
     members: ['lead8', 'mem36', 'mem37', 'mem38', 'mem39', 'mem40'],
-    managerId: 'mgr3'
+    supervisorChain: []
   },
   {
     id: 'team9',
@@ -155,7 +157,7 @@ export const TEAMS: Team[] = [
     cadence: 'monthly',
     nextCheckDate: '2024-02-10',
     members: ['lead9', 'mem41', 'mem42', 'mem43', 'mem44', 'mem45'],
-    managerId: 'mgr3'
+    supervisorChain: []
   }
 ];
 
@@ -631,6 +633,16 @@ export const getTeamHealthSummary = (teamId: string): TeamHealthSummary | null =
     teamId,
     teamName: team.name,
     date: new Date(latestDate).toISOString().split('T')[0],
+    supervisorChain: team.supervisorChain.map(sup => {
+      const user = USERS.find(u => u.id === sup.userId);
+      const level = DEFAULT_ORG_CONFIG.hierarchyLevels.find(l => l.id === sup.levelId);
+      return {
+        userId: sup.userId,
+        userName: user?.name || 'Unknown',
+        levelId: sup.levelId,
+        levelName: level?.name || 'Unknown'
+      };
+    }),
     dimensions
   };
 };

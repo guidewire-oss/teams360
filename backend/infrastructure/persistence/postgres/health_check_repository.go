@@ -129,6 +129,18 @@ func (r *HealthCheckRepository) FindByAssessmentPeriod(period string) ([]*health
 	`, period)
 }
 
+// FindByTeamAndPeriod retrieves sessions for a team filtered by assessment period
+func (r *HealthCheckRepository) FindByTeamAndPeriod(teamID, period string) ([]*healthcheck.HealthCheckSession, error) {
+	return r.scanSessions(`
+		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.completed,
+		       r.dimension_id, r.score, r.trend, r.comment
+		FROM health_check_sessions s
+		LEFT JOIN health_check_responses r ON s.id = r.session_id
+		WHERE s.team_id = $1 AND s.assessment_period = $2
+		ORDER BY s.date DESC, r.dimension_id
+	`, teamID, period)
+}
+
 // Delete removes a session and its responses (cascade handled by DB)
 func (r *HealthCheckRepository) Delete(id string) error {
 	result, err := r.db.Exec("DELETE FROM health_check_sessions WHERE id = $1", id)

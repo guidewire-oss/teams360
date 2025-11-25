@@ -2,205 +2,119 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout, getAllUsers } from '@/lib/auth';
-import { TEAMS, HEALTH_DIMENSIONS, getTeamHealthSummary, getHealthCheckSessions } from '@/lib/data';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line } from 'recharts';
-import { Users, TrendingUp, Calendar, LogOut, Activity, Clock, Target, MessageSquare, ChevronDown, ChevronRight, ClipboardList } from 'lucide-react';
+import { getCurrentUser, logout } from '@/lib/auth';
+import { User } from '@/lib/types';
+import { LogOut, Users, ChevronDown, AlertCircle } from 'lucide-react';
+
+// Types matching backend API response
+interface DimensionSummary {
+  dimensionId: string;
+  avgScore: number;
+  responseCount: number;
+}
+
+interface TeamHealthSummary {
+  teamId: string;
+  teamName: string;
+  overallHealth: number;
+  submissionCount: number;
+  dimensions: DimensionSummary[];
+}
+
+interface ManagerDashboardResponse {
+  managerId: string;
+  teams: TeamHealthSummary[];
+  totalTeams: number;
+  assessmentPeriod?: string;
+}
 
 export default function ManagerPage() {
   const router = useRouter();
-  const [user, setUser] = useState<any>(null);
-  const [selectedTeam, setSelectedTeam] = useState<string>('');
-  const [viewType, setViewType] = useState<'overview' | 'details' | 'trends' | 'individual'>('overview');
-  const [expandedDimensions, setExpandedDimensions] = useState<Set<string>>(new Set());
+  const [user, setUser] = useState<User | null>(null);
+  const [dashboardData, setDashboardData] = useState<ManagerDashboardResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     if (!currentUser) {
       router.push('/login');
-    } else if (currentUser.hierarchyLevelId === 'level-5') {
-      // Team members should go to survey
-      router.push('/survey');
     } else {
-      // Allow team leads (level-4), managers (level-3), directors (level-2), VPs (level-1), and admins
       setUser(currentUser);
-
-      // Filter teams based on user role
-      let availableTeams = TEAMS;
-      if (currentUser.hierarchyLevelId === 'level-3') {
-        // Managers only see their own teams
-        availableTeams = TEAMS.filter(t => t.managerId === currentUser.id);
-      } else if (currentUser.hierarchyLevelId === 'level-4') {
-        // Team leads only see their own team
-        availableTeams = TEAMS.filter(t => currentUser.teamIds?.includes(t.id));
-      }
-
-      if (availableTeams.length > 0) {
-        setSelectedTeam(availableTeams[0].id);
-      }
+      fetchDashboardData(currentUser.id, '');
     }
   }, [router]);
+
+  const fetchDashboardData = async (managerId: string, assessmentPeriod: string) => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const url = assessmentPeriod
+        ? `/api/v1/managers/${managerId}/teams/health?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
+        : `/api/v1/managers/${managerId}/teams/health`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch dashboard data: ${response.statusText}`);
+      }
+
+      const data: ManagerDashboardResponse = await response.json();
+      setDashboardData(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      console.error('Error fetching dashboard data:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    if (user) {
+      fetchDashboardData(user.id, period);
+    }
+  };
 
   const handleLogout = () => {
     logout();
     router.push('/login');
   };
 
+  // Calculate health score color and percentage
+  const getHealthColor = (score: number) => {
+    const percentage = (score / 3) * 100;
+    if (percentage >= 66) return 'bg-green-100 text-green-800 border-green-300';
+    if (percentage >= 33) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+    return 'bg-red-100 text-red-800 border-red-300';
+  };
+
+  const formatHealthScore = (score: number) => {
+    return score.toFixed(1);
+  };
+
   if (!user) return null;
-
-  // Filter teams based on user role
-  let availableTeams = TEAMS;
-  if (user.hierarchyLevelId === 'level-3') {
-    // Managers only see their own teams
-    availableTeams = TEAMS.filter(t => t.managerId === user.id);
-  } else if (user.hierarchyLevelId === 'level-4') {
-    // Team leads only see their own team
-    availableTeams = TEAMS.filter(t => user.teamIds?.includes(t.id));
-  }
-
-  const selectedTeamData = availableTeams.find(t => t.id === selectedTeam);
-  const teamSummary = getTeamHealthSummary(selectedTeam);
-
-  const getScoreColor = (score: number) => {
-    if (score >= 2.5) return '#22c55e';
-    if (score >= 1.5) return '#eab308';
-    return '#ef4444';
-  };
-
-  const radarData = teamSummary?.dimensions.map(d => ({
-    dimension: d.name.length > 15 ? d.name.substring(0, 12) + '...' : d.name,
-    score: d.averageScore,
-    fullScore: 3
-  })) || [];
-
-  const barData = teamSummary?.dimensions.map(d => ({
-    name: d.name,
-    red: d.distribution.red,
-    yellow: d.distribution.yellow,
-    green: d.distribution.green
-  })) || [];
-
-  // Calculate trend data based on assessment periods for selected team
-  const calculateTrendData = () => {
-    const sessions = getHealthCheckSessions().filter(s => s.teamId === selectedTeam && s.completed && s.assessmentPeriod);
-
-    // Group sessions by assessment period
-    const periodMap = new Map<string, { scores: number[], count: number }>();
-
-    sessions.forEach(session => {
-      const period = session.assessmentPeriod!;
-      if (!periodMap.has(period)) {
-        periodMap.set(period, { scores: [], count: 0 });
-      }
-
-      const periodData = periodMap.get(period)!;
-      // Calculate average score for this session
-      const sessionScores = session.responses.map(r => r.score);
-      const sessionAvg = sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length;
-      periodData.scores.push(sessionAvg);
-      periodData.count++;
-    });
-
-    // Calculate average for each period and format for chart
-    const trendPoints = Array.from(periodMap.entries()).map(([period, data]) => {
-      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
-      return {
-        period,
-        overall: Number(avgScore.toFixed(2))
-      };
-    });
-
-    // Sort by period (year and half)
-    trendPoints.sort((a, b) => {
-      const [yearA, halfA] = a.period.split(' - ');
-      const [yearB, halfB] = b.period.split(' - ');
-
-      if (yearA !== yearB) {
-        return parseInt(yearA) - parseInt(yearB);
-      }
-      // If same year, sort by half (1st before 2nd)
-      return halfA.localeCompare(halfB);
-    });
-
-    return trendPoints;
-  };
-
-  // Calculate overall trend data across all teams (filtered by manager's teams)
-  const calculateOverallTrendData = () => {
-    const teamIds = availableTeams.map(t => t.id);
-    const allSessions = getHealthCheckSessions().filter(s =>
-      s.completed && s.assessmentPeriod && teamIds.includes(s.teamId)
-    );
-
-    // Group sessions by assessment period across all teams
-    const periodMap = new Map<string, { scores: number[], count: number }>();
-
-    allSessions.forEach(session => {
-      const period = session.assessmentPeriod!;
-      if (!periodMap.has(period)) {
-        periodMap.set(period, { scores: [], count: 0 });
-      }
-
-      const periodData = periodMap.get(period)!;
-      // Calculate average score for this session
-      const sessionScores = session.responses.map(r => r.score);
-      const sessionAvg = sessionScores.reduce((a, b) => a + b, 0) / sessionScores.length;
-      periodData.scores.push(sessionAvg);
-      periodData.count++;
-    });
-
-    // Calculate average for each period and format for chart
-    const trendPoints = Array.from(periodMap.entries()).map(([period, data]) => {
-      const avgScore = data.scores.reduce((a, b) => a + b, 0) / data.scores.length;
-      return {
-        period,
-        overall: Number(avgScore.toFixed(2))
-      };
-    });
-
-    // Sort by period (year and half)
-    trendPoints.sort((a, b) => {
-      const [yearA, halfA] = a.period.split(' - ');
-      const [yearB, halfB] = b.period.split(' - ');
-
-      if (yearA !== yearB) {
-        return parseInt(yearA) - parseInt(yearB);
-      }
-      // If same year, sort by half (1st before 2nd)
-      return halfA.localeCompare(halfB);
-    });
-
-    return trendPoints;
-  };
-
-  const trendData = calculateTrendData();
-  const overallTrendData = calculateOverallTrendData();
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">
-                {user.hierarchyLevelId === 'level-4' ? 'Team Lead Dashboard' : 'Manager Dashboard'}
-              </h1>
-              <p className="text-gray-500">Team Health Check Overview</p>
+              <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+              <p className="text-gray-500">Team Health Overview</p>
             </div>
+
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="text-sm text-gray-500">Logged in as</p>
-                <p className="font-semibold text-gray-900">{user.name}</p>
+                <p className="text-sm font-semibold text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">Manager</p>
               </div>
-              {user.hierarchyLevelId === 'level-4' && (
-                <button
-                  onClick={() => router.push('/survey')}
-                  className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 transition-colors"
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  Take Survey
-                </button>
-              )}
+
               <button
                 onClick={handleLogout}
                 className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
@@ -214,438 +128,196 @@ export default function ManagerPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        <div className="mb-6">
-          <div className="flex gap-4 items-center flex-wrap">
+        {/* Assessment Period Filter */}
+        <div className="mb-6 flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900">Team Health Overview</h2>
+          <div className="flex items-center gap-2">
+            <label htmlFor="period-filter" className="text-sm text-gray-600">
+              Assessment Period:
+            </label>
             <select
-              value={selectedTeam}
-              onChange={(e) => setSelectedTeam(e.target.value)}
+              id="period-filter"
+              data-testid="period-filter"
+              value={selectedPeriod}
+              onChange={(e) => handlePeriodChange(e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
-              {availableTeams.map(team => (
-                <option key={team.id} value={team.id}>{team.name}</option>
-              ))}
+              <option value="">All Periods</option>
+              <option value="2024 - 2nd Half">2024 - 2nd Half</option>
+              <option value="2024 - 1st Half">2024 - 1st Half</option>
+              <option value="2023 - 2nd Half">2023 - 2nd Half</option>
             </select>
-
-            <div className="flex gap-2">
-              <button
-                onClick={() => setViewType('overview')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewType === 'overview'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Overview
-              </button>
-              <button
-                onClick={() => setViewType('details')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewType === 'details'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Details
-              </button>
-              <button
-                onClick={() => setViewType('individual')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewType === 'individual'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Individual Responses
-              </button>
-              <button
-                onClick={() => setViewType('trends')}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  viewType === 'trends'
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Trends
-              </button>
-            </div>
           </div>
         </div>
 
-        {selectedTeamData && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <div className="flex items-center justify-between mb-2">
-                <Users className="w-8 h-8 text-indigo-600" />
-                <span className="text-2xl font-bold text-gray-900">{selectedTeamData.members.length}</span>
-              </div>
-              <p className="text-gray-600">Team Members</p>
-            </div>
+        {/* Loading State */}
+        {loading && (
+          <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading team health data...</p>
+          </div>
+        )}
 
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <div className="flex items-center justify-between mb-2">
-                <Calendar className="w-8 h-8 text-green-600" />
-                <span className="text-2xl font-bold text-gray-900 capitalize">{selectedTeamData.cadence}</span>
-              </div>
-              <p className="text-gray-600">Check Cadence</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <div className="flex items-center justify-between mb-2">
-                <Clock className="w-8 h-8 text-yellow-600" />
-                <span className="text-2xl font-bold text-gray-900">
-                  {new Date(selectedTeamData.nextCheckDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                </span>
-              </div>
-              <p className="text-gray-600">Next Check</p>
-            </div>
-
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <div className="flex items-center justify-between mb-2">
-                <Activity className="w-8 h-8 text-purple-600" />
-                <span className="text-2xl font-bold text-gray-900">
-                  {teamSummary ? Math.round((teamSummary.dimensions.reduce((acc, d) => acc + d.averageScore, 0) / teamSummary.dimensions.length) * 33.33) : 0}%
-                </span>
-              </div>
-              <p className="text-gray-600">Health Score</p>
+        {/* Error State */}
+        {error && !loading && (
+          <div className="bg-red-50 border border-red-300 rounded-xl p-6 flex items-center gap-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+            <div>
+              <h3 className="font-semibold text-red-900">Error Loading Dashboard</h3>
+              <p className="text-red-700">{error}</p>
             </div>
           </div>
         )}
 
-        {viewType === 'overview' && (
-          <>
-            {teamSummary ? (
-              <>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-                  <div className="bg-white p-6 rounded-xl shadow-sm border">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Radar</h3>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <RadarChart data={radarData}>
-                        <PolarGrid strokeDasharray="3 3" />
-                        <PolarAngleAxis dataKey="dimension" />
-                        <PolarRadiusAxis angle={90} domain={[0, 3]} ticks={[1, 2, 3]} />
-                        <Radar
-                          name="Score"
-                          dataKey="score"
-                          stroke="#6366f1"
-                          fill="#6366f1"
-                          fillOpacity={0.6}
-                        />
-                        <Tooltip />
-                      </RadarChart>
-                    </ResponsiveContainer>
-                  </div>
-
-                  <div className="bg-white p-6 rounded-xl shadow-sm border">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Response Distribution</h3>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={barData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
-                        <YAxis />
-                        <Tooltip />
-                        <Legend />
-                        <Bar dataKey="red" stackId="a" fill="#ef4444" />
-                        <Bar dataKey="yellow" stackId="a" fill="#eab308" />
-                        <Bar dataKey="green" stackId="a" fill="#22c55e" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
-
-                {/* Overall Trend Chart - Visible to All Management Levels */}
-                <div className="bg-white p-6 rounded-xl shadow-sm border">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                    Overall Health Trend Across All Teams by Assessment Period
-                  </h3>
-                  <ResponsiveContainer width="100%" height={400}>
-                    <LineChart data={overallTrendData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis
-                        dataKey="period"
-                        angle={-45}
-                        textAnchor="end"
-                        height={80}
-                      />
-                      <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
-                      <Tooltip />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="overall"
-                        stroke="#6366f1"
-                        strokeWidth={3}
-                        dot={{ fill: '#6366f1', r: 6 }}
-                        name="Overall Health Score"
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
-              </>
-            ) : (
-              <div className="bg-white p-12 rounded-xl shadow-sm border text-center">
-                <Activity className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-900 mb-2">No Health Check Data Available</h3>
-                <p className="text-gray-600">
-                  This team hasn't completed any health check surveys yet. Check back after the team completes their first assessment.
-                </p>
-              </div>
-            )}
-          </>
-        )}
-
-        {viewType === 'details' && teamSummary && (
-          <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Dimension Details</h3>
-              <div className="space-y-4">
-                {teamSummary.dimensions.map(dimension => (
-                  <div key={dimension.dimensionId} className="border rounded-lg p-4">
-                    <div className="flex justify-between items-start mb-3">
-                      <div>
-                        <h4 className="font-semibold text-gray-900">{dimension.name}</h4>
-                        <p className="text-sm text-gray-500 mt-1">
-                          {HEALTH_DIMENSIONS.find(d => d.id === dimension.dimensionId)?.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold"
-                          style={{ backgroundColor: getScoreColor(dimension.averageScore) }}
-                        >
-                          {dimension.averageScore.toFixed(1)}
-                        </div>
-                        {dimension.trend === 'improving' && <TrendingUp className="w-5 h-5 text-green-500" />}
-                        {dimension.trend === 'declining' && <TrendingUp className="w-5 h-5 text-red-500 rotate-180" />}
-                      </div>
-                    </div>
-                    <div className="flex gap-4 text-sm">
-                      <span className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-red-500 rounded-full" />
-                        Red: {dimension.distribution.red}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                        Yellow: {dimension.distribution.yellow}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <div className="w-3 h-3 bg-green-500 rounded-full" />
-                        Green: {dimension.distribution.green}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* Empty State */}
+        {!loading && !error && dashboardData && dashboardData.teams.length === 0 && (
+          <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
+            <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No teams found</h3>
+            <p className="text-gray-600">
+              {selectedPeriod
+                ? `No teams have submitted health checks for ${selectedPeriod}`
+                : 'You are not currently supervising any teams'}
+            </p>
           </div>
         )}
 
-        {viewType === 'individual' && (() => {
-          const allUsers = getAllUsers();
-          const teamSessions = getHealthCheckSessions().filter(s => s.teamId === selectedTeam && s.completed);
-          const latestDate = teamSessions.length > 0 ? Math.max(...teamSessions.map(s => new Date(s.date).getTime())) : 0;
-          const latestSessions = teamSessions.filter(s => new Date(s.date).getTime() === latestDate);
+        {/* Team Health Cards */}
+        {!loading && !error && dashboardData && dashboardData.teams.length > 0 && (
+          <div className="space-y-4">
+            {dashboardData.teams.map((team) => (
+              <div
+                key={team.teamId}
+                data-testid="team-health-card"
+                className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow"
+              >
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex-1">
+                    <h3
+                      data-testid="team-name"
+                      className="text-xl font-semibold text-gray-900 mb-2"
+                    >
+                      {team.teamName}
+                    </h3>
+                    <div className="flex items-center gap-4 text-sm text-gray-600">
+                      <span data-testid="submission-count">
+                        <strong>{team.submissionCount}</strong>{' '}
+                        {team.submissionCount === 1 ? 'submission' : 'submissions'}
+                      </span>
+                    </div>
+                  </div>
 
-          const toggleDimension = (dimId: string) => {
-            const newExpanded = new Set(expandedDimensions);
-            if (newExpanded.has(dimId)) {
-              newExpanded.delete(dimId);
-            } else {
-              newExpanded.add(dimId);
-            }
-            setExpandedDimensions(newExpanded);
-          };
-
-          const getScoreBadge = (score: 1 | 2 | 3) => {
-            const colors = {
-              1: 'bg-red-500',
-              2: 'bg-yellow-500',
-              3: 'bg-green-500'
-            };
-            const labels = {
-              1: 'Red',
-              2: 'Yellow',
-              3: 'Green'
-            };
-            return (
-              <span className={`inline-flex items-center px-3 py-1 rounded-full text-white text-sm font-medium ${colors[score]}`}>
-                {labels[score]}
-              </span>
-            );
-          };
-
-          const getTrendIcon = (trend: 'improving' | 'stable' | 'declining') => {
-            if (trend === 'improving') return <TrendingUp className="w-4 h-4 text-green-600" />;
-            if (trend === 'declining') return <TrendingUp className="w-4 h-4 text-red-600 rotate-180" />;
-            return <span className="text-blue-600">—</span>;
-          };
-
-          return (
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <div className="p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-semibold text-gray-900">Individual Team Member Responses</h3>
-                  <p className="text-sm text-gray-500">
-                    {latestSessions.length} response{latestSessions.length !== 1 ? 's' : ''}
-                    {latestDate > 0 ? ` from ${new Date(latestDate).toLocaleDateString()}` : ''}
-                  </p>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-600 mb-1">Overall Health</div>
+                    <div
+                      data-testid="team-health-score"
+                      className={`text-3xl font-bold px-4 py-2 rounded-lg border-2 ${getHealthColor(
+                        team.overallHealth
+                      )}`}
+                    >
+                      {formatHealthScore(team.overallHealth)}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1">
+                      {((team.overallHealth / 3) * 100).toFixed(0)}% health
+                    </div>
+                  </div>
                 </div>
 
-                {latestSessions.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <MessageSquare className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>No health check responses yet for this team.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {HEALTH_DIMENSIONS.map(dimension => {
-                      const isExpanded = expandedDimensions.has(dimension.id);
-                      const dimensionResponses = latestSessions.map(session => ({
-                        session,
-                        response: session.responses.find(r => r.dimensionId === dimension.id)
-                      })).filter(item => item.response);
+                {/* Dimension Breakdown */}
+                {team.dimensions.length > 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <button
+                      data-testid="view-details-button"
+                      onClick={() =>
+                        setExpandedTeam(expandedTeam === team.teamId ? null : team.teamId)
+                      }
+                      className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium"
+                    >
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform ${
+                          expandedTeam === team.teamId ? 'rotate-180' : ''
+                        }`}
+                      />
+                      {expandedTeam === team.teamId ? 'Hide' : 'View'} Dimension Details (
+                      {team.dimensions.length})
+                    </button>
 
-                      const distribution = {
-                        red: dimensionResponses.filter(r => r.response?.score === 1).length,
-                        yellow: dimensionResponses.filter(r => r.response?.score === 2).length,
-                        green: dimensionResponses.filter(r => r.response?.score === 3).length
-                      };
-
-                      return (
-                        <div key={dimension.id} className="border rounded-lg overflow-hidden">
+                    {expandedTeam === team.teamId && (
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {team.dimensions.map((dimension) => (
                           <div
-                            className="flex justify-between items-center p-4 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
-                            onClick={() => toggleDimension(dimension.id)}
+                            key={dimension.dimensionId}
+                            className="bg-gray-50 rounded-lg p-3 border"
                           >
-                            <div className="flex items-center gap-3">
-                              <button className="p-1">
-                                {isExpanded ? <ChevronDown className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
-                              </button>
-                              <div>
-                                <h4 className="font-semibold text-gray-900">{dimension.name}</h4>
-                                <p className="text-sm text-gray-500">{dimension.description}</p>
-                              </div>
+                            <div className="flex justify-between items-center mb-1">
+                              <h4 className="font-medium text-gray-900 capitalize text-sm">
+                                {dimension.dimensionId === 'value'
+                                  ? 'Delivering Value'
+                                  : dimension.dimensionId}
+                              </h4>
+                              <span
+                                className={`text-lg font-bold px-2 py-1 rounded ${getHealthColor(
+                                  dimension.avgScore
+                                )}`}
+                              >
+                                {formatHealthScore(dimension.avgScore)}
+                              </span>
                             </div>
-                            <div className="flex gap-3 text-sm">
-                              <span className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-red-500 rounded-full" />
-                                {distribution.red}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-yellow-500 rounded-full" />
-                                {distribution.yellow}
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <div className="w-3 h-3 bg-green-500 rounded-full" />
-                                {distribution.green}
-                              </span>
+                            <div className="text-xs text-gray-500">
+                              {dimension.responseCount}{' '}
+                              {dimension.responseCount === 1 ? 'response' : 'responses'}
                             </div>
                           </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
-                          {isExpanded && (
-                            <div className="p-4 space-y-3 bg-white">
-                              {dimensionResponses.map(({ session, response }) => {
-                                const teamMember = allUsers.find(u => u.id === session.userId);
-                                if (!response) return null;
-
-                                return (
-                                  <div key={session.id} className="border-l-4 border-gray-200 pl-4 py-2">
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600 font-semibold text-sm">
-                                          {teamMember?.name.charAt(0) || '?'}
-                                        </div>
-                                        <div>
-                                          <p className="font-medium text-gray-900">{teamMember?.name || 'Unknown User'}</p>
-                                          <p className="text-sm text-gray-500">{new Date(session.date).toLocaleDateString()}</p>
-                                        </div>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        {getScoreBadge(response.score)}
-                                        {getTrendIcon(response.trend)}
-                                      </div>
-                                    </div>
-                                    {response.comment && (
-                                      <div className="mt-2 p-3 bg-gray-50 rounded-lg">
-                                        <div className="flex items-start gap-2">
-                                          <MessageSquare className="w-4 h-4 text-gray-400 mt-1 flex-shrink-0" />
-                                          <p className="text-sm text-gray-700 italic">&quot;{response.comment}&quot;</p>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                {/* No Dimensions State */}
+                {team.dimensions.length === 0 && (
+                  <div className="mt-4 pt-4 border-t">
+                    <p className="text-sm text-gray-500 italic">No dimension data available</p>
                   </div>
                 )}
               </div>
-            </div>
-          );
-        })()}
+            ))}
+          </div>
+        )}
 
-        {viewType === 'trends' && (
-          <div className="space-y-8">
-            {/* Overall Trend Across All Teams */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                Overall Health Trend Across All Teams by Assessment Period
-              </h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={overallTrendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="period"
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="overall"
-                    stroke="#6366f1"
-                    strokeWidth={3}
-                    dot={{ fill: '#6366f1', r: 6 }}
-                    name="Overall Health Score"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
+        {/* Summary Stats */}
+        {!loading && !error && dashboardData && dashboardData.teams.length > 0 && (
+          <div className="mt-8 bg-indigo-50 border border-indigo-200 rounded-xl p-6">
+            <h3 className="font-semibold text-indigo-900 mb-3">Summary</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="text-indigo-700 font-medium">Total Teams:</span>{' '}
+                <span className="text-indigo-900 font-bold">{dashboardData.totalTeams}</span>
+              </div>
+              <div>
+                <span className="text-indigo-700 font-medium">Total Submissions:</span>{' '}
+                <span className="text-indigo-900 font-bold">
+                  {dashboardData.teams.reduce((sum, t) => sum + t.submissionCount, 0)}
+                </span>
+              </div>
+              <div>
+                <span className="text-indigo-700 font-medium">Average Health:</span>{' '}
+                <span className="text-indigo-900 font-bold">
+                  {dashboardData.teams.length > 0
+                    ? formatHealthScore(
+                        dashboardData.teams.reduce((sum, t) => sum + t.overallHealth, 0) /
+                          dashboardData.teams.length
+                      )
+                    : 'N/A'}
+                </span>
+              </div>
             </div>
-
-            {/* Selected Team Trend */}
-            <div className="bg-white p-6 rounded-xl shadow-sm border">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {selectedTeamData?.name} - Health Trend by Assessment Period
-              </h3>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={trendData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis
-                    dataKey="period"
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                  />
-                  <YAxis domain={[0, 3]} ticks={[0, 1, 2, 3]} />
-                  <Tooltip />
-                  <Legend />
-                  <Line
-                    type="monotone"
-                    dataKey="overall"
-                    stroke="#10b981"
-                    strokeWidth={2}
-                    dot={{ fill: '#10b981', r: 6 }}
-                    name="Team Health Score"
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
+            {dashboardData.assessmentPeriod && (
+              <div className="mt-3 pt-3 border-t border-indigo-200">
+                <span className="text-indigo-700 font-medium">Filtered by:</span>{' '}
+                <span className="text-indigo-900 font-bold">{dashboardData.assessmentPeriod}</span>
+              </div>
+            )}
           </div>
         )}
       </div>

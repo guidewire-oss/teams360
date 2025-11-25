@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -34,9 +35,32 @@ func main() {
 	}
 	defer db.Close()
 
-	// Verify database connection
+	// Verify database connection - if database doesn't exist, create it
 	if err := db.Ping(); err != nil {
-		log.Fatalf("Failed to ping database: %v", err)
+		// Try to create the database if it doesn't exist
+		log.Println("Database doesn't exist, attempting to create it...")
+		adminDB, err := sql.Open("postgres", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
+		if err != nil {
+			log.Fatalf("Failed to connect to postgres database: %v", err)
+		}
+		_, err = adminDB.Exec("CREATE DATABASE teams360")
+		adminDB.Close()
+
+		if err != nil {
+			log.Fatalf("Failed to create database: %v", err)
+		}
+
+		log.Println("Database created successfully")
+
+		// Reconnect to the new database
+		db, err = sql.Open("postgres", databaseURL)
+		if err != nil {
+			log.Fatalf("Failed to connect to newly created database: %v", err)
+		}
+
+		if err := db.Ping(); err != nil {
+			log.Fatalf("Failed to ping newly created database: %v", err)
+		}
 	}
 	log.Println("Successfully connected to database")
 
@@ -67,23 +91,18 @@ func main() {
 	router := gin.Default()
 
 	// Add CORS middleware
-	router.Use(func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "*")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE")
+	router.Use(middleware.CORSMiddleware())
 
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
+	// Health check endpoint (used by tests and load balancers)
+	router.GET("/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
 	// Setup API routes
-	v1.SetupRoutes(router)
+	v1.SetupAuthRoutes(router, db)
 	v1.SetupHealthCheckRoutesWithDB(router, db, repository)
+	v1.SetupManagerRoutes(router, db)
+	v1.SetupTeamRoutes(router, repository)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

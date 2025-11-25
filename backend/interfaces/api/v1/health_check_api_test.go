@@ -1,4 +1,4 @@
-package acceptance_test
+package v1_test
 
 import (
 	"bytes"
