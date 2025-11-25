@@ -528,6 +528,307 @@ npm install
 npm install --force @next/swc-darwin-arm64  # If still having issues
 ```
 
+## Testing Strategy & End-to-End Testing
+
+### Testing Philosophy: TRUE Outer-Loop TDD
+
+Team360 follows **TRUE Outer-Loop Test-Driven Development** principles:
+
+1. **Write E2E tests FIRST** that interact through the UI like a real user would
+2. **Let tests drive implementation** - tests should fail until feature is complete
+3. **Test the full application stack** - no mocking of servers, routes, or HTTP layers
+
+**Why This Matters**: A bug where routes weren't registered in `main.go` taught us that integration tests using `httptest` bypass critical configuration. Only TRUE E2E tests that start the real server can catch these issues.
+
+### Test Organization
+
+Team360 uses a three-tier testing pyramid:
+
+```
+/tests/acceptance/              # E2E/Acceptance Tests (Playwright, full stack)
+├── suite_test.go              # Test suite setup - starts servers & Playwright
+├── e2e_authentication_test.go # Login flow E2E test
+├── e2e_survey_submission_test.go # Survey submission E2E test
+└── e2e_manager_dashboard_test.go # Manager dashboard E2E test
+
+/backend/tests/integration/     # Integration Tests (API handlers with httptest)
+├── auth_test.go               # Authentication API integration tests
+└── manager_dashboard_test.go  # Manager API integration tests
+
+/backend/{domain}/              # Unit Tests (in module directories)
+├── interfaces/api/v1/health_check_api_test.go    # API handler unit tests
+└── infrastructure/persistence/postgres/
+    ├── health_check_repository_test.go           # Repository unit tests
+    └── database_migration_test.go                # Migration unit tests
+```
+
+**Key Principle**: Tests in `/tests/acceptance/` MUST be TRUE E2E tests that use Playwright. Tests that use `httptest` belong in module directories.
+
+### TRUE E2E Testing Principles
+
+**What Makes a Test "TRUE E2E"?**
+
+✅ **CORRECT E2E Test**:
+- Starts FULL application stack (backend Go server + frontend Next.js server + database)
+- Uses Playwright to drive a REAL browser (Chromium/Firefox/WebKit)
+- Interacts through UI elements like a real user (clicks, fills forms, navigates)
+- Verifies complete workflows end-to-end
+- Checks database to confirm data persistence
+
+❌ **NOT E2E** (These are integration/unit tests):
+- Uses `httptest.NewRequest()` to call handlers directly
+- Creates a test Gin router and registers routes programmatically
+- Bypasses actual server startup and route registration in `main.go`
+- Mocks HTTP requests or server responses
+
+### Example: TRUE E2E Test
+
+From `/tests/acceptance/e2e_manager_dashboard_test.go`:
+
+```go
+var _ = Describe("E2E: Manager Dashboard", func() {
+    var page playwright.Page
+
+    BeforeEach(func() {
+        var err error
+        page, err = browser.NewPage()
+        Expect(err).NotTo(HaveOccurred())
+    })
+
+    AfterEach(func() {
+        page.Close()
+    })
+
+    Context("when manager views their team's health", func() {
+        It("should return aggregated health data for assigned teams", func() {
+            // Given: Test data exists in database
+            By("Inserting test manager and team data")
+            _, err := db.Exec(`
+                INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
+                VALUES ('manager1', 'manager1', 'manager1@test.com', 'Test Manager', 'level-3', 'demo')
+            `)
+            Expect(err).NotTo(HaveOccurred())
+
+            // When: Manager logs in via UI
+            By("Manager logging in to the application")
+            _, err = page.Goto(frontendURL + "/login")
+            Expect(err).NotTo(HaveOccurred())
+
+            err = page.Locator("input[name='username']").Fill("manager1")
+            Expect(err).NotTo(HaveOccurred())
+
+            err = page.Locator("input[name='password']").Fill("demo")
+            Expect(err).NotTo(HaveOccurred())
+
+            err = page.Locator("button[type='submit']").Click()
+            Expect(err).NotTo(HaveOccurred())
+
+            // Then: Should be redirected to manager dashboard
+            By("Verifying redirect to manager dashboard")
+            Eventually(func() string {
+                return page.URL()
+            }, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("/manager"))
+
+            // And: Dashboard should show team health data
+            By("Verifying dashboard displays team health")
+            Eventually(func() bool {
+                teamCard := page.Locator("[data-testid='team-card']").First()
+                visible, _ := teamCard.IsVisible()
+                return visible
+            }, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+        })
+    })
+})
+```
+
+**Key Observations**:
+1. Starts with real login page at `frontendURL + "/login"`
+2. Fills form inputs like a user: `page.Locator("input[name='username']").Fill(...)`
+3. Clicks submit button: `page.Locator("button[type='submit']").Click()`
+4. Waits for navigation: `Eventually(func() string { return page.URL() }...)`
+5. Verifies UI elements render: `page.Locator("[data-testid='team-card']").IsVisible()`
+
+### Test Suite Setup: Starting the Full Stack
+
+The `/tests/acceptance/suite_test.go` file orchestrates the E2E test environment:
+
+**What It Does**:
+1. **Creates test database** and runs migrations
+2. **Starts backend Go server** on localhost:8080
+3. **Starts frontend Next.js server** on localhost:3000
+4. **Initializes Playwright** and launches browser
+5. **Waits for both servers** to be ready before running tests
+6. **Cleans up** - stops servers and closes browser after all tests
+
+**Key Code** (simplified):
+
+```go
+var _ = SynchronizedBeforeSuite(
+    // Phase 1: Runs ONCE on process #1 - setup database and servers
+    func() []byte {
+        By("Setting up test database and running migrations")
+        // ... database setup code ...
+
+        By("Starting backend API server")
+        backendCmd = exec.Command("go", "run", "cmd/api/main.go")
+        backendCmd.Start()
+
+        // Wait for backend to be ready
+        Eventually(func() error {
+            resp, _ := exec.Command("curl", backendURL+"/health").Output()
+            if string(resp) != "200" { return fmt.Errorf("not ready") }
+            return nil
+        }, 30*time.Second).Should(Succeed())
+
+        By("Starting frontend Next.js server")
+        frontendCmd = exec.Command("npm", "run", "dev")
+        frontendCmd.Start()
+
+        // Wait for frontend to be ready
+        Eventually(func() error {
+            resp, _ := exec.Command("curl", frontendURL).Output()
+            if string(resp) != "200" { return fmt.Errorf("not ready") }
+            return nil
+        }, 60*time.Second).Should(Succeed())
+
+        return []byte(databaseURL)
+    },
+
+    // Phase 2: Runs on ALL processes - setup Playwright
+    func(databaseURL []byte) {
+        By("Initializing Playwright browser for this process")
+        pw, _ = playwright.Run()
+        browser, _ = pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
+            Headless: playwright.Bool(true),
+        })
+    },
+)
+```
+
+**This is CRITICAL**: The test suite starts the REAL servers, not test doubles. This is what makes these TRUE E2E tests.
+
+### Running E2E Tests
+
+**Run all E2E tests**:
+```bash
+cd /Users/agopalakrishnan/workspace/oss/teams360
+export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
+ginkgo -v tests/acceptance/
+```
+
+**Run specific E2E test suite**:
+```bash
+# Run only authentication tests
+ginkgo -v -focus="E2E: Authentication" tests/acceptance/
+
+# Run only manager dashboard tests
+ginkgo -v -focus="E2E: Manager Dashboard" tests/acceptance/
+
+# Run only survey submission tests
+ginkgo -v -focus="E2E: Survey Submission" tests/acceptance/
+```
+
+**What to expect**:
+- Tests take 30-60 seconds to start (servers must boot)
+- You'll see backend and frontend logs in test output
+- Playwright runs in headless mode (no browser window)
+- Tests will fail if servers don't start or database isn't accessible
+
+### Why TRUE E2E Tests Caught the Bug
+
+**The Bug**: Manager dashboard routes existed in code but weren't registered in `main.go`:
+
+```go
+// backend/cmd/api/main.go was MISSING this line:
+v1.SetupManagerRoutes(router, db)  // Without this, routes return 404
+```
+
+**Why Integration Tests Missed It**:
+Integration tests using `httptest` created their own test router and registered routes programmatically:
+
+```go
+// Integration test (DOESN'T test main.go):
+router := gin.New()
+v1.SetupManagerRoutes(router, db)  // Test registers routes itself!
+req := httptest.NewRequest("GET", "/api/v1/managers/mgr1/teams/health", nil)
+router.ServeHTTP(w, req)  // Bypasses main.go entirely
+```
+
+**Why E2E Tests Caught It**:
+E2E tests start the real server by running `go run cmd/api/main.go`:
+
+```go
+// E2E test (TESTS real main.go):
+backendCmd = exec.Command("go", "run", "cmd/api/main.go")  // Runs actual main.go!
+backendCmd.Start()
+
+// User logs in via browser and navigates to /manager
+page.Goto(frontendURL + "/login")
+page.Fill("input[name='username']", "manager1")
+page.Click("button[type='submit']")
+
+// Frontend makes real HTTP request to backend
+fetch('/api/v1/managers/manager1/teams/health')  // Returns 404 if routes not registered!
+```
+
+**Lesson**: Only tests that start the real server can catch configuration issues in `main.go`.
+
+### Adding E2E Tests for New Features
+
+When implementing new features with Outer-Loop TDD:
+
+1. **Start with E2E test** in `/tests/acceptance/`
+2. **Describe user workflow** (Given-When-Then)
+3. **Use Playwright** to interact through browser
+4. **Run test** - it should FAIL (Red)
+5. **Implement feature** until test passes (Green)
+6. **Refactor** with confidence
+
+**Template**:
+
+```go
+var _ = Describe("E2E: [Feature Name]", func() {
+    var page playwright.Page
+
+    BeforeEach(func() {
+        var err error
+        page, err = browser.NewPage()
+        Expect(err).NotTo(HaveOccurred())
+    })
+
+    AfterEach(func() {
+        page.Close()
+    })
+
+    Context("when user [performs action]", func() {
+        It("should [expected outcome]", func() {
+            // Given: Setup test data
+            By("Setting up test data")
+            // ... insert test data into database ...
+
+            // When: User performs action through UI
+            By("User [action description]")
+            _, err := page.Goto(frontendURL + "/path")
+            Expect(err).NotTo(HaveOccurred())
+            // ... interact with UI using Playwright ...
+
+            // Then: Verify expected outcome
+            By("Verifying [expected result]")
+            // ... assert UI state and/or database state ...
+        })
+    })
+})
+```
+
+### Best Practices
+
+1. **Use semantic selectors**: `page.Locator("[data-testid='team-card']")` is better than CSS classes
+2. **Add data-testid attributes**: Makes tests resilient to UI changes
+3. **Use Eventually()**: Wait for async operations: `Eventually(func() bool { ... }).Should(BeTrue())`
+4. **Clean test data**: Use `BeforeEach` to ensure clean state
+5. **Test full workflows**: Don't just test happy path - test error cases via UI too
+6. **Verify database**: Check that data persists correctly after UI actions
+
 ## Authentication & Demo Credentials
 
 Authentication is cookie-based using js-cookie. All demo passwords are "demo" except admin ("admin").
