@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/tests/testhelpers"
 	"github.com/gin-gonic/gin"
@@ -29,7 +30,10 @@ var _ = Describe("Authentication API Integration Tests", func() {
 		// Setup Gin router
 		gin.SetMode(gin.TestMode)
 		router = gin.Default()
-		v1.SetupAuthRoutes(router, db)
+
+		// Create user repository and setup auth routes
+		userRepo := postgres.NewUserRepository(db)
+		v1.SetupAuthRoutes(router, userRepo)
 	})
 
 	AfterEach(func() {

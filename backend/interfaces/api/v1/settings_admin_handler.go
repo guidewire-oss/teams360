@@ -1,33 +1,26 @@
 package v1
 
 import (
-	"database/sql"
 	"net/http"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 // SettingsAdminHandler handles settings-related admin HTTP requests
 type SettingsAdminHandler struct {
-	db *sql.DB
+	orgRepo organization.Repository
 }
 
 // NewSettingsAdminHandler creates a new SettingsAdminHandler
-func NewSettingsAdminHandler(db *sql.DB) *SettingsAdminHandler {
-	return &SettingsAdminHandler{db: db}
+func NewSettingsAdminHandler(orgRepo organization.Repository) *SettingsAdminHandler {
+	return &SettingsAdminHandler{orgRepo: orgRepo}
 }
 
 // GetDimensions handles GET /api/v1/admin/settings/dimensions
 func (h *SettingsAdminHandler) GetDimensions(c *gin.Context) {
-	query := `
-		SELECT id, name, description, good_description, bad_description,
-		       is_active, weight, created_at, updated_at
-		FROM health_dimensions
-		ORDER BY name ASC
-	`
-
-	rows, err := h.db.Query(query)
+	dimensions, err := h.orgRepo.FindDimensions(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to query dimensions",
@@ -35,33 +28,24 @@ func (h *SettingsAdminHandler) GetDimensions(c *gin.Context) {
 		})
 		return
 	}
-	defer rows.Close()
 
-	dimensions := []dto.HealthDimensionDTO{}
-	for rows.Next() {
-		var dim dto.HealthDimensionDTO
-		err := rows.Scan(
-			&dim.ID,
-			&dim.Name,
-			&dim.Description,
-			&dim.GoodDescription,
-			&dim.BadDescription,
-			&dim.IsActive,
-			&dim.Weight,
-			&dim.CreatedAt,
-			&dim.UpdatedAt,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-				Error:   "Failed to parse dimension",
-				Message: err.Error(),
-			})
-			return
+	// Convert to DTOs
+	dimensionDTOs := make([]dto.HealthDimensionDTO, len(dimensions))
+	for i, dim := range dimensions {
+		dimensionDTOs[i] = dto.HealthDimensionDTO{
+			ID:              dim.ID,
+			Name:            dim.Name,
+			Description:     dim.Description,
+			GoodDescription: dim.GoodDescription,
+			BadDescription:  dim.BadDescription,
+			IsActive:        dim.IsActive,
+			Weight:          dim.Weight,
+			CreatedAt:       dim.CreatedAt,
+			UpdatedAt:       dim.UpdatedAt,
 		}
-		dimensions = append(dimensions, dim)
 	}
 
-	c.JSON(http.StatusOK, dto.DimensionsResponse{Dimensions: dimensions})
+	c.JSON(http.StatusOK, dto.DimensionsResponse{Dimensions: dimensionDTOs})
 }
 
 // UpdateDimension handles PUT /api/v1/admin/settings/dimensions/:id
@@ -80,35 +64,23 @@ func (h *SettingsAdminHandler) UpdateDimension(c *gin.Context) {
 		return
 	}
 
-	query := `
-		UPDATE health_dimensions
-		SET is_active = COALESCE($1, is_active),
-		    weight = COALESCE($2, weight),
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $3
-		RETURNING id, name, description, good_description, bad_description,
-		          is_active, weight, created_at, updated_at
-	`
-
-	var dim dto.HealthDimensionDTO
-	err := h.db.QueryRow(query, req.IsActive, req.Weight, id).Scan(
-		&dim.ID,
-		&dim.Name,
-		&dim.Description,
-		&dim.GoodDescription,
-		&dim.BadDescription,
-		&dim.IsActive,
-		&dim.Weight,
-		&dim.CreatedAt,
-		&dim.UpdatedAt,
-	)
-
-	if err == sql.ErrNoRows {
+	// Find existing dimension
+	dim, err := h.orgRepo.FindDimensionByID(c.Request.Context(), id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Dimension not found"})
 		return
 	}
 
-	if err != nil {
+	// Update fields if provided
+	if req.IsActive != nil {
+		dim.IsActive = *req.IsActive
+	}
+	if req.Weight != nil {
+		dim.Weight = *req.Weight
+	}
+
+	// Update using repository
+	if err := h.orgRepo.UpdateDimension(c.Request.Context(), dim); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to update dimension",
 			Message: err.Error(),
@@ -116,7 +88,20 @@ func (h *SettingsAdminHandler) UpdateDimension(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dim)
+	// Convert to DTO and return
+	responseDTO := dto.HealthDimensionDTO{
+		ID:              dim.ID,
+		Name:            dim.Name,
+		Description:     dim.Description,
+		GoodDescription: dim.GoodDescription,
+		BadDescription:  dim.BadDescription,
+		IsActive:        dim.IsActive,
+		Weight:          dim.Weight,
+		CreatedAt:       dim.CreatedAt,
+		UpdatedAt:       dim.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, responseDTO)
 }
 
 // GetNotificationSettings handles GET /api/v1/admin/settings/notifications

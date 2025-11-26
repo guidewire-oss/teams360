@@ -1,14 +1,15 @@
 package v1
 
 import (
-	"database/sql"
-
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
+	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/gin-gonic/gin"
 )
 
-// SetupAdminRoutes configures admin routes with database dependency injection
-func SetupAdminRoutes(router *gin.Engine, db *sql.DB) {
-	handler := NewAdminHandler(db)
+// SetupAdminRoutes configures admin routes with repository dependency injection
+func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository) {
+	handler := NewAdminHandler(orgRepo, userRepo, teamRepo)
 
 	admin := router.Group("/api/v1/admin")
 	{

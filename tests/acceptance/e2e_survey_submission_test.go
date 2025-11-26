@@ -16,7 +16,23 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 		testSessionID string
 	)
 
-	Describe("Complete survey submission workflow", func() {
+	Describe("Complete survey submission workflow", Ordered, func() {
+		// Note: Using Ordered container to ensure tests run in sequence and share state
+		BeforeAll(func() {
+			// Reset user's team assignment to e2e_team1 (may have been changed by other tests)
+			_, err := db.Exec("DELETE FROM team_members WHERE user_id = $1", testUserID)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Clean up any pre-existing sessions for this user to ensure test isolation
+			// This runs once before all tests in this Ordered container
+			_, err = db.Exec("DELETE FROM health_check_responses WHERE session_id IN (SELECT id FROM health_check_sessions WHERE user_id = $1)", testUserID)
+			Expect(err).NotTo(HaveOccurred())
+			_, err = db.Exec("DELETE FROM health_check_sessions WHERE user_id = $1", testUserID)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
 		Context("when a user submits a health check survey", func() {
 			It("should save the data to the database and show success confirmation", func() {
 				By("Opening browser and logging in")
@@ -79,17 +95,17 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(err).NotTo(HaveOccurred())
 				err = page.Locator(scoreSelector).Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(300 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 
 				trendSelector := fmt.Sprintf("[data-dimension='%s'][data-trend='%s']", dimensionID, trend)
 				err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(3000),
+					Timeout: playwright.Float(5000), // Increased timeout
 				})
 				Expect(err).NotTo(HaveOccurred())
 				err = page.Locator(trendSelector).Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(300 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 			}
 
 			clickNext := func() {

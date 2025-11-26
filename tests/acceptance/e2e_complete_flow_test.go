@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -169,11 +170,16 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 				By("Verifying survey submission success")
 
 				Eventually(func() bool {
-					// Look for success message - the survey shows "Thank You!" on successful submission
+					// After successful submission, the survey redirects to /home
+					url := page.URL()
+					if strings.Contains(url, "/home") {
+						return true
+					}
+					// Also check for Thank You message in case redirect is slow
 					thankYouMsg := page.Locator("text=Thank You!")
 					visible, _ := thankYouMsg.First().IsVisible()
 					return visible
-				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "Success message 'Thank You!' should be visible")
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "Should redirect to /home or show Thank You message")
 
 				// Query database to get the submitted session
 				// Note: e2e_demo is already a member of e2e_team1, so the survey submits to that team

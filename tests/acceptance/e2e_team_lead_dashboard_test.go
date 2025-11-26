@@ -14,6 +14,10 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 	)
 
 	BeforeEach(func() {
+		// Clean up any existing test sessions to ensure fresh data
+		_, _ = db.Exec(`DELETE FROM health_check_responses WHERE session_id IN ('e2e_tl_session1', 'e2e_tl_session2', 'e2e_tl_session3')`)
+		_, _ = db.Exec(`DELETE FROM health_check_sessions WHERE id IN ('e2e_tl_session1', 'e2e_tl_session2', 'e2e_tl_session3')`)
+
 		// Ensure test data exists for team lead dashboard testing
 		// Insert additional responses for better visualization
 		_, _ = db.Exec(`
@@ -292,6 +296,10 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 	Describe("Trends Tab", func() {
 		Context("when Team Lead views trends over time", func() {
 			BeforeEach(func() {
+				// Clean up any existing trend sessions to ensure fresh data
+				_, _ = db.Exec(`DELETE FROM health_check_responses WHERE session_id IN ('e2e_trend_h1', 'e2e_trend_h2')`)
+				_, _ = db.Exec(`DELETE FROM health_check_sessions WHERE id IN ('e2e_trend_h1', 'e2e_trend_h2')`)
+
 				// Insert historical data for trend visualization
 				_, _ = db.Exec(`
 					INSERT INTO health_check_sessions (id, team_id, user_id, date, assessment_period, completed) VALUES

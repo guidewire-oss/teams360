@@ -1,26 +1,26 @@
 package v1
 
 import (
-	"database/sql"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 )
 
 // TeamHandler handles team-related endpoints
 type TeamHandler struct {
-	repository healthcheck.Repository
-	db         *sql.DB
+	healthCheckRepo healthcheck.Repository
+	teamRepo        team.Repository
 }
 
 // NewTeamHandler creates a new team handler
-func NewTeamHandler(repo healthcheck.Repository, db *sql.DB) *TeamHandler {
+func NewTeamHandler(healthCheckRepo healthcheck.Repository, teamRepo team.Repository) *TeamHandler {
 	return &TeamHandler{
-		repository: repo,
-		db:         db,
+		healthCheckRepo: healthCheckRepo,
+		teamRepo:        teamRepo,
 	}
 }
 
@@ -41,31 +41,23 @@ func (h *TeamHandler) GetTeamSessions(c *gin.Context) {
 	var sessions []*healthcheck.HealthCheckSession
 	var err error
 
-	// Fetch sessions based on filter - use repository query instead of in-memory filtering
+	// Fetch sessions based on filter
 	if assessmentPeriod != "" {
-		// Filter by both team ID and assessment period via database query
-		repo, ok := h.repository.(interface {
-			FindByTeamAndPeriod(teamID, period string) ([]*healthcheck.HealthCheckSession, error)
-		})
-		if ok {
-			sessions, err = repo.FindByTeamAndPeriod(teamID, assessmentPeriod)
-		} else {
-			// Fallback to in-memory filtering if repository doesn't support combined query
-			allSessions, err := h.repository.FindByTeamID(teamID)
-			if err != nil {
-				dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team sessions", err.Error())
-				return
-			}
-			sessions = make([]*healthcheck.HealthCheckSession, 0)
-			for _, session := range allSessions {
-				if session.AssessmentPeriod == assessmentPeriod {
-					sessions = append(sessions, session)
-				}
+		// Fetch all sessions and filter in memory
+		allSessions, err := h.healthCheckRepo.FindByTeamID(c.Request.Context(), teamID)
+		if err != nil {
+			dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team sessions", err.Error())
+			return
+		}
+		sessions = make([]*healthcheck.HealthCheckSession, 0)
+		for _, session := range allSessions {
+			if session.AssessmentPeriod == assessmentPeriod {
+				sessions = append(sessions, session)
 			}
 		}
 	} else {
 		// Fetch all sessions for team
-		sessions, err = h.repository.FindByTeamID(teamID)
+		sessions, err = h.healthCheckRepo.FindByTeamID(c.Request.Context(), teamID)
 	}
 
 	if err != nil {
@@ -96,77 +88,41 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 		return
 	}
 
-	// Query team info from database
-	var team struct {
-		ID       string
-		Name     string
-		Cadence  sql.NullString
-		LeadID   sql.NullString
-		LeadName sql.NullString
-	}
-
-	query := `
-		SELECT t.id, t.name, t.cadence, t.team_lead_id, u.full_name as lead_name
-		FROM teams t
-		LEFT JOIN users u ON t.team_lead_id = u.id
-		WHERE t.id = $1
-	`
-	err := h.db.QueryRow(query, teamID).Scan(
-		&team.ID,
-		&team.Name,
-		&team.Cadence,
-		&team.LeadID,
-		&team.LeadName,
-	)
-
-	if err == sql.ErrNoRows {
-		dto.RespondErrorWithDetails(c, http.StatusNotFound, "Team not found", "No team found with the given ID")
-		return
-	}
-
+	// Fetch team from repository
+	tm, err := h.teamRepo.FindByID(c.Request.Context(), teamID)
 	if err != nil {
-		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database error", err.Error())
+		dto.RespondErrorWithDetails(c, http.StatusNotFound, "Team not found", err.Error())
 		return
 	}
 
 	// Get team members
-	membersQuery := `
-		SELECT u.id, u.username, u.full_name
-		FROM team_members tm
-		JOIN users u ON tm.user_id = u.id
-		WHERE tm.team_id = $1
-	`
-	rows, err := h.db.Query(membersQuery, teamID)
+	members, err := h.teamRepo.FindTeamMembers(c.Request.Context(), teamID)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team members", err.Error())
 		return
 	}
-	defer rows.Close()
 
-	members := []dto.TeamMember{}
-	for rows.Next() {
-		var member dto.TeamMember
-		if err := rows.Scan(&member.ID, &member.Username, &member.FullName); err == nil {
-			members = append(members, member)
+	// Convert to DTO
+	memberDTOs := make([]dto.TeamMember, len(members))
+	for i, member := range members {
+		memberDTOs[i] = dto.TeamMember{
+			ID:       member.ID,
+			Username: member.Username,
+			FullName: member.FullName,
 		}
 	}
 
-	cadence := "quarterly"
-	if team.Cadence.Valid {
-		cadence = team.Cadence.String
-	}
-
 	response := dto.TeamInfoResponse{
-		ID:      team.ID,
-		Name:    team.Name,
-		Cadence: cadence,
-		Members: members,
+		ID:      tm.ID,
+		Name:    tm.Name,
+		Cadence: tm.Cadence,
+		Members: memberDTOs,
 	}
 
-	if team.LeadID.Valid {
-		response.TeamLeadID = team.LeadID.String
-		if team.LeadName.Valid {
-			response.TeamLeadName = team.LeadName.String
+	if tm.TeamLeadID != nil {
+		response.TeamLeadID = *tm.TeamLeadID
+		if tm.TeamLeadName != nil {
+			response.TeamLeadName = *tm.TeamLeadName
 		}
 	}
 
@@ -176,67 +132,44 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 // ListTeams handles GET /api/v1/teams
 // Returns a list of all teams
 func (h *TeamHandler) ListTeams(c *gin.Context) {
-	query := `
-		SELECT t.id, t.name, t.cadence, t.team_lead_id, u.full_name as lead_name,
-		       (SELECT COUNT(*) FROM team_members tm WHERE tm.team_id = t.id) as member_count
-		FROM teams t
-		LEFT JOIN users u ON t.team_lead_id = u.id
-		ORDER BY t.name
-	`
-	rows, err := h.db.Query(query)
+	// Use repository to fetch all teams with details
+	teams, err := h.teamRepo.FindAllWithDetails(c.Request.Context())
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch teams", err.Error())
 		return
 	}
-	defer rows.Close()
 
-	teams := []dto.TeamSummary{}
-	for rows.Next() {
-		var team struct {
-			ID          string
-			Name        string
-			Cadence     sql.NullString
-			LeadID      sql.NullString
-			LeadName    sql.NullString
-			MemberCount int
-		}
-		if err := rows.Scan(&team.ID, &team.Name, &team.Cadence, &team.LeadID, &team.LeadName, &team.MemberCount); err != nil {
-			continue
+	// Convert to DTOs
+	teamSummaries := make([]dto.TeamSummary, len(teams))
+	for i, tm := range teams {
+		summary := dto.TeamSummary{
+			ID:          tm.ID,
+			Name:        tm.Name,
+			Cadence:     tm.Cadence,
+			MemberCount: tm.MemberCount,
 		}
 
-		cadence := "quarterly"
-		if team.Cadence.Valid {
-			cadence = team.Cadence.String
-		}
-
-		teamSummary := dto.TeamSummary{
-			ID:          team.ID,
-			Name:        team.Name,
-			Cadence:     cadence,
-			MemberCount: team.MemberCount,
-		}
-
-		if team.LeadID.Valid {
-			teamSummary.TeamLeadID = team.LeadID.String
-			if team.LeadName.Valid {
-				teamSummary.TeamLeadName = team.LeadName.String
+		if tm.TeamLeadID != nil {
+			summary.TeamLeadID = *tm.TeamLeadID
+			if tm.TeamLeadName != nil {
+				summary.TeamLeadName = *tm.TeamLeadName
 			}
 		}
 
-		teams = append(teams, teamSummary)
+		teamSummaries[i] = summary
 	}
 
 	response := dto.TeamListResponse{
-		Teams: teams,
-		Total: len(teams),
+		Teams: teamSummaries,
+		Total: len(teamSummaries),
 	}
 
 	dto.RespondSuccess(c, http.StatusOK, response)
 }
 
 // SetupTeamRoutes registers team-related routes
-func SetupTeamRoutes(router *gin.Engine, db *sql.DB, repo healthcheck.Repository) {
-	handler := NewTeamHandler(repo, db)
+func SetupTeamRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, teamRepo team.Repository) {
+	handler := NewTeamHandler(healthCheckRepo, teamRepo)
 
 	// Team routes
 	router.GET("/api/v1/teams", handler.ListTeams)

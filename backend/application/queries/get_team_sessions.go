@@ -1,6 +1,8 @@
 package queries
 
 import (
+	"context"
+
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 )
 
@@ -25,7 +27,7 @@ func NewGetTeamSessionsHandler(repository healthcheck.Repository) *GetTeamSessio
 // Handle executes the query
 func (h *GetTeamSessionsHandler) Handle(query GetTeamSessionsQuery) ([]*healthcheck.HealthCheckSession, error) {
 	// Get all sessions for the team
-	sessions, err := h.repository.FindByTeamID(query.TeamID)
+	sessions, err := h.repository.FindByTeamID(context.Background(), query.TeamID)
 	if err != nil {
 		return nil, err
 	}

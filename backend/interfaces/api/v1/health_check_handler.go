@@ -1,7 +1,7 @@
 package v1
 
 import (
-	"database/sql"
+	"context"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -9,22 +9,23 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/application/commands"
 	"github.com/agopalakrishnan/teams360/backend/application/queries"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 )
 
 // HealthCheckHandler handles health check related endpoints
 type HealthCheckHandler struct {
-	submitHandler          *commands.SubmitHealthCheckHandler
-	dimensionsHandler      *queries.GetHealthDimensionsHandler
-	teamSessionsHandler    *queries.GetTeamSessionsHandler
-	repository             healthcheck.Repository
+	submitHandler       *commands.SubmitHealthCheckHandler
+	dimensionsHandler   *queries.GetHealthDimensionsHandler
+	teamSessionsHandler *queries.GetTeamSessionsHandler
+	repository          healthcheck.Repository
 }
 
 // NewHealthCheckHandler creates a new handler
-func NewHealthCheckHandler(db *sql.DB, repository healthcheck.Repository) *HealthCheckHandler {
+func NewHealthCheckHandler(repository healthcheck.Repository, orgRepo organization.Repository) *HealthCheckHandler {
 	return &HealthCheckHandler{
 		submitHandler:       commands.NewSubmitHealthCheckHandler(repository),
-		dimensionsHandler:   queries.NewGetHealthDimensionsHandler(db),
+		dimensionsHandler:   queries.NewGetHealthDimensionsHandler(orgRepo),
 		teamSessionsHandler: queries.NewGetTeamSessionsHandler(repository),
 		repository:          repository,
 	}
@@ -118,7 +119,7 @@ func (h *HealthCheckHandler) GetHealthDimensions(c *gin.Context) {
 func (h *HealthCheckHandler) GetHealthCheckByID(c *gin.Context) {
 	id := c.Param("id")
 
-	session, err := h.repository.FindByID(id)
+	session, err := h.repository.FindByID(context.Background(), id)
 	if err != nil {
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{
 			Error:   "Session not found",

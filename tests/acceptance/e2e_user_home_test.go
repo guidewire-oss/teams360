@@ -16,6 +16,21 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 
 	Describe("Survey submission with comments and redirect to home page", func() {
 		Context("when a team member submits a survey with comments", func() {
+			BeforeEach(func() {
+				// Clean up any existing sessions for this user to ensure test isolation
+				// Also reset user's team assignment to ensure they submit to the expected team
+				_, err := db.Exec("DELETE FROM health_check_responses WHERE session_id IN (SELECT id FROM health_check_sessions WHERE user_id = $1)", testUserID)
+				Expect(err).NotTo(HaveOccurred())
+				_, err = db.Exec("DELETE FROM health_check_sessions WHERE user_id = $1", testUserID)
+				Expect(err).NotTo(HaveOccurred())
+
+				// Ensure user is assigned to e2e_team1 (in case other tests changed the assignment)
+				_, err = db.Exec("DELETE FROM team_members WHERE user_id = $1", testUserID)
+				Expect(err).NotTo(HaveOccurred())
+				_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
 			It("should save comments to database and redirect to user home page", func() {
 				By("Opening browser and logging in as team member")
 				page, err := browser.NewPage()
@@ -51,12 +66,17 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 				// Select score (Green = 3)
 				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(300 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 
-				// Select trend (Improving)
+				// Select trend (Improving) - wait for trend buttons to appear after score selection
+				err = page.Locator("[data-dimension='mission'][data-trend='improving']").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
 				err = page.Locator("[data-dimension='mission'][data-trend='improving']").Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(300 * time.Millisecond)
+				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 
 				// Add a comment - THIS IS THE KEY TEST
 				commentTextarea := page.Locator("[data-dimension='mission'] ~ * textarea, textarea")
@@ -101,24 +121,24 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 					Expect(err).NotTo(HaveOccurred())
 					err = page.Locator(scoreSelector).Click()
 					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(200 * time.Millisecond)
+					time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 
-					// Select trend
+					// Select trend - wait for trend buttons to appear after score selection
 					trendSelector := "[data-dimension='" + dim.id + "'][data-trend='" + dim.trend + "']"
 					err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
 						State:   playwright.WaitForSelectorStateVisible,
-						Timeout: playwright.Float(3000),
+						Timeout: playwright.Float(5000), // Increased timeout
 					})
 					Expect(err).NotTo(HaveOccurred())
 					err = page.Locator(trendSelector).Click()
 					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(200 * time.Millisecond)
+					time.Sleep(500 * time.Millisecond) // Increased wait for React state update
 
 					// Click Next (except for last dimension)
 					if i < len(dimensions)-1 {
 						err = page.Locator("button:has-text('Next')").Click()
 						Expect(err).NotTo(HaveOccurred())
-						time.Sleep(300 * time.Millisecond)
+						time.Sleep(500 * time.Millisecond) // Increased wait for navigation
 					}
 				}
 

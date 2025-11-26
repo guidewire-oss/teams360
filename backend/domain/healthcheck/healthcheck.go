@@ -1,15 +1,6 @@
 package healthcheck
 
-// HealthDimension represents a dimension being assessed
-type HealthDimension struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	Description     string  `json:"description"`
-	GoodDescription string  `json:"goodDescription"`
-	BadDescription  string  `json:"badDescription"`
-	IsActive        bool    `json:"isActive,omitempty"`
-	Weight          float64 `json:"weight,omitempty"`
-}
+import "context"
 
 // HealthCheckResponse represents a single dimension response
 type HealthCheckResponse struct {
@@ -31,12 +22,32 @@ type HealthCheckSession struct {
 	Completed        bool                  `json:"completed"`
 }
 
-// Repository defines the interface for health check persistence
+// TeamHealthSummary represents aggregated health data for a team
+type TeamHealthSummary struct {
+	TeamID          string              `json:"teamId"`
+	TeamName        string              `json:"teamName"`
+	SubmissionCount int                 `json:"submissionCount"`
+	OverallHealth   float64             `json:"overallHealth"`
+	Dimensions      []DimensionSummary  `json:"dimensions"`
+}
+
+// DimensionSummary represents aggregated dimension health
+type DimensionSummary struct {
+	DimensionID   string  `json:"dimensionId"`
+	AvgScore      float64 `json:"avgScore"`
+	ResponseCount int     `json:"responseCount"`
+}
+
+// Repository defines the interface for health check data access
 type Repository interface {
-	FindByID(id string) (*HealthCheckSession, error)
-	FindByTeamID(teamID string) ([]*HealthCheckSession, error)
-	FindByUserID(userID string) ([]*HealthCheckSession, error)
-	FindByAssessmentPeriod(period string) ([]*HealthCheckSession, error)
-	Save(session *HealthCheckSession) error
-	Delete(id string) error
+	FindByID(ctx context.Context, id string) (*HealthCheckSession, error)
+	FindByTeamID(ctx context.Context, teamID string) ([]*HealthCheckSession, error)
+	FindByUserID(ctx context.Context, userID string) ([]*HealthCheckSession, error)
+	FindByAssessmentPeriod(ctx context.Context, period string) ([]*HealthCheckSession, error)
+	Save(ctx context.Context, session *HealthCheckSession) error
+	Delete(ctx context.Context, id string) error
+
+	// Advanced queries for manager dashboard
+	FindTeamHealthByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]TeamHealthSummary, error)
+	FindAggregatedDimensionsByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]DimensionSummary, error)
 }

@@ -1,12 +1,19 @@
 package organization
 
+import (
+	"context"
+	"time"
+)
+
 // HierarchyLevel defines a level in the organizational hierarchy
 type HierarchyLevel struct {
 	ID          string      `json:"id"`
 	Name        string      `json:"name"`
-	Level       int         `json:"level"`
-	Color       string      `json:"color"`
+	Position    int         `json:"position"` // Renamed from Level to Position for clarity
+	Color       string      `json:"color,omitempty"`
 	Permissions Permissions `json:"permissions"`
+	CreatedAt   time.Time   `json:"createdAt,omitempty"`
+	UpdatedAt   time.Time   `json:"updatedAt,omitempty"`
 }
 
 // Permissions defines what a hierarchy level can do
@@ -14,9 +21,24 @@ type Permissions struct {
 	CanViewAllTeams    bool `json:"canViewAllTeams"`
 	CanEditTeams       bool `json:"canEditTeams"`
 	CanManageUsers     bool `json:"canManageUsers"`
-	CanConfigureSystem bool `json:"canConfigureSystem"`
-	CanViewReports     bool `json:"canViewReports"`
-	CanExportData      bool `json:"canExportData"`
+	CanTakeSurvey      bool `json:"canTakeSurvey"`
+	CanViewAnalytics   bool `json:"canViewAnalytics"`
+	CanConfigureSystem bool `json:"canConfigureSystem,omitempty"`
+	CanViewReports     bool `json:"canViewReports,omitempty"`
+	CanExportData      bool `json:"canExportData,omitempty"`
+}
+
+// HealthDimension represents a health check dimension
+type HealthDimension struct {
+	ID              string    `json:"id"`
+	Name            string    `json:"name"`
+	Description     string    `json:"description"`
+	GoodDescription string    `json:"goodDescription"`
+	BadDescription  string    `json:"badDescription"`
+	IsActive        bool      `json:"isActive"`
+	Weight          float64   `json:"weight"`
+	CreatedAt       time.Time `json:"createdAt,omitempty"`
+	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
 }
 
 // OrganizationConfig represents the organization configuration
@@ -30,8 +52,29 @@ type OrganizationConfig struct {
 	UpdatedAt         string           `json:"updatedAt"`
 }
 
-// Repository defines the interface for organization config persistence
+// Repository defines the interface for organization data access
 type Repository interface {
-	Get() (*OrganizationConfig, error)
-	Save(config *OrganizationConfig) error
+	// Organization config
+	Get(ctx context.Context) (*OrganizationConfig, error)
+	Save(ctx context.Context, config *OrganizationConfig) error
+
+	// Hierarchy levels
+	FindHierarchyLevels(ctx context.Context) ([]*HierarchyLevel, error)
+	FindHierarchyLevelByID(ctx context.Context, id string) (*HierarchyLevel, error)
+	SaveHierarchyLevel(ctx context.Context, level *HierarchyLevel) error
+	UpdateHierarchyLevel(ctx context.Context, level *HierarchyLevel) error
+	DeleteHierarchyLevel(ctx context.Context, id string) error
+	GetMaxHierarchyPosition(ctx context.Context) (int, error)
+	UpdateHierarchyPosition(ctx context.Context, tx interface{}, id string, newPosition int) error
+	ShiftHierarchyPositions(ctx context.Context, tx interface{}, start, end int, delta int) error
+	CountUsersAtLevel(ctx context.Context, levelID string) (int, error)
+	BeginTx(ctx context.Context) (interface{}, error)
+	CommitTx(tx interface{}) error
+	RollbackTx(tx interface{}) error
+
+	// Health dimensions
+	FindDimensions(ctx context.Context) ([]*HealthDimension, error)
+	FindDimensionByID(ctx context.Context, id string) (*HealthDimension, error)
+	SaveDimension(ctx context.Context, dim *HealthDimension) error
+	UpdateDimension(ctx context.Context, dim *HealthDimension) error
 }

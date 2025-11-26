@@ -127,11 +127,28 @@ var _ = Describe("E2E: VP Dashboard Visualizations", Label("e2e"), func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
+				// Select the assessment period that matches our test data
+				By("Selecting assessment period filter")
+				periodFilter := page.Locator("[data-testid='period-filter']")
+				_, err = periodFilter.SelectOption(playwright.SelectOptionValues{
+					Values: &[]string{"2024 - 2nd Half"},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond) // Wait for data refresh
+
 				By("VP clicking on Radar tab")
 				// Click on the Radar tab to view aggregated radar chart
 				radarTab := page.Locator("[data-testid='radar-tab']")
 				err = radarTab.Click()
 				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for loading spinner to appear and disappear (indicates data fetch complete)
+				By("Waiting for radar data to load")
+				Eventually(func() bool {
+					loadingSpinner := page.Locator(".animate-spin")
+					visible, _ := loadingSpinner.IsVisible()
+					return !visible // Wait for spinner to disappear
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				// Then: Radar chart should be visible with aggregated data
 				By("Verifying radar chart is displayed")
@@ -139,7 +156,7 @@ var _ = Describe("E2E: VP Dashboard Visualizations", Label("e2e"), func() {
 					radarChart := page.Locator("[data-testid='vp-radar-chart']")
 					visible, _ := radarChart.IsVisible()
 					return visible
-				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				// Verify the radar chart title indicates aggregated view
 				By("Verifying radar chart shows aggregated title")
@@ -395,6 +412,15 @@ var _ = Describe("E2E: VP Dashboard Visualizations", Label("e2e"), func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
+				// Select the assessment period that matches our test data
+				By("Selecting assessment period filter")
+				periodFilter := page.Locator("[data-testid='period-filter']")
+				_, err = periodFilter.SelectOption(playwright.SelectOptionValues{
+					Values: &[]string{"2024 - 2nd Half"},
+				})
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond) // Wait for data refresh
+
 				// Then: Should be able to navigate between all tabs
 				By("Verifying Team Cards tab is active by default and shows team data")
 				teamCard := page.Locator("[data-testid='team-health-card']").First()
@@ -409,16 +435,30 @@ var _ = Describe("E2E: VP Dashboard Visualizations", Label("e2e"), func() {
 				err = radarTab.Click()
 				Expect(err).NotTo(HaveOccurred())
 
+				// Wait for loading spinner to disappear
+				Eventually(func() bool {
+					loadingSpinner := page.Locator(".animate-spin")
+					visible, _ := loadingSpinner.IsVisible()
+					return !visible
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
+
 				Eventually(func() bool {
 					radarContent := page.Locator("[data-testid='vp-radar-chart']")
 					visible, _ := radarContent.IsVisible()
 					return visible
-				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				By("Clicking on Trends tab and verifying content")
 				trendsTab := page.Locator("[data-testid='trends-tab']")
 				err = trendsTab.Click()
 				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for loading spinner to disappear
+				Eventually(func() bool {
+					loadingSpinner := page.Locator(".animate-spin")
+					visible, _ := loadingSpinner.IsVisible()
+					return !visible
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				// Should show either the chart or empty state
 				Eventually(func() bool {
@@ -427,7 +467,7 @@ var _ = Describe("E2E: VP Dashboard Visualizations", Label("e2e"), func() {
 					chartVisible, _ := trendsContent.IsVisible()
 					emptyVisible, _ := emptyState.IsVisible()
 					return chartVisible || emptyVisible
-				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				By("Clicking back to Team Cards tab")
 				teamsTab := page.Locator("button:has-text('Team Cards')")

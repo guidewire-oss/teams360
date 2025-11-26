@@ -1,6 +1,7 @@
 package commands
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -71,7 +72,7 @@ func (h *SubmitHealthCheckHandler) Handle(cmd SubmitHealthCheckCommand) (*health
 	}
 
 	// Save to repository
-	if err := h.repository.Save(session); err != nil {
+	if err := h.repository.Save(context.Background(), session); err != nil {
 		return nil, fmt.Errorf("failed to save session: %w", err)
 	}
 

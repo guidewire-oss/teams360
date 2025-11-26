@@ -7,6 +7,9 @@ import (
 )
 
 // SetupTeamDashboardRoutes registers team lead dashboard routes
+// TODO: Update signature to accept healthcheck.Repository instead of *sql.DB
+// Target: func SetupTeamDashboardRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository)
+// Dashboard queries health check sessions and responses, so it needs healthcheck.Repository
 func SetupTeamDashboardRoutes(router *gin.Engine, db *sql.DB) {
 	handler := NewTeamDashboardHandler(db)
 

@@ -1,26 +1,25 @@
 package v1
 
 import (
-	"database/sql"
-	"encoding/json"
 	"net/http"
 
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
+	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 // ManagerHandler handles manager-related endpoints
 type ManagerHandler struct {
-	db            *sql.DB
-	trendsService *trends.Service
+	healthCheckRepo healthcheck.Repository
+	trendsService   *trends.Service
 }
 
 // NewManagerHandler creates a new manager handler
-func NewManagerHandler(db *sql.DB) *ManagerHandler {
+func NewManagerHandler(healthCheckRepo healthcheck.Repository, trendsService *trends.Service) *ManagerHandler {
 	return &ManagerHandler{
-		db:            db,
-		trendsService: trends.NewService(db),
+		healthCheckRepo: healthCheckRepo,
+		trendsService:   trendsService,
 	}
 }
 
@@ -36,94 +35,32 @@ func (h *ManagerHandler) GetManagerTeamsHealth(c *gin.Context) {
 
 	assessmentPeriod := c.Query("assessmentPeriod") // Optional filter
 
-	// Single optimized query to get all team data with dimensions
-	// Avoids N+1 query problem by using CTEs
-	query := `
-		WITH team_health AS (
-			SELECT DISTINCT
-				t.id as team_id,
-				t.name as team_name,
-				COUNT(DISTINCT hcs.id) as submission_count,
-				AVG(hcr.score) as overall_health
-			FROM teams t
-			INNER JOIN team_supervisors ts ON t.id = ts.team_id
-			LEFT JOIN health_check_sessions hcs ON t.id = hcs.team_id
-				AND hcs.completed = true
-				AND ($2 = '' OR hcs.assessment_period = $2)
-			LEFT JOIN health_check_responses hcr ON hcs.id = hcr.session_id
-			WHERE ts.user_id = $1
-			GROUP BY t.id, t.name
-		),
-		dimension_health AS (
-			SELECT
-				hcs.team_id,
-				hcr.dimension_id,
-				AVG(hcr.score) as avg_score,
-				COUNT(hcr.id) as response_count
-			FROM health_check_responses hcr
-			INNER JOIN health_check_sessions hcs ON hcr.session_id = hcs.id
-			WHERE hcs.completed = true
-				AND ($2 = '' OR hcs.assessment_period = $2)
-				AND hcs.team_id IN (SELECT team_id FROM team_health)
-			GROUP BY hcs.team_id, hcr.dimension_id
-		)
-		SELECT
-			th.team_id,
-			th.team_name,
-			th.submission_count,
-			COALESCE(th.overall_health, 0) as overall_health,
-			COALESCE(
-				json_agg(
-					json_build_object(
-						'dimensionId', dh.dimension_id,
-						'avgScore', dh.avg_score,
-						'responseCount', dh.response_count
-					) ORDER BY dh.dimension_id
-				) FILTER (WHERE dh.dimension_id IS NOT NULL),
-				'[]'::json
-			) as dimensions
-		FROM team_health th
-		LEFT JOIN dimension_health dh ON th.team_id = dh.team_id
-		GROUP BY th.team_id, th.team_name, th.submission_count, th.overall_health
-		ORDER BY overall_health ASC NULLS LAST
-	`
-
-	rows, err := h.db.Query(query, managerID, assessmentPeriod)
+	// Use repository to fetch aggregated team health data
+	teamSummaries, err := h.healthCheckRepo.FindTeamHealthByManager(c.Request.Context(), managerID, assessmentPeriod)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database query failed", err.Error())
 		return
 	}
-	defer rows.Close()
 
-	teams := []dto.TeamHealthSummary{}
-	for rows.Next() {
-		var team dto.TeamHealthSummary
-		var dimensionsJSON []byte
-
-		err := rows.Scan(
-			&team.TeamID,
-			&team.TeamName,
-			&team.SubmissionCount,
-			&team.OverallHealth,
-			&dimensionsJSON,
-		)
-		if err != nil {
-			dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to parse team data", err.Error())
-			return
-		}
-
-		// Parse dimensions JSON
-		if len(dimensionsJSON) > 0 && string(dimensionsJSON) != "[]" {
-			err = json.Unmarshal(dimensionsJSON, &team.Dimensions)
-			if err != nil {
-				dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to parse dimension data", err.Error())
-				return
+	// Convert domain models to DTOs
+	teams := make([]dto.TeamHealthSummary, len(teamSummaries))
+	for i, summary := range teamSummaries {
+		dimensions := make([]dto.DimensionSummary, len(summary.Dimensions))
+		for j, dim := range summary.Dimensions {
+			dimensions[j] = dto.DimensionSummary{
+				DimensionID:   dim.DimensionID,
+				AvgScore:      dim.AvgScore,
+				ResponseCount: dim.ResponseCount,
 			}
-		} else {
-			team.Dimensions = []dto.DimensionSummary{}
 		}
 
-		teams = append(teams, team)
+		teams[i] = dto.TeamHealthSummary{
+			TeamID:          summary.TeamID,
+			TeamName:        summary.TeamName,
+			SubmissionCount: summary.SubmissionCount,
+			OverallHealth:   summary.OverallHealth,
+			Dimensions:      dimensions,
+		}
 	}
 
 	response := dto.ManagerTeamsHealthResponse{
@@ -148,39 +85,21 @@ func (h *ManagerHandler) GetManagerAggregatedRadar(c *gin.Context) {
 
 	assessmentPeriod := c.Query("assessmentPeriod")
 
-	// Query to aggregate dimension scores across all supervised teams
-	query := `
-		SELECT
-			hcr.dimension_id,
-			AVG(hcr.score) as avg_score,
-			COUNT(hcr.id) as response_count
-		FROM health_check_responses hcr
-		INNER JOIN health_check_sessions hcs ON hcr.session_id = hcs.id
-		INNER JOIN teams t ON hcs.team_id = t.id
-		INNER JOIN team_supervisors ts ON t.id = ts.team_id
-		WHERE ts.user_id = $1
-			AND hcs.completed = true
-			AND ($2 = '' OR hcs.assessment_period = $2)
-		GROUP BY hcr.dimension_id
-		ORDER BY hcr.dimension_id
-	`
-
-	rows, err := h.db.Query(query, managerID, assessmentPeriod)
+	// Use repository to fetch aggregated dimension scores
+	dimensionSummaries, err := h.healthCheckRepo.FindAggregatedDimensionsByManager(c.Request.Context(), managerID, assessmentPeriod)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database query failed", err.Error())
 		return
 	}
-	defer rows.Close()
 
-	dimensions := []dto.DimensionSummary{}
-	for rows.Next() {
-		var dim dto.DimensionSummary
-		err := rows.Scan(&dim.DimensionID, &dim.AvgScore, &dim.ResponseCount)
-		if err != nil {
-			dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to parse dimension data", err.Error())
-			return
+	// Convert domain models to DTOs
+	dimensions := make([]dto.DimensionSummary, len(dimensionSummaries))
+	for i, summary := range dimensionSummaries {
+		dimensions[i] = dto.DimensionSummary{
+			DimensionID:   summary.DimensionID,
+			AvgScore:      summary.AvgScore,
+			ResponseCount: summary.ResponseCount,
 		}
-		dimensions = append(dimensions, dim)
 	}
 
 	response := dto.ManagerRadarResponse{

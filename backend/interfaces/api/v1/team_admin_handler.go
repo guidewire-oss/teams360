@@ -1,35 +1,26 @@
 package v1
 
 import (
-	"database/sql"
 	"net/http"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
 
 // TeamAdminHandler handles team-related admin HTTP requests
 type TeamAdminHandler struct {
-	db *sql.DB
+	teamRepo team.Repository
 }
 
 // NewTeamAdminHandler creates a new TeamAdminHandler
-func NewTeamAdminHandler(db *sql.DB) *TeamAdminHandler {
-	return &TeamAdminHandler{db: db}
+func NewTeamAdminHandler(teamRepo team.Repository) *TeamAdminHandler {
+	return &TeamAdminHandler{teamRepo: teamRepo}
 }
 
 // ListTeams handles GET /api/v1/admin/teams
 func (h *TeamAdminHandler) ListTeams(c *gin.Context) {
-	query := `
-		SELECT t.id, t.name, t.team_lead_id, u.full_name as team_lead_name,
-		       t.cadence, t.created_at, t.updated_at,
-		       (SELECT COUNT(*) FROM team_members WHERE team_id = t.id) as member_count
-		FROM teams t
-		LEFT JOIN users u ON t.team_lead_id = u.id
-		ORDER BY t.name ASC
-	`
-
-	rows, err := h.db.Query(query)
+	teams, err := h.teamRepo.FindAllWithDetails(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to query teams",
@@ -37,34 +28,25 @@ func (h *TeamAdminHandler) ListTeams(c *gin.Context) {
 		})
 		return
 	}
-	defer rows.Close()
 
-	teams := []dto.AdminTeamDTO{}
-	for rows.Next() {
-		var team dto.AdminTeamDTO
-		err := rows.Scan(
-			&team.ID,
-			&team.Name,
-			&team.TeamLeadID,
-			&team.TeamLeadName,
-			&team.Cadence,
-			&team.CreatedAt,
-			&team.UpdatedAt,
-			&team.MemberCount,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-				Error:   "Failed to parse team",
-				Message: err.Error(),
-			})
-			return
+	// Convert to DTOs
+	teamDTOs := make([]dto.AdminTeamDTO, len(teams))
+	for i, tm := range teams {
+		teamDTOs[i] = dto.AdminTeamDTO{
+			ID:           tm.ID,
+			Name:         tm.Name,
+			TeamLeadID:   tm.TeamLeadID,
+			TeamLeadName: tm.TeamLeadName,
+			Cadence:      tm.Cadence,
+			MemberCount:  tm.MemberCount,
+			CreatedAt:    tm.CreatedAt,
+			UpdatedAt:    tm.UpdatedAt,
 		}
-		teams = append(teams, team)
 	}
 
 	c.JSON(http.StatusOK, dto.TeamsResponse{
-		Teams: teams,
-		Total: len(teams),
+		Teams: teamDTOs,
+		Total: len(teamDTOs),
 	})
 }
 
@@ -76,28 +58,17 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 		return
 	}
 
-	query := `
-		INSERT INTO teams (id, name, team_lead_id, cadence)
-		VALUES ($1, $2, $3, $4)
-		RETURNING created_at, updated_at
-	`
+	// Create team domain model
+	tm := &team.Team{
+		ID:         req.ID,
+		Name:       req.Name,
+		TeamLeadID: req.TeamLeadID,
+		Cadence:    req.Cadence,
+		Members:    []team.TeamMember{},
+	}
 
-	var team dto.AdminTeamDTO
-	team.ID = req.ID
-	team.Name = req.Name
-	team.TeamLeadID = req.TeamLeadID
-	team.Cadence = req.Cadence
-	team.MemberCount = 0
-
-	err := h.db.QueryRow(
-		query,
-		req.ID,
-		req.Name,
-		req.TeamLeadID,
-		req.Cadence,
-	).Scan(&team.CreatedAt, &team.UpdatedAt)
-
-	if err != nil {
+	// Save using repository
+	if err := h.teamRepo.Save(c.Request.Context(), tm); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to create team",
 			Message: err.Error(),
@@ -105,16 +76,18 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 		return
 	}
 
-	// Get team lead name if assigned
-	if req.TeamLeadID != nil {
-		var teamLeadName string
-		err = h.db.QueryRow("SELECT full_name FROM users WHERE id = $1", *req.TeamLeadID).Scan(&teamLeadName)
-		if err == nil {
-			team.TeamLeadName = &teamLeadName
-		}
+	// Convert to DTO and return
+	responseDTO := dto.AdminTeamDTO{
+		ID:          tm.ID,
+		Name:        tm.Name,
+		TeamLeadID:  tm.TeamLeadID,
+		Cadence:     tm.Cadence,
+		MemberCount: 0,
+		CreatedAt:   tm.CreatedAt,
+		UpdatedAt:   tm.UpdatedAt,
 	}
 
-	c.JSON(http.StatusCreated, team)
+	c.JSON(http.StatusCreated, responseDTO)
 }
 
 // UpdateTeam handles PUT /api/v1/admin/teams/:id
@@ -128,40 +101,25 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 	}
 
 	// Check if team exists
-	var exists bool
-	err := h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)", id).Scan(&exists)
-	if err != nil || !exists {
+	tm, err := h.teamRepo.FindByID(c.Request.Context(), id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
 		return
 	}
 
-	query := `
-		UPDATE teams
-		SET name = COALESCE($1, name),
-		    team_lead_id = COALESCE($2, team_lead_id),
-		    cadence = COALESCE($3, cadence),
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $4
-		RETURNING id, name, team_lead_id, cadence, created_at, updated_at
-	`
+	// Update fields if provided
+	if req.Name != nil {
+		tm.Name = *req.Name
+	}
+	if req.TeamLeadID != nil {
+		tm.TeamLeadID = req.TeamLeadID
+	}
+	if req.Cadence != nil {
+		tm.Cadence = *req.Cadence
+	}
 
-	var team dto.AdminTeamDTO
-	err = h.db.QueryRow(
-		query,
-		req.Name,
-		req.TeamLeadID,
-		req.Cadence,
-		id,
-	).Scan(
-		&team.ID,
-		&team.Name,
-		&team.TeamLeadID,
-		&team.Cadence,
-		&team.CreatedAt,
-		&team.UpdatedAt,
-	)
-
-	if err != nil {
+	// Update using repository
+	if err := h.teamRepo.Update(c.Request.Context(), tm); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to update team",
 			Message: err.Error(),
@@ -169,37 +127,33 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 		return
 	}
 
-	// Get team lead name
-	if team.TeamLeadID != nil {
-		var teamLeadName string
-		err = h.db.QueryRow("SELECT full_name FROM users WHERE id = $1", *team.TeamLeadID).Scan(&teamLeadName)
-		if err == nil {
-			team.TeamLeadName = &teamLeadName
-		}
+	// Get member count
+	memberCount, _ := h.teamRepo.CountTeamMembers(c.Request.Context(), tm.ID)
+
+	// Convert to DTO and return
+	responseDTO := dto.AdminTeamDTO{
+		ID:           tm.ID,
+		Name:         tm.Name,
+		TeamLeadID:   tm.TeamLeadID,
+		TeamLeadName: tm.TeamLeadName,
+		Cadence:      tm.Cadence,
+		MemberCount:  memberCount,
+		CreatedAt:    tm.CreatedAt,
+		UpdatedAt:    tm.UpdatedAt,
 	}
 
-	// Get member count
-	err = h.db.QueryRow("SELECT COUNT(*) FROM team_members WHERE team_id = $1", team.ID).Scan(&team.MemberCount)
-
-	c.JSON(http.StatusOK, team)
+	c.JSON(http.StatusOK, responseDTO)
 }
 
 // DeleteTeam handles DELETE /api/v1/admin/teams/:id
 func (h *TeamAdminHandler) DeleteTeam(c *gin.Context) {
 	id := c.Param("id")
 
-	result, err := h.db.Exec("DELETE FROM teams WHERE id = $1", id)
-	if err != nil {
+	if err := h.teamRepo.Delete(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to delete team",
 			Message: err.Error(),
 		})
-		return
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
 		return
 	}
 

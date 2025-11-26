@@ -1,28 +1,27 @@
 package v1
 
 import (
-	"database/sql"
-
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
+	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/gin-gonic/gin"
 )
 
 // AdminHandler aggregates all admin sub-handlers
 type AdminHandler struct {
-	db                   *sql.DB
-	HierarchyHandler     *HierarchyAdminHandler
-	UserHandler          *UserAdminHandler
-	TeamHandler          *TeamAdminHandler
-	SettingsHandler      *SettingsAdminHandler
+	HierarchyHandler *HierarchyAdminHandler
+	UserHandler      *UserAdminHandler
+	TeamHandler      *TeamAdminHandler
+	SettingsHandler  *SettingsAdminHandler
 }
 
 // NewAdminHandler creates a new AdminHandler with all sub-handlers
-func NewAdminHandler(db *sql.DB) *AdminHandler {
+func NewAdminHandler(orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository) *AdminHandler {
 	return &AdminHandler{
-		db:                   db,
-		HierarchyHandler:     NewHierarchyAdminHandler(db),
-		UserHandler:          NewUserAdminHandler(db),
-		TeamHandler:          NewTeamAdminHandler(db),
-		SettingsHandler:      NewSettingsAdminHandler(db),
+		HierarchyHandler: NewHierarchyAdminHandler(orgRepo),
+		UserHandler:      NewUserAdminHandler(userRepo),
+		TeamHandler:      NewTeamAdminHandler(teamRepo),
+		SettingsHandler:  NewSettingsAdminHandler(orgRepo),
 	}
 }
 

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
@@ -67,12 +68,23 @@ func setupTestDB(t *testing.T) *sql.DB {
 	return testDB
 }
 
-func TestListHierarchyLevels(t *testing.T) {
-	db := setupTestDB(t)
-
+// setupRouter creates a test router with repository dependency injection
+func setupRouter(db *sql.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+
+	// Create repositories
+	orgRepo := postgres.NewOrganizationRepository(db)
+	userRepo := postgres.NewUserRepository(db)
+	teamRepo := postgres.NewTeamRepository(db)
+
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	return router
+}
+
+func TestListHierarchyLevels(t *testing.T) {
+	db := setupTestDB(t)
+	router := setupRouter(db)
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/hierarchy-levels", nil)
@@ -104,10 +116,7 @@ func TestListHierarchyLevels(t *testing.T) {
 
 func TestCreateHierarchyLevel(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Create request
 	reqBody := dto.CreateHierarchyLevelRequest{
@@ -152,10 +161,7 @@ func TestCreateHierarchyLevel(t *testing.T) {
 
 func TestListUsers(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
@@ -184,10 +190,7 @@ func TestListUsers(t *testing.T) {
 
 func TestCreateUser(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Create request
 	reqBody := dto.CreateUserRequest{
@@ -226,10 +229,7 @@ func TestCreateUser(t *testing.T) {
 
 func TestListTeams(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
@@ -238,7 +238,7 @@ func TestListTeams(t *testing.T) {
 
 	// Verify response
 	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
+		t.Errorf("Expected status 200, got %d. Response: %s", w.Code, w.Body.String())
 	}
 
 	var response dto.TeamsResponse
@@ -265,10 +265,7 @@ func TestListTeams(t *testing.T) {
 
 func TestGetDimensions(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/settings/dimensions", nil)
@@ -303,10 +300,7 @@ func TestGetDimensions(t *testing.T) {
 
 func TestUpdateDimension(t *testing.T) {
 	db := setupTestDB(t)
-
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
-	v1.SetupAdminRoutes(router, db)
+	router := setupRouter(db)
 
 	// Update request
 	isActive := false

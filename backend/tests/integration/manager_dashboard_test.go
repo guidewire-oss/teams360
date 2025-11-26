@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/tests/testhelpers"
@@ -34,10 +35,11 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
-		v1.SetupHealthCheckRoutesWithDB(router, db, healthCheckRepo)
+		orgRepo := postgres.NewOrganizationRepository(db)
+		trendsService := trends.NewService(db)
 
-		// Setup manager routes (to be implemented)
-		v1.SetupManagerRoutes(router, db)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
 	})
 
 	AfterEach(func() {
@@ -280,12 +282,30 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 				`)
 				Expect(err).NotTo(HaveOccurred())
 
+				// Add health check sessions for both teams
+				currentDate := time.Now().Format("2006-01-02")
+				_, err = db.Exec(`
+					INSERT INTO health_check_sessions (id, team_id, user_id, date, assessment_period, completed)
+					VALUES
+						('int_sess_mgr3', 'int_team_mgr3', 'int_mgr3', $1, '2024 - 2nd Half', true),
+						('int_sess_mgr4', 'int_team_mgr4', 'int_mgr4', $1, '2024 - 2nd Half', true)
+				`, currentDate)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = db.Exec(`
+					INSERT INTO health_check_responses (session_id, dimension_id, score, trend)
+					VALUES
+						('int_sess_mgr3', 'mission', 3, 'improving'),
+						('int_sess_mgr4', 'mission', 2, 'stable')
+				`)
+				Expect(err).NotTo(HaveOccurred())
+
 				// When: Manager 3 requests dashboard
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_mgr3/teams/health", nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
-				// Then: Should only see their own teams
+				// Then: Should only see their own teams (not manager 4's team)
 				Expect(w.Code).To(Equal(http.StatusOK))
 
 				var response map[string]interface{}

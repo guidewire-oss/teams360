@@ -1,9 +1,9 @@
 package v1
 
 import (
-	"database/sql"
 	"net/http"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
@@ -11,24 +11,17 @@ import (
 
 // UserAdminHandler handles user-related admin HTTP requests
 type UserAdminHandler struct {
-	db *sql.DB
+	userRepo user.Repository
 }
 
 // NewUserAdminHandler creates a new UserAdminHandler
-func NewUserAdminHandler(db *sql.DB) *UserAdminHandler {
-	return &UserAdminHandler{db: db}
+func NewUserAdminHandler(userRepo user.Repository) *UserAdminHandler {
+	return &UserAdminHandler{userRepo: userRepo}
 }
 
 // ListUsers handles GET /api/v1/admin/users
 func (h *UserAdminHandler) ListUsers(c *gin.Context) {
-	query := `
-		SELECT u.id, u.username, u.email, u.full_name, u.hierarchy_level_id,
-		       u.reports_to, u.created_at, u.updated_at
-		FROM users u
-		ORDER BY u.full_name ASC
-	`
-
-	rows, err := h.db.Query(query)
+	users, err := h.userRepo.FindAll(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to query users",
@@ -36,49 +29,32 @@ func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 		})
 		return
 	}
-	defer rows.Close()
 
-	users := []dto.AdminUserDTO{}
-	for rows.Next() {
-		var user dto.AdminUserDTO
-		err := rows.Scan(
-			&user.ID,
-			&user.Username,
-			&user.Email,
-			&user.FullName,
-			&user.HierarchyLevel,
-			&user.ReportsTo,
-			&user.CreatedAt,
-			&user.UpdatedAt,
-		)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-				Error:   "Failed to parse user",
-				Message: err.Error(),
-			})
-			return
-		}
-
+	// Convert to DTOs
+	userDTOs := make([]dto.AdminUserDTO, len(users))
+	for i, usr := range users {
 		// Fetch team IDs
-		teamQuery := `SELECT team_id FROM team_members WHERE user_id = $1`
-		teamRows, err := h.db.Query(teamQuery, user.ID)
-		if err == nil {
-			defer teamRows.Close()
-			user.TeamIds = []string{}
-			for teamRows.Next() {
-				var teamID string
-				if err := teamRows.Scan(&teamID); err == nil {
-					user.TeamIds = append(user.TeamIds, teamID)
-				}
-			}
+		teamIds, _ := h.userRepo.FindTeamIDsForUser(c.Request.Context(), usr.ID)
+		if teamIds == nil {
+			teamIds = []string{}
 		}
 
-		users = append(users, user)
+		userDTOs[i] = dto.AdminUserDTO{
+			ID:             usr.ID,
+			Username:       usr.Username,
+			Email:          usr.Email,
+			FullName:       usr.Name,
+			HierarchyLevel: usr.HierarchyLevelID,
+			ReportsTo:      usr.ReportsTo,
+			TeamIds:        teamIds,
+			CreatedAt:      usr.CreatedAt,
+			UpdatedAt:      usr.UpdatedAt,
+		}
 	}
 
 	c.JSON(http.StatusOK, dto.UsersResponse{
-		Users: users,
-		Total: len(users),
+		Users: userDTOs,
+		Total: len(userDTOs),
 	})
 }
 
@@ -97,33 +73,20 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	query := `
-		INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		RETURNING created_at, updated_at
-	`
+	// Create user domain model
+	usr := &user.User{
+		ID:               req.ID,
+		Username:         req.Username,
+		Email:            req.Email,
+		Name:             req.FullName,
+		HierarchyLevelID: req.HierarchyLevel,
+		ReportsTo:        req.ReportsTo,
+		PasswordHash:     string(hashedPassword),
+		TeamIDs:          []string{},
+	}
 
-	var user dto.AdminUserDTO
-	user.ID = req.ID
-	user.Username = req.Username
-	user.Email = req.Email
-	user.FullName = req.FullName
-	user.HierarchyLevel = req.HierarchyLevel
-	user.ReportsTo = req.ReportsTo
-	user.TeamIds = []string{}
-
-	err = h.db.QueryRow(
-		query,
-		req.ID,
-		req.Username,
-		req.Email,
-		req.FullName,
-		req.HierarchyLevel,
-		req.ReportsTo,
-		string(hashedPassword),
-	).Scan(&user.CreatedAt, &user.UpdatedAt)
-
-	if err != nil {
+	// Save using repository
+	if err := h.userRepo.Save(c.Request.Context(), usr); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to create user",
 			Message: err.Error(),
@@ -131,7 +94,20 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, user)
+	// Convert to DTO and return
+	responseDTO := dto.AdminUserDTO{
+		ID:             usr.ID,
+		Username:       usr.Username,
+		Email:          usr.Email,
+		FullName:       usr.Name,
+		HierarchyLevel: usr.HierarchyLevelID,
+		ReportsTo:      usr.ReportsTo,
+		TeamIds:        usr.TeamIDs,
+		CreatedAt:      usr.CreatedAt,
+		UpdatedAt:      usr.UpdatedAt,
+	}
+
+	c.JSON(http.StatusCreated, responseDTO)
 }
 
 // UpdateUser handles PUT /api/v1/admin/users/:id
@@ -145,58 +121,39 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Check if user exists
-	var exists bool
-	err := h.db.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)", id).Scan(&exists)
-	if err != nil || !exists {
+	usr, err := h.userRepo.FindByID(c.Request.Context(), id)
+	if err != nil {
 		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "User not found"})
 		return
 	}
 
-	var hashedPassword interface{}
+	// Update fields if provided
+	if req.Username != nil {
+		usr.Username = *req.Username
+	}
+	if req.Email != nil {
+		usr.Email = *req.Email
+	}
+	if req.FullName != nil {
+		usr.Name = *req.FullName
+	}
+	if req.HierarchyLevel != nil {
+		usr.HierarchyLevelID = *req.HierarchyLevel
+	}
+	if req.ReportsTo != nil {
+		usr.ReportsTo = req.ReportsTo
+	}
 	if req.Password != nil {
 		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
 			return
 		}
-		hashedPassword = string(hashed)
+		usr.PasswordHash = string(hashed)
 	}
 
-	query := `
-		UPDATE users
-		SET username = COALESCE($1, username),
-		    email = COALESCE($2, email),
-		    full_name = COALESCE($3, full_name),
-		    hierarchy_level_id = COALESCE($4, hierarchy_level_id),
-		    reports_to = COALESCE($5, reports_to),
-		    password_hash = COALESCE($6, password_hash),
-		    updated_at = CURRENT_TIMESTAMP
-		WHERE id = $7
-		RETURNING id, username, email, full_name, hierarchy_level_id, reports_to, created_at, updated_at
-	`
-
-	var user dto.AdminUserDTO
-	err = h.db.QueryRow(
-		query,
-		req.Username,
-		req.Email,
-		req.FullName,
-		req.HierarchyLevel,
-		req.ReportsTo,
-		hashedPassword,
-		id,
-	).Scan(
-		&user.ID,
-		&user.Username,
-		&user.Email,
-		&user.FullName,
-		&user.HierarchyLevel,
-		&user.ReportsTo,
-		&user.CreatedAt,
-		&user.UpdatedAt,
-	)
-
-	if err != nil {
+	// Update using repository
+	if err := h.userRepo.Update(c.Request.Context(), usr); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to update user",
 			Message: err.Error(),
@@ -205,38 +162,36 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Fetch team IDs
-	teamQuery := `SELECT team_id FROM team_members WHERE user_id = $1`
-	teamRows, err := h.db.Query(teamQuery, user.ID)
-	if err == nil {
-		defer teamRows.Close()
-		user.TeamIds = []string{}
-		for teamRows.Next() {
-			var teamID string
-			if err := teamRows.Scan(&teamID); err == nil {
-				user.TeamIds = append(user.TeamIds, teamID)
-			}
-		}
+	teamIds, _ := h.userRepo.FindTeamIDsForUser(c.Request.Context(), usr.ID)
+	if teamIds == nil {
+		teamIds = []string{}
 	}
 
-	c.JSON(http.StatusOK, user)
+	// Convert to DTO and return
+	responseDTO := dto.AdminUserDTO{
+		ID:             usr.ID,
+		Username:       usr.Username,
+		Email:          usr.Email,
+		FullName:       usr.Name,
+		HierarchyLevel: usr.HierarchyLevelID,
+		ReportsTo:      usr.ReportsTo,
+		TeamIds:        teamIds,
+		CreatedAt:      usr.CreatedAt,
+		UpdatedAt:      usr.UpdatedAt,
+	}
+
+	c.JSON(http.StatusOK, responseDTO)
 }
 
 // DeleteUser handles DELETE /api/v1/admin/users/:id
 func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 	id := c.Param("id")
 
-	result, err := h.db.Exec("DELETE FROM users WHERE id = $1", id)
-	if err != nil {
+	if err := h.userRepo.Delete(c.Request.Context(), id); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to delete user",
 			Message: err.Error(),
 		})
-		return
-	}
-
-	rowsAffected, _ := result.RowsAffected()
-	if rowsAffected == 0 {
-		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "User not found"})
 		return
 	}
 

@@ -34,10 +34,11 @@ var _ = Describe("Integration: Team Results API", func() {
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
-		v1.SetupHealthCheckRoutesWithDB(router, db, healthCheckRepo)
+		teamRepo := postgres.NewTeamRepository(db)
+		orgRepo := postgres.NewOrganizationRepository(db)
 
-		// Setup team routes
-		v1.SetupTeamRoutes(router, db, healthCheckRepo)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+		v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
 	})
 
 	AfterEach(func() {

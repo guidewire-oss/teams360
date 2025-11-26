@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
@@ -84,8 +85,14 @@ func main() {
 	}
 	log.Println("Database migrations completed successfully")
 
-	// Initialize repository
-	repository := postgres.NewHealthCheckRepository(db)
+	// Initialize repositories
+	healthCheckRepo := postgres.NewHealthCheckRepository(db)
+	userRepo := postgres.NewUserRepository(db)
+	teamRepo := postgres.NewTeamRepository(db)
+	orgRepo := postgres.NewOrganizationRepository(db)
+
+	// Initialize services
+	trendsService := trends.NewService(db)
 
 	// Initialize router
 	router := gin.Default()
@@ -98,14 +105,14 @@ func main() {
 		c.JSON(200, gin.H{"status": "healthy"})
 	})
 
-	// Setup API routes
-	v1.SetupAuthRoutes(router, db)
-	v1.SetupHealthCheckRoutesWithDB(router, db, repository)
-	v1.SetupManagerRoutes(router, db)
-	v1.SetupTeamRoutes(router, db, repository)
-	v1.SetupTeamDashboardRoutes(router, db)
-	v1.SetupUserRoutes(router, db)
-	v1.SetupAdminRoutes(router, db)
+	// Setup API routes with repository injection
+	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+	v1.SetupAuthRoutes(router, userRepo)
+	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
+	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
+	v1.SetupTeamDashboardRoutes(router, db)  // Still uses db (complex dashboard queries)
+	v1.SetupUserRoutes(router, db)           // Still uses db (complex user queries)
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

@@ -1,6 +1,7 @@
 package acceptance_test
 
 import (
+	"context"
 	"database/sql"
 	"os"
 	"time"
@@ -20,10 +21,13 @@ var _ = Describe("HealthCheckRepository", func() {
 	var (
 		db         *sql.DB
 		repository healthcheck.Repository
+		ctx        context.Context
 		err        error
 	)
 
 	BeforeEach(func() {
+		ctx = context.Background()
+
 		// Connect to test database
 		databaseURL := os.Getenv("TEST_DATABASE_URL")
 		if databaseURL == "" {
@@ -95,13 +99,13 @@ var _ = Describe("HealthCheckRepository", func() {
 				}
 
 				// When: Saving the session
-				err := repository.Save(session)
+				err := repository.Save(ctx, session)
 
 				// Then: Should save without error
 				Expect(err).NotTo(HaveOccurred())
 
 				// And: Should be retrievable by ID
-				retrieved, err := repository.FindByID("test-session-001")
+				retrieved, err := repository.FindByID(ctx, "test-session-001")
 				Expect(err).NotTo(HaveOccurred())
 				Expect(retrieved).NotTo(BeNil())
 				Expect(retrieved.ID).To(Equal("test-session-001"))
@@ -144,7 +148,7 @@ var _ = Describe("HealthCheckRepository", func() {
 				}
 
 				// When: Attempting to save
-				err := repository.Save(session)
+				err := repository.Save(ctx, session)
 
 				// Then: Should return an error
 				Expect(err).To(HaveOccurred())
@@ -168,7 +172,7 @@ var _ = Describe("HealthCheckRepository", func() {
 				}
 
 				// When: Attempting to save
-				err := repository.Save(session)
+				err := repository.Save(ctx, session)
 
 				// Then: Should return an error
 				Expect(err).To(HaveOccurred())
@@ -197,7 +201,7 @@ var _ = Describe("HealthCheckRepository", func() {
 				}
 
 				// When: Attempting to save
-				err := repository.Save(session)
+				err := repository.Save(ctx, session)
 
 				// Then: Should return an error
 				Expect(err).To(HaveOccurred())
@@ -207,7 +211,7 @@ var _ = Describe("HealthCheckRepository", func() {
 		Context("when session doesn't exist", func() {
 			It("should return error for non-existent ID", func() {
 				// When: Finding a non-existent session
-				session, err := repository.FindByID("non-existent-id")
+				session, err := repository.FindByID(ctx, "non-existent-id")
 
 				// Then: Should return error
 				Expect(err).To(HaveOccurred())
@@ -242,11 +246,11 @@ var _ = Describe("HealthCheckRepository", func() {
 					},
 				}
 
-				Expect(repository.Save(session1)).To(Succeed())
-				Expect(repository.Save(session2)).To(Succeed())
+				Expect(repository.Save(ctx, session1)).To(Succeed())
+				Expect(repository.Save(ctx, session2)).To(Succeed())
 
 				// When: Finding sessions by team ID
-				sessions, err := repository.FindByTeamID("team1")
+				sessions, err := repository.FindByTeamID(ctx, "team1")
 
 				// Then: Should return all sessions
 				Expect(err).NotTo(HaveOccurred())
@@ -261,7 +265,7 @@ var _ = Describe("HealthCheckRepository", func() {
 		Context("when team has no sessions", func() {
 			It("should return empty slice", func() {
 				// When: Finding sessions for team with no data
-				sessions, err := repository.FindByTeamID("empty-team")
+				sessions, err := repository.FindByTeamID(ctx, "empty-team")
 
 				// Then: Should return empty slice
 				Expect(err).NotTo(HaveOccurred())
@@ -296,11 +300,11 @@ var _ = Describe("HealthCheckRepository", func() {
 					},
 				}
 
-				Expect(repository.Save(session1)).To(Succeed())
-				Expect(repository.Save(session2)).To(Succeed())
+				Expect(repository.Save(ctx, session1)).To(Succeed())
+				Expect(repository.Save(ctx, session2)).To(Succeed())
 
 				// When: Finding sessions by user ID
-				sessions, err := repository.FindByUserID("user123")
+				sessions, err := repository.FindByUserID(ctx, "user123")
 
 				// Then: Should return all user sessions
 				Expect(err).NotTo(HaveOccurred())
@@ -341,11 +345,11 @@ var _ = Describe("HealthCheckRepository", func() {
 					},
 				}
 
-				Expect(repository.Save(session1)).To(Succeed())
-				Expect(repository.Save(session2)).To(Succeed())
+				Expect(repository.Save(ctx, session1)).To(Succeed())
+				Expect(repository.Save(ctx, session2)).To(Succeed())
 
 				// When: Finding sessions by assessment period
-				sessions, err := repository.FindByAssessmentPeriod("2024 - 1st Half")
+				sessions, err := repository.FindByAssessmentPeriod(ctx, "2024 - 1st Half")
 
 				// Then: Should return only matching sessions
 				Expect(err).NotTo(HaveOccurred())
@@ -372,16 +376,16 @@ var _ = Describe("HealthCheckRepository", func() {
 					},
 				}
 
-				Expect(repository.Save(session)).To(Succeed())
+				Expect(repository.Save(ctx, session)).To(Succeed())
 
 				// When: Deleting the session
-				err := repository.Delete("session-delete-001")
+				err := repository.Delete(ctx, "session-delete-001")
 
 				// Then: Should delete without error
 				Expect(err).NotTo(HaveOccurred())
 
 				// And: Session should no longer exist
-				retrieved, err := repository.FindByID("session-delete-001")
+				retrieved, err := repository.FindByID(ctx, "session-delete-001")
 				Expect(err).To(HaveOccurred())
 				Expect(retrieved).To(BeNil())
 
