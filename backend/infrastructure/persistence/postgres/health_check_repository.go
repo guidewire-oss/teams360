@@ -293,21 +293,42 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 
 // FindAggregatedDimensionsByManager retrieves aggregated dimension data across all teams under a manager
 func (r *HealthCheckRepository) FindAggregatedDimensionsByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]healthcheck.DimensionSummary, error) {
-	query := `
-		SELECT
-			r.dimension_id,
-			AVG(r.score) AS avg_score,
-			COUNT(r.dimension_id) AS response_count
-		FROM teams t
-		INNER JOIN team_supervisors ts ON t.id = ts.team_id
-		INNER JOIN health_check_sessions s ON t.id = s.team_id
-		INNER JOIN health_check_responses r ON s.id = r.session_id
-		WHERE ts.user_id = $1 AND s.assessment_period = $2
-		GROUP BY r.dimension_id
-		ORDER BY r.dimension_id
-	`
+	var query string
+	var rows *sql.Rows
+	var err error
 
-	rows, err := r.db.QueryContext(ctx, query, managerID, assessmentPeriod)
+	if assessmentPeriod != "" {
+		query = `
+			SELECT
+				r.dimension_id,
+				AVG(r.score) AS avg_score,
+				COUNT(r.dimension_id) AS response_count
+			FROM teams t
+			INNER JOIN team_supervisors ts ON t.id = ts.team_id
+			INNER JOIN health_check_sessions s ON t.id = s.team_id
+			INNER JOIN health_check_responses r ON s.id = r.session_id
+			WHERE ts.user_id = $1 AND s.assessment_period = $2
+			GROUP BY r.dimension_id
+			ORDER BY r.dimension_id
+		`
+		rows, err = r.db.QueryContext(ctx, query, managerID, assessmentPeriod)
+	} else {
+		// When no assessment period is specified, show all data across all periods
+		query = `
+			SELECT
+				r.dimension_id,
+				AVG(r.score) AS avg_score,
+				COUNT(r.dimension_id) AS response_count
+			FROM teams t
+			INNER JOIN team_supervisors ts ON t.id = ts.team_id
+			INNER JOIN health_check_sessions s ON t.id = s.team_id
+			INNER JOIN health_check_responses r ON s.id = r.session_id
+			WHERE ts.user_id = $1
+			GROUP BY r.dimension_id
+			ORDER BY r.dimension_id
+		`
+		rows, err = r.db.QueryContext(ctx, query, managerID)
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query aggregated dimensions by manager: %w", err)
 	}
