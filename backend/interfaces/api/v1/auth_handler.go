@@ -23,7 +23,7 @@ func NewAuthHandler(db *sql.DB) *AuthHandler {
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Username and password are required"})
+		dto.RespondError(c, http.StatusBadRequest, "Username and password are required")
 		return
 	}
 
@@ -49,22 +49,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	)
 
 	if err == sql.ErrNoRows {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+		dto.RespondError(c, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Database error"})
+		dto.RespondError(c, http.StatusInternalServerError, "Database error")
 		return
 	}
 
 	// Validate password using bcrypt
 	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password)); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid username or password"})
+		dto.RespondError(c, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
 
-	// Fetch user's team memberships
+	// Fetch user's team memberships (from team_members table)
 	teamIds := []string{}
 	teamQuery := `SELECT team_id FROM team_members WHERE user_id = $1`
 	rows, err := h.db.Query(teamQuery, user.ID)
@@ -74,6 +74,29 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			var teamID string
 			if err := rows.Scan(&teamID); err == nil {
 				teamIds = append(teamIds, teamID)
+			}
+		}
+	}
+
+	// Also fetch teams where user is the team lead
+	teamLeadQuery := `SELECT id FROM teams WHERE team_lead_id = $1`
+	leadRows, err := h.db.Query(teamLeadQuery, user.ID)
+	if err == nil {
+		defer leadRows.Close()
+		for leadRows.Next() {
+			var teamID string
+			if err := leadRows.Scan(&teamID); err == nil {
+				// Avoid duplicates
+				found := false
+				for _, existingID := range teamIds {
+					if existingID == teamID {
+						found = true
+						break
+					}
+				}
+				if !found {
+					teamIds = append(teamIds, teamID)
+				}
 			}
 		}
 	}
@@ -90,5 +113,5 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		},
 	}
 
-	c.JSON(http.StatusOK, response)
+	dto.RespondSuccess(c, http.StatusOK, response)
 }

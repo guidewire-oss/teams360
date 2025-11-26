@@ -95,6 +95,7 @@ export interface HealthCheckSession {
   assessmentPeriod?: string; // e.g., "2024 - 1st Half"
   responses: HealthCheckResponse[];
   completed: boolean;
+  createdAt?: string; // Timestamp from backend
 }
 
 export interface TeamHealthSummary {

@@ -4,8 +4,7 @@
  * Provides methods to interact with the backend API for team information.
  */
 
-// Use relative URLs to go through Next.js proxy (configured in next.config.ts)
-const API_BASE_URL = '';
+import { API_BASE_URL, APIError, APIRequestError, handleResponse } from './client';
 
 // Types matching backend DTOs
 export interface TeamMember {
@@ -23,47 +22,9 @@ export interface TeamInfo {
   teamLeadName?: string;
 }
 
-export interface APIError {
-  error: string;
-  message: string;
-}
-
-/**
- * Custom error class for Teams API errors
- */
-export class TeamsAPIError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public apiError?: APIError
-  ) {
-    super(message);
-    this.name = 'TeamsAPIError';
-  }
-}
-
-/**
- * Handles API responses and errors
- */
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let errorData: APIError | null = null;
-
-    try {
-      errorData = await response.json();
-    } catch {
-      // If response is not JSON, use status text
-    }
-
-    throw new TeamsAPIError(
-      errorData?.message || response.statusText || 'An error occurred',
-      response.status,
-      errorData || undefined
-    );
-  }
-
-  return response.json();
-}
+// Re-export APIError and APIRequestError for backwards compatibility
+export type { APIError };
+export { APIRequestError as TeamsAPIError };
 
 /**
  * Fetches team info by team ID
@@ -124,6 +85,7 @@ export interface TeamSummary {
   memberCount: number;
   teamLeadId?: string;
   teamLeadName?: string;
+  nextCheckDate?: string;
 }
 
 export interface TeamsListResponse {

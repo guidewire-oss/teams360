@@ -1,0 +1,119 @@
+package v1
+
+import (
+	"database/sql"
+
+	"github.com/gin-gonic/gin"
+)
+
+// AdminHandler aggregates all admin sub-handlers
+type AdminHandler struct {
+	db                   *sql.DB
+	HierarchyHandler     *HierarchyAdminHandler
+	UserHandler          *UserAdminHandler
+	TeamHandler          *TeamAdminHandler
+	SettingsHandler      *SettingsAdminHandler
+}
+
+// NewAdminHandler creates a new AdminHandler with all sub-handlers
+func NewAdminHandler(db *sql.DB) *AdminHandler {
+	return &AdminHandler{
+		db:                   db,
+		HierarchyHandler:     NewHierarchyAdminHandler(db),
+		UserHandler:          NewUserAdminHandler(db),
+		TeamHandler:          NewTeamAdminHandler(db),
+		SettingsHandler:      NewSettingsAdminHandler(db),
+	}
+}
+
+// ============================================================================
+// Hierarchy Levels Handlers - Delegate to HierarchyAdminHandler
+// ============================================================================
+
+func (h *AdminHandler) ListHierarchyLevels(c *gin.Context) {
+	h.HierarchyHandler.ListHierarchyLevels(c)
+}
+
+func (h *AdminHandler) CreateHierarchyLevel(c *gin.Context) {
+	h.HierarchyHandler.CreateHierarchyLevel(c)
+}
+
+func (h *AdminHandler) UpdateHierarchyLevel(c *gin.Context) {
+	h.HierarchyHandler.UpdateHierarchyLevel(c)
+}
+
+func (h *AdminHandler) UpdateHierarchyPosition(c *gin.Context) {
+	h.HierarchyHandler.UpdateHierarchyPosition(c)
+}
+
+func (h *AdminHandler) DeleteHierarchyLevel(c *gin.Context) {
+	h.HierarchyHandler.DeleteHierarchyLevel(c)
+}
+
+// ============================================================================
+// Users Handlers - Delegate to UserAdminHandler
+// ============================================================================
+
+func (h *AdminHandler) ListUsers(c *gin.Context) {
+	h.UserHandler.ListUsers(c)
+}
+
+func (h *AdminHandler) CreateUser(c *gin.Context) {
+	h.UserHandler.CreateUser(c)
+}
+
+func (h *AdminHandler) UpdateUser(c *gin.Context) {
+	h.UserHandler.UpdateUser(c)
+}
+
+func (h *AdminHandler) DeleteUser(c *gin.Context) {
+	h.UserHandler.DeleteUser(c)
+}
+
+// ============================================================================
+// Teams Handlers - Delegate to TeamAdminHandler
+// ============================================================================
+
+func (h *AdminHandler) ListTeams(c *gin.Context) {
+	h.TeamHandler.ListTeams(c)
+}
+
+func (h *AdminHandler) CreateTeam(c *gin.Context) {
+	h.TeamHandler.CreateTeam(c)
+}
+
+func (h *AdminHandler) UpdateTeam(c *gin.Context) {
+	h.TeamHandler.UpdateTeam(c)
+}
+
+func (h *AdminHandler) DeleteTeam(c *gin.Context) {
+	h.TeamHandler.DeleteTeam(c)
+}
+
+// ============================================================================
+// Settings Handlers - Delegate to SettingsAdminHandler
+// ============================================================================
+
+func (h *AdminHandler) GetDimensions(c *gin.Context) {
+	h.SettingsHandler.GetDimensions(c)
+}
+
+func (h *AdminHandler) UpdateDimension(c *gin.Context) {
+	h.SettingsHandler.UpdateDimension(c)
+}
+
+func (h *AdminHandler) GetNotificationSettings(c *gin.Context) {
+	h.SettingsHandler.GetNotificationSettings(c)
+}
+
+func (h *AdminHandler) UpdateNotificationSettings(c *gin.Context) {
+	h.SettingsHandler.UpdateNotificationSettings(c)
+}
+
+func (h *AdminHandler) GetRetentionPolicy(c *gin.Context) {
+	h.SettingsHandler.GetRetentionPolicy(c)
+}
+
+func (h *AdminHandler) UpdateRetentionPolicy(c *gin.Context) {
+	h.SettingsHandler.UpdateRetentionPolicy(c)
+}

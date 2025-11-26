@@ -173,9 +173,12 @@ export default function SurveyPage() {
         completed: true
       });
 
-      // Store session ID for success page
+      // Store session ID and redirect to home page
       setSessionId(session.id);
       setSubmitted(true);
+
+      // Automatically redirect to home page after successful submission
+      router.push('/home');
     } catch (err) {
       console.error('Failed to submit health check:', err);
 
@@ -229,9 +232,6 @@ export default function SurveyPage() {
   }
 
   if (submitted) {
-    const isTeamLead = user.hierarchyLevelId === 'level-4';
-    const dashboardPath = isTeamLead ? '/manager' : '/survey';
-
     return (
       <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-100 flex items-center justify-center p-4">
         <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
@@ -242,10 +242,10 @@ export default function SurveyPage() {
             <p className="text-sm text-gray-500 mb-8 font-mono">Session ID: {sessionId}</p>
           )}
           <button
-            onClick={() => router.push(dashboardPath)}
+            onClick={() => router.push('/home')}
             className="bg-indigo-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-indigo-700 transition-colors"
           >
-            {isTeamLead ? 'Back to Team Dashboard' : 'Back to Dashboard'}
+            Back to Home
           </button>
         </div>
       </div>

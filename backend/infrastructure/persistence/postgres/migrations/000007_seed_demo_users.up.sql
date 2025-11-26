@@ -44,8 +44,10 @@ VALUES
     ('demo', 'demo', 'demo@teams360.demo', 'Demo User', 'level-5', 'teamlead1', '$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG')
 ON CONFLICT (id) DO UPDATE SET password_hash = '$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG';
 
--- Administrator (special account, no hierarchy, password: "admin")
+-- Administrator (special account with 'level-admin' hierarchy level, password: "admin")
 INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash)
 VALUES
-    ('admin', 'admin', 'admin@teams360.demo', 'Administrator', 'level-1', NULL, '$2a$10$OIc/j2lHs3sUYkWSEr8VW.HFva8imAr5l4tHIIx0bLwqKiCwdicve')
-ON CONFLICT (id) DO UPDATE SET password_hash = '$2a$10$OIc/j2lHs3sUYkWSEr8VW.HFva8imAr5l4tHIIx0bLwqKiCwdicve';
+    ('admin', 'admin', 'admin@teams360.demo', 'System Administrator', 'level-admin', NULL, '$2a$10$OIc/j2lHs3sUYkWSEr8VW.HFva8imAr5l4tHIIx0bLwqKiCwdicve')
+ON CONFLICT (id) DO UPDATE SET
+    hierarchy_level_id = 'level-admin',
+    password_hash = '$2a$10$OIc/j2lHs3sUYkWSEr8VW.HFva8imAr5l4tHIIx0bLwqKiCwdicve';

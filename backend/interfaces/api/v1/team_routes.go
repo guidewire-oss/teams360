@@ -31,10 +31,7 @@ func (h *TeamHandler) GetTeamSessions(c *gin.Context) {
 
 	// Validate input
 	if teamID == "" {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "Team ID is required",
-			Message: "teamId parameter cannot be empty",
-		})
+		dto.RespondErrorWithDetails(c, http.StatusBadRequest, "Team ID is required", "teamId parameter cannot be empty")
 		return
 	}
 
@@ -56,10 +53,7 @@ func (h *TeamHandler) GetTeamSessions(c *gin.Context) {
 			// Fallback to in-memory filtering if repository doesn't support combined query
 			allSessions, err := h.repository.FindByTeamID(teamID)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-					Error:   "Failed to fetch team sessions",
-					Message: err.Error(),
-				})
+				dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team sessions", err.Error())
 				return
 			}
 			sessions = make([]*healthcheck.HealthCheckSession, 0)
@@ -75,10 +69,7 @@ func (h *TeamHandler) GetTeamSessions(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Failed to fetch team sessions",
-			Message: err.Error(),
-		})
+		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team sessions", err.Error())
 		return
 	}
 
@@ -101,10 +92,7 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 	teamID := c.Param("teamId")
 
 	if teamID == "" {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
-			Error:   "Team ID is required",
-			Message: "teamId parameter cannot be empty",
-		})
+		dto.RespondErrorWithDetails(c, http.StatusBadRequest, "Team ID is required", "teamId parameter cannot be empty")
 		return
 	}
 
@@ -132,18 +120,12 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 	)
 
 	if err == sql.ErrNoRows {
-		c.JSON(http.StatusNotFound, dto.ErrorResponse{
-			Error:   "Team not found",
-			Message: "No team found with the given ID",
-		})
+		dto.RespondErrorWithDetails(c, http.StatusNotFound, "Team not found", "No team found with the given ID")
 		return
 	}
 
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Database error",
-			Message: err.Error(),
-		})
+		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database error", err.Error())
 		return
 	}
 
@@ -156,27 +138,16 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 	`
 	rows, err := h.db.Query(membersQuery, teamID)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Failed to fetch team members",
-			Message: err.Error(),
-		})
+		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch team members", err.Error())
 		return
 	}
 	defer rows.Close()
 
-	members := []gin.H{}
+	members := []dto.TeamMember{}
 	for rows.Next() {
-		var member struct {
-			ID       string
-			Username string
-			FullName string
-		}
+		var member dto.TeamMember
 		if err := rows.Scan(&member.ID, &member.Username, &member.FullName); err == nil {
-			members = append(members, gin.H{
-				"id":       member.ID,
-				"username": member.Username,
-				"fullName": member.FullName,
-			})
+			members = append(members, member)
 		}
 	}
 
@@ -185,21 +156,21 @@ func (h *TeamHandler) GetTeamInfo(c *gin.Context) {
 		cadence = team.Cadence.String
 	}
 
-	response := gin.H{
-		"id":      team.ID,
-		"name":    team.Name,
-		"cadence": cadence,
-		"members": members,
+	response := dto.TeamInfoResponse{
+		ID:      team.ID,
+		Name:    team.Name,
+		Cadence: cadence,
+		Members: members,
 	}
 
 	if team.LeadID.Valid {
-		response["teamLeadId"] = team.LeadID.String
+		response.TeamLeadID = team.LeadID.String
 		if team.LeadName.Valid {
-			response["teamLeadName"] = team.LeadName.String
+			response.TeamLeadName = team.LeadName.String
 		}
 	}
 
-	c.JSON(http.StatusOK, response)
+	dto.RespondSuccess(c, http.StatusOK, response)
 }
 
 // ListTeams handles GET /api/v1/teams
@@ -214,15 +185,12 @@ func (h *TeamHandler) ListTeams(c *gin.Context) {
 	`
 	rows, err := h.db.Query(query)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
-			Error:   "Failed to fetch teams",
-			Message: err.Error(),
-		})
+		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch teams", err.Error())
 		return
 	}
 	defer rows.Close()
 
-	teams := []gin.H{}
+	teams := []dto.TeamSummary{}
 	for rows.Next() {
 		var team struct {
 			ID          string
@@ -241,31 +209,33 @@ func (h *TeamHandler) ListTeams(c *gin.Context) {
 			cadence = team.Cadence.String
 		}
 
-		teamData := gin.H{
-			"id":          team.ID,
-			"name":        team.Name,
-			"cadence":     cadence,
-			"memberCount": team.MemberCount,
+		teamSummary := dto.TeamSummary{
+			ID:          team.ID,
+			Name:        team.Name,
+			Cadence:     cadence,
+			MemberCount: team.MemberCount,
 		}
 
 		if team.LeadID.Valid {
-			teamData["teamLeadId"] = team.LeadID.String
+			teamSummary.TeamLeadID = team.LeadID.String
 			if team.LeadName.Valid {
-				teamData["teamLeadName"] = team.LeadName.String
+				teamSummary.TeamLeadName = team.LeadName.String
 			}
 		}
 
-		teams = append(teams, teamData)
+		teams = append(teams, teamSummary)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"teams": teams,
-		"total": len(teams),
-	})
+	response := dto.TeamListResponse{
+		Teams: teams,
+		Total: len(teams),
+	}
+
+	dto.RespondSuccess(c, http.StatusOK, response)
 }
 
 // SetupTeamRoutes registers team-related routes
-func SetupTeamRoutes(router *gin.Engine, repo healthcheck.Repository, db *sql.DB) {
+func SetupTeamRoutes(router *gin.Engine, db *sql.DB, repo healthcheck.Repository) {
 	handler := NewTeamHandler(repo, db)
 
 	// Team routes

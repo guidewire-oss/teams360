@@ -92,8 +92,6 @@ var _ = SynchronizedBeforeSuite(
 		// Insert test-specific users to avoid conflicts with seed migration
 		// Using test-specific IDs (e2e_*) to avoid conflicts with existing seed data
 		// Schema: id, username, email, full_name, hierarchy_level_id, reports_to, password_hash
-		// Password 'demo' bcrypt hash: $2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG
-		demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
 		_, err = db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
 			('e2e_demo', 'e2e_demo', 'e2e_demo@teams360.demo', 'E2E Demo User', 'level-5', 'e2e_lead1', $1),
@@ -105,7 +103,7 @@ var _ = SynchronizedBeforeSuite(
 			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member Two', 'level-5', 'e2e_lead2', $1),
 			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1)
 			ON CONFLICT (id) DO NOTHING
-		`, demoPasswordHash)
+		`, DemoPasswordHash)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Insert E2E test teams (schema: id, name, team_lead_id)

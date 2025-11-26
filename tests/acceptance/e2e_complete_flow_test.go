@@ -411,14 +411,8 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 				// Verify submission count shows 3
 				Eventually(func() bool {
 					// Look for "3 submissions" or similar
-					countText := page.Locator("text=/3.*submission/i, text=/submission.*3/i")
+					countText := page.Locator("[data-testid='submission-count']:has-text('3')").Or(page.Locator("text=3 submissions")).Or(page.Locator("text=submissions: 3"))
 					visible, _ := countText.First().IsVisible()
-					if visible {
-						return true
-					}
-					// Also check for just the number 3 near submission-related content
-					threeText := page.Locator("[data-testid='submission-count']:has-text('3')")
-					visible, _ = threeText.First().IsVisible()
 					return visible
 				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue(), "Should show 3 submissions")
 

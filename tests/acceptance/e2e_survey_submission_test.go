@@ -325,7 +325,7 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				By("Verifying validation error messages appear")
-				errorMessage := page.Locator("text=/please select|required/i")
+				errorMessage := page.Locator("text=please select").Or(page.Locator("text=required")).Or(page.Locator("text=Please select"))
 				err = errorMessage.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),

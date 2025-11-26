@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { listTeams, TeamSummary } from '@/lib/api/teams';
-import { Settings, Users, Calendar, Plus, Edit2, Trash2, LogOut, Shield, Clock, Save, X, Building2 } from 'lucide-react';
+import { Settings, Users, Calendar, Plus, Edit2, Trash2, LogOut, Shield, Save, X, Building2 } from 'lucide-react';
 import HierarchyConfig from '@/components/HierarchyConfig';
 
 export default function AdminPage() {
@@ -16,6 +16,8 @@ export default function AdminPage() {
   const [showNewTeamForm, setShowNewTeamForm] = useState(false);
   const [teams, setTeams] = useState<TeamSummary[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(false);
+  const [showNewUserForm, setShowNewUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState<any>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -85,6 +87,7 @@ export default function AdminPage() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex gap-4 mb-8 border-b">
           <button
+            data-testid="hierarchy-tab"
             onClick={() => setActiveTab('hierarchy')}
             className={`px-6 py-3 font-medium transition-colors border-b-2 ${
               activeTab === 'hierarchy'
@@ -98,6 +101,7 @@ export default function AdminPage() {
             </div>
           </button>
           <button
+            data-testid="teams-tab"
             onClick={() => setActiveTab('teams')}
             className={`px-6 py-3 font-medium transition-colors border-b-2 ${
               activeTab === 'teams'
@@ -111,6 +115,7 @@ export default function AdminPage() {
             </div>
           </button>
           <button
+            data-testid="users-tab"
             onClick={() => setActiveTab('users')}
             className={`px-6 py-3 font-medium transition-colors border-b-2 ${
               activeTab === 'users'
@@ -124,6 +129,7 @@ export default function AdminPage() {
             </div>
           </button>
           <button
+            data-testid="settings-tab"
             onClick={() => setActiveTab('settings')}
             className={`px-6 py-3 font-medium transition-colors border-b-2 ${
               activeTab === 'settings'
@@ -147,6 +153,7 @@ export default function AdminPage() {
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Manage Teams</h2>
               <button
+                data-testid="add-team"
                 onClick={() => setShowNewTeamForm(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
@@ -156,13 +163,15 @@ export default function AdminPage() {
             </div>
 
             {showNewTeamForm && (
-              <div className="bg-white p-6 rounded-xl shadow-sm border mb-6">
+              <div className="bg-white p-6 rounded-xl shadow-sm border mb-6" data-testid="create-team-form">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">New Team</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
                     <input
                       type="text"
+                      name="name"
+                      id="team-name"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       placeholder="Enter team name"
                     />
@@ -220,97 +229,65 @@ export default function AdminPage() {
                 No teams found. Add your first team to get started.
               </div>
             ) : (
-              <div className="grid gap-4">
-                {teams.map(team => (
-                  <div key={team.id} className="bg-white p-6 rounded-xl shadow-sm border">
-                    {editingTeam?.id === team.id ? (
-                      <div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
-                            <input
-                              type="text"
-                              defaultValue={team.name}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                            />
+              <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                <table className="w-full" data-testid="teams-list">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Name</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cadence</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Next Check Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Team Lead</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {teams.map(team => (
+                      <tr key={team.id} data-testid="team-row">
+                        <td className="px-6 py-4">
+                          <div className="font-semibold text-gray-900">{team.name}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <Calendar className="w-4 h-4" />
+                            {team.cadence}
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Cadence</label>
-                            <select
-                              defaultValue={team.cadence}
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-500">
+                            {team.nextCheckDate || 'Not scheduled'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-1 text-sm text-gray-500">
+                            <Users className="w-4 h-4" />
+                            {team.memberCount}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-sm text-gray-500">
+                            {team.teamLeadName || 'Not assigned'}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => setEditingTeam(team)}
+                              className="text-indigo-600 hover:text-indigo-900"
                             >
-                              <option value="weekly">Weekly</option>
-                              <option value="biweekly">Bi-weekly</option>
-                              <option value="monthly">Monthly</option>
-                              <option value="quarterly">Quarterly</option>
-                            </select>
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              className="text-red-600 hover:text-red-900"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Team Lead</label>
-                            <input
-                              type="text"
-                              defaultValue={team.teamLeadName || 'Not assigned'}
-                              disabled
-                              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                            />
-                          </div>
-                        </div>
-                        <div className="flex gap-4 mt-4">
-                          <button
-                            onClick={() => handleSaveTeam(team)}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                          >
-                            <Save className="w-4 h-4" />
-                            Save
-                          </button>
-                          <button
-                            onClick={() => setEditingTeam(null)}
-                            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                          >
-                            <X className="w-4 h-4" />
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <h3 className="text-lg font-semibold text-gray-900">{team.name}</h3>
-                          <div className="flex gap-6 mt-2 text-sm text-gray-500">
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {team.cadence}
-                            </span>
-                            <span className="flex items-center gap-1">
-                              <Users className="w-4 h-4" />
-                              {team.memberCount} members
-                            </span>
-                            {team.teamLeadName && (
-                              <span className="flex items-center gap-1">
-                                <Shield className="w-4 h-4" />
-                                Lead: {team.teamLeadName}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setEditingTeam(team)}
-                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                          >
-                            <Edit2 className="w-5 h-5" />
-                          </button>
-                          <button
-                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                          >
-                            <Trash2 className="w-5 h-5" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>
@@ -320,14 +297,142 @@ export default function AdminPage() {
           <div>
             <div className="flex justify-between items-center mb-6">
               <h2 className="text-xl font-semibold text-gray-900">Manage Users</h2>
-              <button className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+              <button
+                data-testid="add-user"
+                onClick={() => setShowNewUserForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
                 <Plus className="w-5 h-5" />
                 Add User
               </button>
             </div>
-            
+
+            {showNewUserForm && (
+              <div className="bg-white p-6 rounded-xl shadow-sm border mb-6" data-testid="create-user-form">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">New User</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                    <input
+                      type="text"
+                      name="fullName"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter full name"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input
+                      type="text"
+                      name="username"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter username"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      placeholder="Enter email"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <select name="role" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                      <option value="level-5">Team Member</option>
+                      <option value="level-4">Team Lead</option>
+                      <option value="level-3">Manager</option>
+                      <option value="level-2">Director</option>
+                      <option value="level-1">VP</option>
+                      <option value="level-admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={() => setShowNewUserForm(false)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save User
+                  </button>
+                  <button
+                    onClick={() => setShowNewUserForm(false)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {editingUser && (
+              <div className="bg-white p-6 rounded-xl shadow-sm border mb-6" data-testid="edit-user-form">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Edit User</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                    <input
+                      type="text"
+                      name="fullName"
+                      defaultValue={editingUser.name}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Username</label>
+                    <input
+                      type="text"
+                      name="username"
+                      defaultValue={editingUser.username}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input
+                      type="email"
+                      name="email"
+                      defaultValue={editingUser.email}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Role</label>
+                    <select name="role" defaultValue={editingUser.role} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                      <option value="level-5">Team Member</option>
+                      <option value="level-4">Team Lead</option>
+                      <option value="level-3">Manager</option>
+                      <option value="level-2">Director</option>
+                      <option value="level-1">VP</option>
+                      <option value="level-admin">Admin</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex gap-4 mt-6">
+                  <button
+                    onClick={() => setEditingUser(null)}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                  >
+                    <Save className="w-4 h-4" />
+                    Save Changes
+                  </button>
+                  <button
+                    onClick={() => setEditingUser(null)}
+                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              <table className="w-full">
+              <table className="w-full" data-testid="users-list">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
@@ -338,44 +443,62 @@ export default function AdminPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  <tr>
+                  <tr data-testid="user-row">
                     <td className="px-6 py-4">Demo User</td>
                     <td className="px-6 py-4">demo</td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">Team Member</span>
+                      <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-sm" data-testid="role-badge">Team Member</span>
                     </td>
                     <td className="px-6 py-4">Phoenix Squad</td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
+                        <button
+                          data-testid="edit-user"
+                          onClick={() => setEditingUser({ name: 'Demo User', username: 'demo', email: 'demo@example.com', role: 'level-5' })}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Edit
+                        </button>
                         <button className="text-red-600 hover:text-red-900">Delete</button>
                       </div>
                     </td>
                   </tr>
-                  <tr>
+                  <tr data-testid="user-row">
                     <td className="px-6 py-4">Manager User</td>
                     <td className="px-6 py-4">manager</td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm">Manager</span>
+                      <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm" data-testid="role-badge">Manager</span>
                     </td>
                     <td className="px-6 py-4">All Teams</td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
+                        <button
+                          data-testid="edit-user"
+                          onClick={() => setEditingUser({ name: 'Manager User', username: 'manager', email: 'manager@example.com', role: 'level-3' })}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Edit
+                        </button>
                         <button className="text-red-600 hover:text-red-900">Delete</button>
                       </div>
                     </td>
                   </tr>
-                  <tr>
+                  <tr data-testid="user-row">
                     <td className="px-6 py-4">Admin User</td>
                     <td className="px-6 py-4">admin</td>
                     <td className="px-6 py-4">
-                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm">Administrator</span>
+                      <span className="px-2 py-1 bg-purple-100 text-purple-700 rounded-full text-sm" data-testid="role-badge">Admin</span>
                     </td>
                     <td className="px-6 py-4">-</td>
                     <td className="px-6 py-4">
                       <div className="flex gap-2">
-                        <button className="text-indigo-600 hover:text-indigo-900">Edit</button>
+                        <button
+                          data-testid="edit-user"
+                          onClick={() => setEditingUser({ name: 'Admin User', username: 'admin', email: 'admin@example.com', role: 'level-admin' })}
+                          className="text-indigo-600 hover:text-indigo-900"
+                        >
+                          Edit
+                        </button>
                         <button className="text-gray-400 cursor-not-allowed">Delete</button>
                       </div>
                     </td>
@@ -389,13 +512,13 @@ export default function AdminPage() {
         {activeTab === 'settings' && (
           <div className="bg-white rounded-xl shadow-sm border p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">System Settings</h2>
-            
+
             <div className="space-y-6">
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Health Check Dimensions</h3>
+              <div data-testid="dimensions-settings">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Health Dimensions Configuration</h3>
                 <div className="space-y-3">
                   {HEALTH_DIMENSIONS.map(dimension => (
-                    <div key={dimension.id} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div key={dimension.id} className="flex items-center justify-between p-4 border rounded-lg" data-testid="dimension-row">
                       <div>
                         <p className="font-medium text-gray-900">{dimension.name}</p>
                         <p className="text-sm text-gray-500">{dimension.description}</p>
@@ -410,7 +533,7 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div>
+              <div data-testid="notifications-settings">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">Notification Settings</h3>
                 <div className="space-y-4">
                   <label className="flex items-center gap-3">
@@ -428,14 +551,14 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div>
-                <h3 className="text-lg font-medium text-gray-900 mb-4">Data Retention</h3>
+              <div data-testid="retention-settings">
+                <h3 className="text-lg font-medium text-gray-900 mb-4">Data Retention Policy</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Keep health check data for</label>
                     <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                       <option>6 months</option>
-                      <option selected>1 year</option>
+                      <option defaultValue="selected">1 year</option>
                       <option>2 years</option>
                       <option>Forever</option>
                     </select>

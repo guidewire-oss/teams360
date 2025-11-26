@@ -39,14 +39,17 @@ export default function LoginPage() {
       document.cookie = `user=${JSON.stringify(user)}; path=/; max-age=86400`; // 1 day
 
       // Route based on permissions
-      if (user.hierarchyLevel === 'level-1' || user.hierarchyLevel === 'level-2' || user.hierarchyLevel === 'level-3') {
+      if (user.hierarchyLevel === 'admin' || user.hierarchyLevel === 'level-admin') {
+        // Admins go to admin dashboard
+        router.push('/admin');
+      } else if (user.hierarchyLevel === 'level-1' || user.hierarchyLevel === 'level-2' || user.hierarchyLevel === 'level-3') {
         // VPs, Directors, Managers go to manager dashboard
         router.push('/manager');
       } else if (user.hierarchyLevel === 'level-4') {
-        // Team leads also go to manager page
-        router.push('/manager');
+        // Team leads go to dashboard (their own team view)
+        router.push('/dashboard');
       } else {
-        // Team members go to survey
+        // Team members (level-5) go to survey
         router.push('/survey');
       }
     } catch (err) {

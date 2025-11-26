@@ -43,11 +43,10 @@ var _ = Describe("E2E: Authentication", Label("e2e"), func() {
 			It("should successfully log in and redirect to appropriate dashboard", func() {
 				// Given: A user exists in the database
 				By("Creating a test manager user")
-				demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 					VALUES ('e2e_test_mgr1', 'e2e_test_mgr', 'e2e_test_mgr@test.com', 'E2E Test Manager', 'level-3', $1)
-				`, demoPasswordHash)
+				`, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: User navigates to login page
@@ -114,7 +113,7 @@ var _ = Describe("E2E: Authentication", Label("e2e"), func() {
 				// Then: Error message should be displayed
 				By("Verifying error message is displayed")
 				Eventually(func() bool {
-					errorMsg := page.Locator("text=/Invalid username or password/i")
+					errorMsg := page.Locator("text=Invalid username or password").Or(page.Locator("text=Invalid credentials"))
 					visible, _ := errorMsg.IsVisible()
 					return visible
 				}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())

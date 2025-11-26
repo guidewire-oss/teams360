@@ -225,11 +225,11 @@ export default function HierarchyConfig() {
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className="space-y-4" data-testid="hierarchy-list">
         {config.hierarchyLevels.map((level, index) => (
-          <div key={level.id} className="bg-white p-6 rounded-xl shadow-sm border">
+          <div key={level.id} className="bg-white p-6 rounded-xl shadow-sm border" data-testid="hierarchy-level-row">
             {editingLevel === level.id ? (
-              <div className="space-y-4">
+              <div className="space-y-4" data-testid="edit-level-form">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Level Name</label>
@@ -258,7 +258,7 @@ export default function HierarchyConfig() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Permissions</label>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -284,7 +284,7 @@ export default function HierarchyConfig() {
                     ))}
                   </div>
                 </div>
-                
+
                 <div className="flex gap-4">
                   <button
                     onClick={() => handleUpdateLevel(level.id, level)}
@@ -306,7 +306,7 @@ export default function HierarchyConfig() {
               <div className="flex justify-between items-start">
                 <div className="flex-1">
                   <div className="flex items-center gap-4 mb-2">
-                    <div 
+                    <div
                       className="w-4 h-4 rounded"
                       style={{ backgroundColor: level.color }}
                     />
@@ -319,7 +319,7 @@ export default function HierarchyConfig() {
                       </span>
                     )}
                   </div>
-                  
+
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-4">
                     {Object.entries(level.permissions).filter(([_, enabled]) => enabled).map(([key]) => {
                       const labels = {
@@ -340,31 +340,36 @@ export default function HierarchyConfig() {
                     })}
                   </div>
                 </div>
-                
+
                 <div className="flex items-center gap-2">
                   <button
+                    data-testid="move-up"
                     onClick={() => moveLevel(index, 'up')}
                     disabled={index === 0}
+                    aria-label="Move level up"
                     className={`p-2 rounded-lg transition-colors ${
-                      index === 0 
-                        ? 'text-gray-300 cursor-not-allowed' 
+                      index === 0
+                        ? 'text-gray-300 cursor-not-allowed'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    <ChevronUp className="w-5 h-5" />
+                    <ChevronUp className="w-5 h-5" data-lucide="arrow-up" />
                   </button>
                   <button
+                    data-testid="move-down"
                     onClick={() => moveLevel(index, 'down')}
                     disabled={index === config.hierarchyLevels.length - 1}
+                    aria-label="Move level down"
                     className={`p-2 rounded-lg transition-colors ${
                       index === config.hierarchyLevels.length - 1
                         ? 'text-gray-300 cursor-not-allowed'
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    <ChevronDown className="w-5 h-5" />
+                    <ChevronDown className="w-5 h-5" data-lucide="arrow-down" />
                   </button>
                   <button
+                    data-testid="edit-level"
                     onClick={() => setEditingLevel(level.id)}
                     className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                   >

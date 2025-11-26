@@ -5,73 +5,43 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-migrate/migrate/v4"
-	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
-	_ "github.com/golang-migrate/migrate/v4/source/file"
-	_ "github.com/lib/pq"
 
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
+	"github.com/agopalakrishnan/teams360/backend/tests/testhelpers"
 )
 
 var _ = Describe("Integration: Team Results API", func() {
 	var (
-		db     *sql.DB
-		router *gin.Engine
-		err    error
+		db      *sql.DB
+		router  *gin.Engine
+		cleanup func()
 	)
 
 	BeforeEach(func() {
 		// Set Gin to test mode
 		gin.SetMode(gin.TestMode)
 
-		// Connect to test database
-		databaseURL := os.Getenv("TEST_DATABASE_URL")
-		if databaseURL == "" {
-			databaseURL = "postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
-		}
-
-		db, err = sql.Open("postgres", databaseURL)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(db.Ping()).To(Succeed())
-
-		// Clean and run migrations
-		_, err = db.Exec("DROP SCHEMA public CASCADE; CREATE SCHEMA public;")
-		Expect(err).NotTo(HaveOccurred())
-
-		driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
-		Expect(err).NotTo(HaveOccurred())
-
-		migrationEngine, err := migrate.NewWithDatabaseInstance(
-			"file://../../infrastructure/persistence/postgres/migrations",
-			"postgres",
-			driver,
-		)
-		Expect(err).NotTo(HaveOccurred())
-
-		err = migrationEngine.Up()
-		Expect(err).NotTo(HaveOccurred())
+		// Setup test database with helpers
+		db, cleanup = testhelpers.SetupTestDatabase()
 
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		v1.SetupHealthCheckRoutesWithDB(router, db, healthCheckRepo)
 
-		// Setup team routes (to be implemented)
-		v1.SetupTeamRoutes(router, healthCheckRepo, db)
+		// Setup team routes
+		v1.SetupTeamRoutes(router, db, healthCheckRepo)
 	})
 
 	AfterEach(func() {
-		if db != nil {
-			db.Close()
-		}
+		cleanup()
 	})
 
 	Describe("GET /api/v1/teams/:teamId", func() {
@@ -127,7 +97,7 @@ var _ = Describe("Integration: Team Results API", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: Request team sessions
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/tr_alpha", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/tr_alpha/sessions", nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -205,7 +175,7 @@ var _ = Describe("Integration: Team Results API", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: Request with period filter
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/filterteam?assessmentPeriod=2024+-+1st+Half", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/filterteam/sessions?assessmentPeriod=2024+-+1st+Half", nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -238,7 +208,7 @@ var _ = Describe("Integration: Team Results API", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: Request team sessions
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/emptyteam", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/emptyteam/sessions", nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -256,9 +226,9 @@ var _ = Describe("Integration: Team Results API", func() {
 				}
 			})
 
-			It("should return 400 for invalid team ID", func() {
-				// When: Request with empty team ID
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/", nil)
+			It("should return 404 for non-existent route", func() {
+				// When: Request to a route that doesn't exist
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/nonexistent/nonexistent", nil)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 

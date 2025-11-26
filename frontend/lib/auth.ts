@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie';
+import type { User as DomainUser } from '@/lib/types';
 
 /**
  * User type returned from API login
@@ -15,39 +16,51 @@ export interface APIUser {
 }
 
 /**
- * User type used in frontend components
- * Maps from API response to component-compatible format
+ * AuthUser type used for authenticated user in frontend components.
+ *
+ * Based on the canonical User type but omits password (not sent to frontend)
+ * and adds API-aligned field aliases:
+ * - fullName: User's display name (matches API, alias for name)
+ * - hierarchyLevel: User's level ID (matches API, alias for hierarchyLevelId)
+ *
+ * For backwards compatibility with components using old field names:
+ * - name: Alias for fullName
+ * - hierarchyLevelId: Alias for hierarchyLevel
  */
-export interface User {
-  id: string;
-  username?: string;
-  name: string;
-  email?: string;
-  hierarchyLevelId: string;
-  teamIds: string[];
-  isAdmin?: boolean;
-  reportsTo?: string;
+export interface AuthUser extends Omit<DomainUser, 'password'> {
+  // API-aligned field names (aliases for backwards compatibility)
+  fullName: string;
+  hierarchyLevel: string;
 }
 
+// For backwards compatibility - components can still import "User" from auth.ts
+// but it will actually be the AuthUser type (without password)
+export type User = AuthUser;
+
 /**
- * Gets the current user from the cookie
- * Maps API response format to frontend User format
+ * Gets the current user from the cookie.
+ * Returns user with both API-aligned and legacy field names for compatibility.
  */
-export const getCurrentUser = (): User | null => {
+export const getCurrentUser = (): AuthUser | null => {
   const userCookie = Cookies.get('user');
   if (userCookie) {
     try {
-      const apiUser = JSON.parse(userCookie);
-      // Map API response format to frontend User format
+      const apiUser = JSON.parse(userCookie) as APIUser;
+      const fullName = apiUser.fullName || '';
+      const hierarchyLevel = apiUser.hierarchyLevel || '';
+
       return {
         id: apiUser.id,
         username: apiUser.username,
-        name: apiUser.fullName || apiUser.name,
         email: apiUser.email,
-        // Handle both formats: API uses 'hierarchyLevel', frontend uses 'hierarchyLevelId'
-        hierarchyLevelId: apiUser.hierarchyLevel || apiUser.hierarchyLevelId,
         teamIds: apiUser.teamIds || [],
-        isAdmin: apiUser.hierarchyLevel === 'admin' || apiUser.hierarchyLevelId === 'admin',
+        isAdmin: hierarchyLevel === 'admin' || hierarchyLevel === 'level-admin',
+        // API-aligned names
+        fullName,
+        hierarchyLevel,
+        // Backwards-compatible aliases
+        name: fullName,
+        hierarchyLevelId: hierarchyLevel,
       };
     } catch {
       return null;

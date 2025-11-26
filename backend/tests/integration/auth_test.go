@@ -6,35 +6,25 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
+	"github.com/agopalakrishnan/teams360/backend/tests/testhelpers"
 	"github.com/gin-gonic/gin"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var _ = Describe("Authentication API Integration Tests", func() {
 	var (
-		router *gin.Engine
-		db     *sql.DB
+		router  *gin.Engine
+		db      *sql.DB
+		cleanup func()
 	)
 
 	BeforeEach(func() {
-		// Setup test database connection
-		databaseURL := os.Getenv("TEST_DATABASE_URL")
-		if databaseURL == "" {
-			databaseURL = "postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
-		}
-
-		var err error
-		db, err = sql.Open("postgres", databaseURL)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(db.Ping()).NotTo(HaveOccurred())
-
-		// Clean up test data
-		_, err = db.Exec(`DELETE FROM users WHERE id IN ('testuser1', 'authtest1')`)
-		Expect(err).NotTo(HaveOccurred())
+		// Setup test database with helpers
+		db, cleanup = testhelpers.SetupTestDatabase()
 
 		// Setup Gin router
 		gin.SetMode(gin.TestMode)
@@ -43,19 +33,20 @@ var _ = Describe("Authentication API Integration Tests", func() {
 	})
 
 	AfterEach(func() {
-		if db != nil {
-			db.Close()
-		}
+		cleanup()
 	})
 
 	Describe("POST /api/v1/auth/login", func() {
 		Context("when credentials are valid", func() {
 			It("should return 200 OK with user data", func() {
-				// Given: A user exists in the database
-				_, err := db.Exec(`
+				// Given: A user exists in the database with bcrypt hashed password
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte("testpass"), bcrypt.DefaultCost)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
-					VALUES ('authtest1', 'authuser', 'authuser@test.com', 'Auth Test User', 'level-4', 'testpass')
-				`)
+					VALUES ('authtest1', 'authuser', 'authuser@test.com', 'Auth Test User', 'level-4', $1)
+				`, string(hashedPassword))
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: User submits valid credentials
@@ -115,11 +106,14 @@ var _ = Describe("Authentication API Integration Tests", func() {
 
 		Context("when password is incorrect", func() {
 			It("should return 401 Unauthorized", func() {
-				// Given: A user exists in the database
-				_, err := db.Exec(`
+				// Given: A user exists in the database with bcrypt hashed password
+				hashedPassword, err := bcrypt.GenerateFromPassword([]byte("correctpass"), bcrypt.DefaultCost)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
-					VALUES ('authtest1', 'authuser', 'authuser@test.com', 'Auth Test User', 'level-4', 'correctpass')
-				`)
+					VALUES ('authtest1', 'authuser', 'authuser@test.com', 'Auth Test User', 'level-4', $1)
+				`, string(hashedPassword))
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: User submits incorrect password

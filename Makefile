@@ -107,7 +107,7 @@ db-reset: ## Reset production database (WARNING: deletes all data)
 
 db-test-setup: ## Setup test database with migrations and seed data
 	@echo "$(CYAN)Setting up test database...$(RESET)"
-	@cd backend && TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go &
+	@cd backend && DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go &
 	@sleep 3
 	@pkill -f "go run cmd/api/main.go"
 	@echo "$(CYAN)Test database setup complete!$(RESET)"
@@ -198,7 +198,7 @@ test-e2e: ## 🚀 Run E2E tests with both frontend and backend servers
 	@sleep 2
 	@echo ""
 	@echo "$(CYAN)Starting backend server (port 8080)...$(RESET)"
-	@cd backend && TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go > /tmp/backend-e2e.log 2>&1 & echo $$! > /tmp/backend.pid
+	@cd backend && DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable" go run cmd/api/main.go > /tmp/backend-e2e.log 2>&1 & echo $$! > /tmp/backend.pid
 	@sleep 3
 	@echo ""
 	@echo "$(CYAN)Starting frontend server (port 3000)...$(RESET)"

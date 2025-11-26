@@ -50,7 +50,6 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 				By("Setting up organizational hierarchy with manager, leads, and members")
 
 				// Create users (using e2e_ prefix to avoid conflicts with seed data)
-				demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash)
 					VALUES
@@ -60,7 +59,7 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 						('e2e_mem1_test', 'e2e_mem1_test', 'e2e_mem1_test@test.com', 'E2E Member One Test', 'level-5', 'e2e_ld1_test', $1),
 						('e2e_mem2_test', 'e2e_mem2_test', 'e2e_mem2_test@test.com', 'E2E Member Two Test', 'level-5', 'e2e_ld1_test', $1),
 						('e2e_mem3_test', 'e2e_mem3_test', 'e2e_mem3_test@test.com', 'E2E Member Three Test', 'level-5', 'e2e_ld2_test', $1)
-				`, demoPasswordHash)
+				`, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Create teams (using e2e_ prefix)
@@ -263,11 +262,10 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 				// Given: Manager with teams that have health checks in different periods
 				By("Setting up teams with health checks in multiple assessment periods")
 
-				demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 					VALUES ('e2e_mgr_period', 'e2e_mgr_period', 'e2e_mgr_period@test.com', 'E2E Manager Period', 'level-3', $1)
-				`, demoPasswordHash)
+				`, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 
 				_, err = db.Exec(`
@@ -344,11 +342,10 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 			It("should display empty state message", func() {
 				// Given: Manager with no teams
 				By("Creating manager with no team assignments")
-				demoPasswordHash := "$2a$10$OFyj3qtGv0zgv3r3kn9h/OvqyNxNgh7vOCvrF56HyBMcU73QU4LtG"
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 					VALUES ('e2e_mgr_empty', 'e2e_mgr_empty', 'e2e_mgr_empty@test.com', 'E2E Manager Empty', 'level-3', $1)
-				`, demoPasswordHash)
+				`, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 
 				// When: Manager logs in

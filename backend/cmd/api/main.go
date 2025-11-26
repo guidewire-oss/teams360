@@ -102,7 +102,10 @@ func main() {
 	v1.SetupAuthRoutes(router, db)
 	v1.SetupHealthCheckRoutesWithDB(router, db, repository)
 	v1.SetupManagerRoutes(router, db)
-	v1.SetupTeamRoutes(router, repository, db)
+	v1.SetupTeamRoutes(router, db, repository)
+	v1.SetupTeamDashboardRoutes(router, db)
+	v1.SetupUserRoutes(router, db)
+	v1.SetupAdminRoutes(router, db)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

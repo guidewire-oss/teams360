@@ -5,17 +5,13 @@
  * Handles authentication, error handling, and data transformation.
  */
 
-// Use relative URLs to go through Next.js proxy (configured in next.config.ts)
-const API_BASE_URL = '';
+import { API_BASE_URL, APIError, APIRequestError, handleResponse } from './client';
+import type { HealthCheckResponse, HealthCheckSession, HealthDimension } from '@/lib/types';
 
-// Types matching backend DTOs
-export interface HealthCheckResponse {
-  dimensionId: string;
-  score: number; // 1 = red, 2 = yellow, 3 = green
-  trend: 'improving' | 'stable' | 'declining';
-  comment?: string;
-}
+// Re-export domain types from the canonical source for backwards compatibility
+export type { HealthCheckResponse, HealthCheckSession, HealthDimension };
 
+// API-specific request/response wrapper types
 export interface SubmitHealthCheckRequest {
   id?: string;
   teamId: string;
@@ -24,27 +20,6 @@ export interface SubmitHealthCheckRequest {
   assessmentPeriod?: string;
   responses: HealthCheckResponse[];
   completed: boolean;
-}
-
-export interface HealthCheckSession {
-  id: string;
-  teamId: string;
-  userId: string;
-  date: string;
-  assessmentPeriod: string;
-  responses: HealthCheckResponse[];
-  completed: boolean;
-  createdAt?: string;
-}
-
-export interface HealthDimension {
-  id: string;
-  name: string;
-  description: string;
-  goodDescription: string;
-  badDescription: string;
-  isActive: boolean;
-  weight: number;
 }
 
 export interface HealthDimensionsResponse {
@@ -56,48 +31,9 @@ export interface HealthCheckSessionsResponse {
   total: number;
 }
 
-export interface APIError {
-  error: string;
-  message: string;
-  code?: string;
-}
-
-/**
- * Custom error class for API errors
- */
-export class HealthCheckAPIError extends Error {
-  constructor(
-    message: string,
-    public statusCode?: number,
-    public apiError?: APIError
-  ) {
-    super(message);
-    this.name = 'HealthCheckAPIError';
-  }
-}
-
-/**
- * Handles API responses and errors
- */
-async function handleResponse<T>(response: Response): Promise<T> {
-  if (!response.ok) {
-    let errorData: APIError | null = null;
-
-    try {
-      errorData = await response.json();
-    } catch {
-      // If response is not JSON, use status text
-    }
-
-    throw new HealthCheckAPIError(
-      errorData?.message || response.statusText || 'An error occurred',
-      response.status,
-      errorData || undefined
-    );
-  }
-
-  return response.json();
-}
+// Re-export APIError and APIRequestError for backwards compatibility
+export type { APIError };
+export { APIRequestError as HealthCheckAPIError };
 
 /**
  * Submits a health check survey
