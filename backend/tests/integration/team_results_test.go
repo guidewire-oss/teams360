@@ -65,7 +65,7 @@ var _ = Describe("Integration: Team Results API", func() {
 		v1.SetupHealthCheckRoutesWithDB(router, db, healthCheckRepo)
 
 		// Setup team routes (to be implemented)
-		v1.SetupTeamRoutes(router, db)
+		v1.SetupTeamRoutes(router, healthCheckRepo, db)
 	})
 
 	AfterEach(func() {

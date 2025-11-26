@@ -15,7 +15,7 @@ help: ## Display this help message
 	@echo "$(BOLD)Team360 - Squad Health Check Application$(RESET)"
 	@echo "Full-stack application with Go backend and Next.js frontend"
 	@echo ""
-	@echo "$(BOLD)$(CYAN)🚀 QUICK START:$(RESET) make setup-and-run"
+	@echo "$(BOLD)$(CYAN)🚀 QUICK START:$(RESET) make run"
 	@echo ""
 	@echo "$(CYAN)Usage:$(RESET) make [target]"
 	@echo ""
@@ -45,68 +45,53 @@ install-backend: ## [Backend] Install Go dependencies
 	@echo "$(CYAN)Backend dependencies installed!$(RESET)"
 
 # =============================================================================
-# Development
+# Running the Application
 # =============================================================================
 
-dev: ## Run both frontend and backend in development mode (parallel)
-	@echo "$(CYAN)Starting Team360 in development mode...$(RESET)"
-	@echo "$(CYAN)Frontend will run on http://localhost:3000$(RESET)"
-	@echo "$(CYAN)Backend will run on http://localhost:8080$(RESET)"
-	@echo ""
-	@echo "$(BOLD)Demo Login Credentials:$(RESET)"
-	@echo "  VP:           vp/demo"
-	@echo "  Director:     director1/demo or director2/demo"
-	@echo "  Manager:      manager1/demo, manager2/demo, or manager3/demo"
-	@echo "  Team Lead:    teamlead1/demo through teamlead5/demo"
-	@echo "  Team Member:  demo/demo or alice/demo"
-	@echo "  Admin:        admin/admin"
-	@echo ""
-	@$(MAKE) -j2 run-frontend run-backend
+run: ensure-deps ensure-db kill-servers print-banner ## 🚀 Run the app locally (auto-installs deps, starts both servers)
+	@$(MAKE) -j2 start-frontend start-backend
 
-run: dev ## Alias for dev (run both services)
+# Kill any existing servers on ports 3000 and 8080
+kill-servers:
+	@lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+	@lsof -ti:8080 | xargs kill -9 2>/dev/null || true
+	@sleep 1
 
-run-frontend: ## [Frontend] Run Next.js development server
-	@echo "$(CYAN)Starting frontend on http://localhost:3000...$(RESET)"
-	@cd frontend && npm run dev
+# Auto-install dependencies if missing
+ensure-deps:
+	@if [ ! -d "frontend/node_modules" ]; then \
+		echo "$(CYAN)Installing frontend dependencies...$(RESET)"; \
+		cd frontend && npm install; \
+	fi
+	@if ! grep -q "golang.org/x/crypto" backend/go.sum 2>/dev/null; then \
+		echo "$(CYAN)Installing backend dependencies...$(RESET)"; \
+		cd backend && go mod download; \
+	fi
 
-run-backend: ## [Backend] Run Go API server
-	@echo "$(CYAN)Starting backend on http://localhost:8080...$(RESET)"
-	@cd backend && $(MAKE) run
-
-dev-backend: ## [Backend] Run backend with hot reload (air)
-	@cd backend && $(MAKE) dev
+# Ensure database exists and has demo data
+ensure-db:
+	@echo "$(CYAN)Checking database...$(RESET)"
+	@if command -v docker >/dev/null 2>&1; then \
+		if docker ps | grep -qE "teams360-(db|test)"; then \
+			echo "$(CYAN)PostgreSQL container already running.$(RESET)"; \
+		elif docker ps -a | grep -qE "teams360-(db|test)"; then \
+			CONTAINER=$$(docker ps -a --format '{{.Names}}' | grep -E "teams360-(db|test)" | head -1); \
+			echo "$(CYAN)Starting existing PostgreSQL container ($$CONTAINER)...$(RESET)"; \
+			docker start $$CONTAINER; \
+			sleep 3; \
+		elif ! lsof -i:5432 >/dev/null 2>&1; then \
+			echo "$(CYAN)Creating PostgreSQL container...$(RESET)"; \
+			docker run -d --name teams360-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:15; \
+			sleep 3; \
+		else \
+			echo "$(CYAN)Port 5432 already in use (existing PostgreSQL).$(RESET)"; \
+		fi; \
+	fi
+	@echo "$(CYAN)Database ready. Migrations will run on backend startup.$(RESET)"
 
 # =============================================================================
 # Database Setup
 # =============================================================================
-
-setup-and-run: ## 🚀 ONE COMMAND: Install deps, create DB, setup with demo users, and run app
-	@echo "$(BOLD)$(CYAN)🚀 Team360 Complete Setup & Run$(RESET)"
-	@echo ""
-	@echo "$(CYAN)Step 1/3: Installing dependencies...$(RESET)"
-	@$(MAKE) install
-	@echo ""
-	@echo "$(CYAN)Step 2/3: Setting up database and running migrations...$(RESET)"
-	@cd backend && DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable" go run cmd/api/main.go &
-	@sleep 5
-	@pkill -f "go run cmd/api/main.go" 2>/dev/null || true
-	@echo "$(CYAN)✅ Database setup complete! Demo users created.$(RESET)"
-	@echo ""
-	@echo "$(CYAN)Step 3/3: Starting application...$(RESET)"
-	@echo "$(CYAN)Frontend: http://localhost:3000$(RESET)"
-	@echo "$(CYAN)Backend:  http://localhost:8080$(RESET)"
-	@echo ""
-	@echo "$(BOLD)Demo Login Credentials:$(RESET)"
-	@echo "  VP:           vp/demo"
-	@echo "  Director:     director1/demo or director2/demo"
-	@echo "  Manager:      manager1/demo, manager2/demo, or manager3/demo"
-	@echo "  Team Lead:    teamlead1/demo through teamlead5/demo"
-	@echo "  Team Member:  demo/demo or alice/demo"
-	@echo "  Admin:        admin/admin"
-	@echo ""
-	@echo "$(BOLD)$(CYAN)Press Ctrl+C to stop both services$(RESET)"
-	@echo ""
-	@$(MAKE) -j2 run-frontend run-backend
 
 db-setup: ## Setup production database with migrations and seed data
 	@echo "$(CYAN)Setting up production database...$(RESET)"
@@ -126,6 +111,44 @@ db-test-setup: ## Setup test database with migrations and seed data
 	@sleep 3
 	@pkill -f "go run cmd/api/main.go"
 	@echo "$(CYAN)Test database setup complete!$(RESET)"
+
+print-banner:
+	@echo ""
+	@echo "$(BOLD)$(CYAN)🚀 Starting Team360...$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Frontend: http://localhost:3000$(RESET)"
+	@echo "$(CYAN)Backend:  http://localhost:8080$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Demo Credentials:$(RESET)"
+	@echo "  demo/demo      - Team Member"
+	@echo "  manager1/demo  - Manager"
+	@echo "  admin/admin    - Administrator"
+	@echo ""
+	@echo "$(CYAN)Press Ctrl+C to stop$(RESET)"
+	@echo ""
+
+start-frontend:
+	@cd frontend && npm run dev
+
+start-backend:
+	@cd backend && go run cmd/api/main.go
+
+# =============================================================================
+# Development (with hot reload / watch mode)
+# =============================================================================
+
+dev: ensure-deps ## Run with hot reload for active development (requires 'air' for backend)
+	@echo "$(BOLD)$(CYAN)🔧 Starting Team360 in development mode (hot reload)...$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Frontend: http://localhost:3000 (Next.js hot reload)$(RESET)"
+	@echo "$(CYAN)Backend:  http://localhost:8080 (air hot reload)$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Tip:$(RESET) Install 'air' for backend hot reload: go install github.com/air-verse/air@latest"
+	@echo ""
+	@$(MAKE) -j2 start-frontend dev-backend
+
+dev-backend: ## [Backend] Run backend with hot reload (air)
+	@cd backend && (command -v air >/dev/null 2>&1 && air || (echo "$(CYAN)air not installed, using go run...$(RESET)" && go run cmd/api/main.go))
 
 # =============================================================================
 # Build

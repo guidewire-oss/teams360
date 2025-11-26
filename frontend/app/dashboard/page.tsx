@@ -2,18 +2,20 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout, getAllUsers } from '@/lib/auth';
+import { getCurrentUser, logout } from '@/lib/auth';
 import { TEAMS_DATA, generateMockHealthSessions, calculateAggregatedMetrics } from '@/lib/teams-data';
 import { getOrgConfig, getUserPermissions, getHierarchyLevel } from '@/lib/org-config';
 import HierarchicalDashboard from '@/components/HierarchicalDashboard';
 import { LogOut, Users, Activity, TrendingUp, Calendar, Building2, ChevronDown } from 'lucide-react';
+import { User } from '@/lib/types';
 
 export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
   const [sessions, setSessions] = useState<any[]>([]);
   const [showUserInfo, setShowUserInfo] = useState(false);
-  
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+
   useEffect(() => {
     const currentUser = getCurrentUser();
     if (!currentUser) {
@@ -23,6 +25,9 @@ export default function DashboardPage() {
       // Generate mock health sessions
       const mockSessions = generateMockHealthSessions();
       setSessions(mockSessions);
+      // Note: In the new architecture, users should be fetched from API
+      // For now, using empty array as getAllUsers has been removed
+      setAllUsers([]);
     }
   }, [router]);
 
@@ -36,7 +41,6 @@ export default function DashboardPage() {
   const config = getOrgConfig();
   const permissions = getUserPermissions(user);
   const userLevel = getHierarchyLevel(user.hierarchyLevelId || '');
-  const allUsers = getAllUsers();
 
   // Get teams and metrics based on user's position in hierarchy
   const getRelevantTeams = () => {

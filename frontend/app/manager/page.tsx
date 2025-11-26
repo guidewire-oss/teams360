@@ -2,8 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
-import { User } from '@/lib/types';
+import { getCurrentUser, logout, User } from '@/lib/auth';
 import { LogOut, Users, ChevronDown, AlertCircle } from 'lucide-react';
 
 // Types matching backend API response

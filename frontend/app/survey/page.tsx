@@ -3,15 +3,19 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
-import { HEALTH_DIMENSIONS, TEAMS } from '@/lib/data';
+import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
 import { getAssessmentPeriod } from '@/lib/assessment-period';
 import { submitHealthCheck, formatDateForAPI, HealthCheckAPIError } from '@/lib/api/health-checks';
+import { getTeamInfoCached, TeamInfo, TeamsAPIError } from '@/lib/api/teams';
 import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
 
 export default function SurveyPage() {
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [team, setTeam] = useState<TeamInfo | null>(null);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [teamError, setTeamError] = useState<string | null>(null);
   const [currentDimension, setCurrentDimension] = useState(0); // Start at first health dimension
   const [responses, setResponses] = useState<HealthCheckResponse[]>([]);
   const [submitted, setSubmitted] = useState(false);
@@ -26,6 +30,24 @@ export default function SurveyPage() {
       router.push('/login');
     } else {
       setUser(currentUser);
+      // Fetch team info from API
+      const teamId = currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null;
+      if (teamId) {
+        setTeamLoading(true);
+        getTeamInfoCached(teamId)
+          .then((teamInfo) => {
+            setTeam(teamInfo);
+            setTeamLoading(false);
+          })
+          .catch((err) => {
+            console.error('Failed to fetch team info:', err);
+            setTeamError(err instanceof TeamsAPIError ? err.message : 'Failed to load team information');
+            setTeamLoading(false);
+          });
+      } else {
+        setTeamLoading(false);
+        setTeamError('No team assigned to this user');
+      }
     }
   }, [router]);
 
@@ -112,7 +134,7 @@ export default function SurveyPage() {
   };
 
   const handleSubmit = async () => {
-    if (!user || submitting) return;
+    if (!user || !team || submitting) return;
 
     // Validate all responses are complete
     if (responses.length !== HEALTH_DIMENSIONS.length) {
@@ -132,15 +154,13 @@ export default function SurveyPage() {
     setValidationError(null);
 
     try {
-      const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : 'team1';
-
       // Automatically determine assessment period based on submission date
       const submissionDate = new Date();
       const assessmentPeriod = getAssessmentPeriod(submissionDate);
 
-      // Submit to backend API
+      // Submit to backend API using team from API response
       const session = await submitHealthCheck({
-        teamId: userTeamId,
+        teamId: team.id,
         userId: user.id,
         date: formatDateForAPI(submissionDate),
         assessmentPeriod,
@@ -175,7 +195,39 @@ export default function SurveyPage() {
   };
 
   if (!user) return null;
-  
+
+  // Show loading state while fetching team info
+  if (teamLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
+          <Loader2 className="w-16 h-16 text-indigo-600 mx-auto mb-6 animate-spin" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading...</h1>
+          <p className="text-gray-600">Fetching your team information</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state if team fetch failed
+  if (teamError || !team) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-orange-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
+          <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-6" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Unable to Load Team</h1>
+          <p className="text-gray-600 mb-6">{teamError || 'No team assigned to your account. Please contact your administrator.'}</p>
+          <button
+            onClick={handleLogout}
+            className="bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-gray-700 transition-colors"
+          >
+            Back to Login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (submitted) {
     const isTeamLead = user.hierarchyLevelId === 'level-4';
     const dashboardPath = isTeamLead ? '/manager' : '/survey';
@@ -209,8 +261,6 @@ export default function SurveyPage() {
   const dimension = HEALTH_DIMENSIONS[currentDimension];
   const currentResponse = getCurrentResponse();
 
-  const userTeamId = user.teamIds && user.teamIds.length > 0 ? user.teamIds[0] : null;
-  const team = TEAMS.find(t => t.id === userTeamId);
   const isTeamLead = user.hierarchyLevelId === 'level-4';
 
   // Get current quarter and year
@@ -218,9 +268,6 @@ export default function SurveyPage() {
   const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
   const currentYear = now.getFullYear();
   const surveyPeriod = `Q${currentQuarter} ${currentYear}`;
-
-  // Get next check date for the team
-  const nextCheckDate = team?.nextCheckDate ? new Date(team.nextCheckDate) : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { authenticate } from '@/lib/auth';
 import { getOrgConfig } from '@/lib/org-config';
 import { Lock, User, AlertCircle, Users, ChevronRight } from 'lucide-react';
 
@@ -18,8 +17,8 @@ export default function LoginPage() {
     setError('');
 
     try {
-      // Call backend authentication API
-      const response = await fetch('http://localhost:8080/api/v1/auth/login', {
+      // Call backend authentication API via Next.js proxy
+      const response = await fetch('/api/v1/auth/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

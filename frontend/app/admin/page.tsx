@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
-import { TEAMS, HEALTH_DIMENSIONS } from '@/lib/data';
+import { HEALTH_DIMENSIONS } from '@/lib/data';
+import { listTeams, TeamSummary } from '@/lib/api/teams';
 import { Settings, Users, Calendar, Plus, Edit2, Trash2, LogOut, Shield, Clock, Save, X, Building2 } from 'lucide-react';
 import HierarchyConfig from '@/components/HierarchyConfig';
 
@@ -13,6 +14,8 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<'hierarchy' | 'teams' | 'users' | 'settings'>('hierarchy');
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [showNewTeamForm, setShowNewTeamForm] = useState(false);
+  const [teams, setTeams] = useState<TeamSummary[]>([]);
+  const [teamsLoading, setTeamsLoading] = useState(false);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -24,6 +27,17 @@ export default function AdminPage() {
       setUser(currentUser);
     }
   }, [router]);
+
+  // Fetch teams when activeTab changes to 'teams'
+  useEffect(() => {
+    if (activeTab === 'teams' && teams.length === 0) {
+      setTeamsLoading(true);
+      listTeams()
+        .then((data) => setTeams(data.teams))
+        .catch((err) => console.error('Failed to load teams:', err))
+        .finally(() => setTeamsLoading(false));
+    }
+  }, [activeTab, teams.length]);
 
   const handleLogout = () => {
     logout();
@@ -196,95 +210,109 @@ export default function AdminPage() {
               </div>
             )}
 
-            <div className="grid gap-4">
-              {TEAMS.map(team => (
-                <div key={team.id} className="bg-white p-6 rounded-xl shadow-sm border">
-                  {editingTeam?.id === team.id ? (
-                    <div>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
-                          <input
-                            type="text"
-                            defaultValue={team.name}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Cadence</label>
-                          <select 
-                            defaultValue={team.cadence}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          >
-                            <option value="weekly">Weekly</option>
-                            <option value="biweekly">Bi-weekly</option>
-                            <option value="monthly">Monthly</option>
-                            <option value="quarterly">Quarterly</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">Next Check</label>
-                          <input
-                            type="date"
-                            defaultValue={team.nextCheckDate}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                          />
-                        </div>
-                      </div>
-                      <div className="flex gap-4 mt-4">
-                        <button
-                          onClick={() => handleSaveTeam(team)}
-                          className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                          <Save className="w-4 h-4" />
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingTeam(null)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex justify-between items-center">
+            {teamsLoading ? (
+              <div className="text-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+                <p className="text-gray-500">Loading teams...</p>
+              </div>
+            ) : teams.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No teams found. Add your first team to get started.
+              </div>
+            ) : (
+              <div className="grid gap-4">
+                {teams.map(team => (
+                  <div key={team.id} className="bg-white p-6 rounded-xl shadow-sm border">
+                    {editingTeam?.id === team.id ? (
                       <div>
-                        <h3 className="text-lg font-semibold text-gray-900">{team.name}</h3>
-                        <div className="flex gap-6 mt-2 text-sm text-gray-500">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="w-4 h-4" />
-                            {team.cadence}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            Next: {new Date(team.nextCheckDate).toLocaleDateString()}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Users className="w-4 h-4" />
-                            {team.members.length} members
-                          </span>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Team Name</label>
+                            <input
+                              type="text"
+                              defaultValue={team.name}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Cadence</label>
+                            <select
+                              defaultValue={team.cadence}
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            >
+                              <option value="weekly">Weekly</option>
+                              <option value="biweekly">Bi-weekly</option>
+                              <option value="monthly">Monthly</option>
+                              <option value="quarterly">Quarterly</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">Team Lead</label>
+                            <input
+                              type="text"
+                              defaultValue={team.teamLeadName || 'Not assigned'}
+                              disabled
+                              className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-4 mt-4">
+                          <button
+                            onClick={() => handleSaveTeam(team)}
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                          >
+                            <Save className="w-4 h-4" />
+                            Save
+                          </button>
+                          <button
+                            onClick={() => setEditingTeam(null)}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => setEditingTeam(team)}
-                          className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                        >
-                          <Edit2 className="w-5 h-5" />
-                        </button>
-                        <button
-                          className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        >
-                          <Trash2 className="w-5 h-5" />
-                        </button>
+                    ) : (
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <h3 className="text-lg font-semibold text-gray-900">{team.name}</h3>
+                          <div className="flex gap-6 mt-2 text-sm text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="w-4 h-4" />
+                              {team.cadence}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Users className="w-4 h-4" />
+                              {team.memberCount} members
+                            </span>
+                            {team.teamLeadName && (
+                              <span className="flex items-center gap-1">
+                                <Shield className="w-4 h-4" />
+                                Lead: {team.teamLeadName}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => setEditingTeam(team)}
+                            className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            <Edit2 className="w-5 h-5" />
+                          </button>
+                          <button
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          >
+                            <Trash2 className="w-5 h-5" />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

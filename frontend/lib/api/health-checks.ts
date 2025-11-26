@@ -5,7 +5,8 @@
  * Handles authentication, error handling, and data transformation.
  */
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Use relative URLs to go through Next.js proxy (configured in next.config.ts)
+const API_BASE_URL = '';
 
 // Types matching backend DTOs
 export interface HealthCheckResponse {
