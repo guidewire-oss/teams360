@@ -6,6 +6,22 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 )
 
+// AllDimensionIDs contains all 11 health check dimension IDs
+// This ensures trends always return all dimensions, even if no data exists
+var AllDimensionIDs = []string{
+	"mission",
+	"value",
+	"speed",
+	"fun",
+	"health",
+	"learning",
+	"support",
+	"pawns",
+	"release",
+	"process",
+	"teamwork",
+}
+
 // Service provides trend data aggregation functionality
 type Service struct {
 	db *sql.DB
@@ -150,6 +166,7 @@ func (s *Service) fetchPeriods(query string, id string) ([]string, error) {
 }
 
 // fetchTrendData executes a trends query and returns the dimension trends
+// Always returns all 11 dimensions, with 0 scores for periods where no data exists
 func (s *Service) fetchTrendData(query string, id string, periods []string) ([]dto.DimensionTrend, error) {
 	rows, err := s.db.Query(query, id)
 	if err != nil {
@@ -175,16 +192,22 @@ func (s *Service) fetchTrendData(query string, id string, periods []string) ([]d
 	}
 
 	// Convert to ordered array format matching periods order
+	// IMPORTANT: Iterate over AllDimensionIDs to ensure all 11 dimensions are included
 	dimensions := []dto.DimensionTrend{}
-	for dimensionID, periodScores := range trendMap {
+	for _, dimensionID := range AllDimensionIDs {
 		scores := make([]float64, len(periods))
-		for i, period := range periods {
-			if score, exists := periodScores[period]; exists {
-				scores[i] = score
-			} else {
-				scores[i] = 0 // No data for this period
+
+		// Get scores from the map if they exist
+		if periodScores, exists := trendMap[dimensionID]; exists {
+			for i, period := range periods {
+				if score, ok := periodScores[period]; ok {
+					scores[i] = score
+				} else {
+					scores[i] = 0 // No data for this period
+				}
 			}
 		}
+		// If dimension has no data at all, scores array remains all zeros
 
 		dimensions = append(dimensions, dto.DimensionTrend{
 			DimensionID: dimensionID,
