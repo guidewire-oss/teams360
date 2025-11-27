@@ -403,13 +403,13 @@ export default function ManagerPage() {
                     <YAxis domain={[0, 3]} />
                     <Tooltip />
                     <Legend />
-                    {HEALTH_DIMENSIONS.slice(0, 5).map((dim, idx) => (
+                    {HEALTH_DIMENSIONS.map((dim, idx) => (
                       <Line
                         key={dim.id}
                         type="monotone"
                         dataKey={dim.id}
                         name={dim.name}
-                        stroke={`hsl(${idx * 60}, 70%, 50%)`}
+                        stroke={`hsl(${idx * 32}, 70%, 50%)`}
                         strokeWidth={2}
                       />
                     ))}
