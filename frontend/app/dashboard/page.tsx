@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 type TabType = 'radar' | 'distribution' | 'responses' | 'trends';
@@ -226,6 +226,16 @@ export default function DashboardPage() {
             </div>
 
             <div className="flex items-center gap-4">
+              {/* Take Survey Button */}
+              <button
+                onClick={() => router.push('/survey')}
+                data-testid="take-survey-button"
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              >
+                <ClipboardList className="w-4 h-4" />
+                Take Survey
+              </button>
+
               <div className="relative">
                 <button
                   onClick={() => setShowUserInfo(!showUserInfo)}
