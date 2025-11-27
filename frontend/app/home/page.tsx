@@ -279,14 +279,14 @@ export default function MemberHomePage() {
                       <YAxis domain={[0, 3]} tickCount={4} />
                       <Tooltip />
                       <Legend wrapperStyle={{ fontSize: '10px' }} />
-                      {HEALTH_DIMENSIONS.slice(0, 5).map((dim, index) => (
+                      {HEALTH_DIMENSIONS.map((dim, index) => (
                         <Line
                           key={dim.id}
                           type="monotone"
                           dataKey={dim.name}
                           stroke={dimensionColors[index % dimensionColors.length]}
                           strokeWidth={2}
-                          dot={{ r: 4 }}
+                          dot={{ r: 3 }}
                         />
                       ))}
                     </LineChart>
