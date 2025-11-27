@@ -45,7 +45,9 @@ export const getCurrentUser = (): AuthUser | null => {
   const userCookie = Cookies.get('user');
   if (userCookie) {
     try {
-      const apiUser = JSON.parse(userCookie) as APIUser;
+      // Decode URL-encoded cookie value before parsing JSON
+      const decodedCookie = decodeURIComponent(userCookie);
+      const apiUser = JSON.parse(decodedCookie) as APIUser;
       const fullName = apiUser.fullName || '';
       const hierarchyLevel = apiUser.hierarchyLevel || '';
 

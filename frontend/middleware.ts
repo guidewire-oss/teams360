@@ -27,8 +27,8 @@ export function middleware(request: NextRequest) {
         // Team Lead → /dashboard (their team view)
         return NextResponse.redirect(new URL('/dashboard', request.url));
       } else if (hierarchyLevelId === 'level-5') {
-        // Team Member → /survey
-        return NextResponse.redirect(new URL('/survey', request.url));
+        // Team Member → /home (member home page with history and survey button)
+        return NextResponse.redirect(new URL('/home', request.url));
       }
     }
 

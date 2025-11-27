@@ -36,7 +36,8 @@ export default function LoginPage() {
       const user = data.user;
 
       // Store user in cookie (for now using localStorage until we implement proper session management)
-      document.cookie = `user=${JSON.stringify(user)}; path=/; max-age=86400`; // 1 day
+      // URL-encode the JSON to prevent issues with special characters in cookie value
+      document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=86400`; // 1 day
 
       // Route based on permissions
       if (user.hierarchyLevel === 'admin' || user.hierarchyLevel === 'level-admin') {
@@ -49,8 +50,8 @@ export default function LoginPage() {
         // Team leads go to dashboard (their own team view)
         router.push('/dashboard');
       } else {
-        // Team members (level-5) go to survey
-        router.push('/survey');
+        // Team members (level-5) go to home page with survey history
+        router.push('/home');
       }
     } catch (err) {
       setError('Network error. Please make sure the backend server is running.');
@@ -179,8 +180,9 @@ export default function LoginPage() {
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <p className="text-xs text-green-700 leading-relaxed">
                     <strong className="block mb-1">What Each User Sees:</strong>
-                    • <strong>VP/Directors/Managers/Team Leads:</strong> Manager Dashboard<br/>
-                    • <strong>Team Members:</strong> Health Check Survey<br/>
+                    • <strong>VP/Directors/Managers:</strong> Manager Dashboard<br/>
+                    • <strong>Team Leads:</strong> Team Dashboard<br/>
+                    • <strong>Team Members:</strong> Member Home (Survey History)<br/>
                     • <strong>Admin:</strong> System Configuration
                   </p>
                 </div>

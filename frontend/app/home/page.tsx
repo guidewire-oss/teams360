@@ -2,60 +2,101 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout, User } from '@/lib/auth';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { LogOut, TrendingUp, Calendar, Users, BarChart3, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { getCurrentUser, logout } from '@/lib/auth';
+import { HEALTH_DIMENSIONS } from '@/lib/data';
+import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
+import { getCurrentAssessmentPeriod } from '@/lib/assessment-period';
+import { LogOut, Building2, ChevronDown, ClipboardList, TrendingUp, Calendar } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
 interface SurveyHistoryEntry {
   sessionId: string;
   teamId: string;
   teamName: string;
-  date: string;
   assessmentPeriod: string;
-  avgScore: number;
-  responseCount: number;
+  date: string;
   completed: boolean;
+  responses: {
+    dimensionId: string;
+    dimensionName: string;
+    score: number;
+    trend: string;
+    comment: string;
+  }[];
 }
 
-interface SurveyHistoryResponse {
-  userId: string;
-  surveys: SurveyHistoryEntry[];
-  totalSurveys: number;
+interface TrendDataPoint {
+  period: string;
+  [key: string]: string | number;
 }
 
-export default function HomePage() {
+export default function MemberHomePage() {
   const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [historyData, setHistoryData] = useState<SurveyHistoryResponse | null>(null);
+  const [user, setUser] = useState<any>(null);
+  const [showUserInfo, setShowUserInfo] = useState(false);
+  const [surveyHistory, setSurveyHistory] = useState<SurveyHistoryEntry[]>([]);
+  const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const currentPeriod = getCurrentAssessmentPeriod();
 
   useEffect(() => {
     const currentUser = getCurrentUser();
     if (!currentUser) {
       router.push('/login');
-    } else {
-      setUser(currentUser);
-      fetchSurveyHistory(currentUser.id);
+      return;
     }
+    setUser(currentUser);
+    fetchSurveyHistory(currentUser.id);
   }, [router]);
 
   const fetchSurveyHistory = async (userId: string) => {
-    setLoading(true);
-    setError(null);
-
     try {
+      setLoading(true);
+      console.log('[MemberHome] Fetching survey history for user:', userId);
       const response = await fetch(`/api/v1/users/${userId}/survey-history`);
+      console.log('[MemberHome] Response status:', response.status, response.ok);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('[MemberHome] Survey history data:', JSON.stringify(data).substring(0, 200));
+        console.log('[MemberHome] surveyHistory array length:', data.surveyHistory?.length);
+        const historyData = data.surveyHistory || [];
+        console.log('[MemberHome] Setting surveyHistory state with', historyData.length, 'entries');
+        setSurveyHistory(historyData);
+        console.log('[MemberHome] surveyHistory state set successfully');
 
-      if (!response.ok) {
-        throw new Error(`Failed to fetch survey history: ${response.statusText}`);
+        // Transform history into trend data for chart
+        try {
+          if (historyData.length > 0) {
+            const trendMap = new Map<string, TrendDataPoint>();
+
+            historyData.forEach((entry: SurveyHistoryEntry) => {
+              if (!trendMap.has(entry.assessmentPeriod)) {
+                trendMap.set(entry.assessmentPeriod, { period: entry.assessmentPeriod });
+              }
+              const point = trendMap.get(entry.assessmentPeriod)!;
+
+              entry.responses.forEach((r) => {
+                // Use dimension name as key
+                point[r.dimensionName] = r.score;
+              });
+            });
+
+            // Sort by period and convert to array
+            const sortedTrend = Array.from(trendMap.values()).sort((a, b) =>
+              a.period.localeCompare(b.period)
+            );
+            setTrendData(sortedTrend);
+            console.log('[MemberHome] Trend data set with', sortedTrend.length, 'periods');
+          }
+        } catch (trendError) {
+          console.error('[MemberHome] Error transforming trend data:', trendError);
+        }
+      } else {
+        console.log('[MemberHome] Response not OK:', response.status);
       }
-
-      const data: SurveyHistoryResponse = await response.json();
-      setHistoryData(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
-      console.error('Error fetching survey history:', err);
+    } catch (error) {
+      console.error('[MemberHome] Failed to fetch survey history:', error);
     } finally {
       setLoading(false);
     }
@@ -66,315 +107,244 @@ export default function HomePage() {
     router.push('/login');
   };
 
-  // Calculate health score color based on avg score (1-3 scale)
-  const getHealthColor = (score: number) => {
-    if (score >= 2.5) return 'bg-green-100 text-green-800 border-green-300';
-    if (score >= 1.5) return 'bg-yellow-100 text-yellow-800 border-yellow-300';
-    return 'bg-red-100 text-red-800 border-red-300';
+  const handleTakeSurvey = () => {
+    router.push('/survey');
   };
 
-  const getHealthColorBadge = (score: number) => {
-    if (score >= 2.5) return 'bg-green-100 text-green-800';
-    if (score >= 1.5) return 'bg-yellow-100 text-yellow-800';
-    return 'bg-red-100 text-red-800';
+  const getUserLevelName = () => {
+    if (!user) return '';
+    const orgConfig = getOrgConfig();
+    const level = getHierarchyLevel(user.hierarchyLevel || user.hierarchyLevelId);
+    return level?.name || 'Team Member';
   };
 
-  const formatHealthScore = (score: number) => {
-    return score.toFixed(1);
-  };
+  // Get the most recent survey for summary
+  const latestSurvey = surveyHistory.length > 0 ? surveyHistory[0] : null;
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    });
-  };
+  // Prepare radar chart data from latest survey
+  const radarData = latestSurvey?.responses.map(r => ({
+    dimension: r.dimensionName,
+    score: r.score,
+    fullMark: 3,
+  })) || [];
 
-  // Prepare trend chart data - group by assessment period
-  const getTrendChartData = () => {
-    if (!historyData || historyData.surveys.length === 0) return [];
+  // Colors for trend lines
+  const dimensionColors = [
+    '#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6',
+    '#06b6d4', '#ec4899', '#84cc16', '#f97316', '#6366f1', '#14b8a6'
+  ];
 
-    // Group surveys by assessment period and calculate average
-    const periodMap = new Map<string, { sum: number; count: number }>();
-
-    historyData.surveys.forEach(survey => {
-      const existing = periodMap.get(survey.assessmentPeriod) || { sum: 0, count: 0 };
-      periodMap.set(survey.assessmentPeriod, {
-        sum: existing.sum + survey.avgScore,
-        count: existing.count + 1
-      });
-    });
-
-    // Convert to chart data format
-    const chartData = Array.from(periodMap.entries()).map(([period, data]) => ({
-      period,
-      avgScore: data.sum / data.count
-    }));
-
-    // Sort by period (chronologically)
-    return chartData.sort((a, b) => {
-      // Extract year and half from period (e.g., "2024 - 1st Half")
-      const parseYear = (p: string) => {
-        const match = p.match(/(\d{4})/);
-        return match ? parseInt(match[1]) : 0;
-      };
-      const parseHalf = (p: string) => p.includes('1st') ? 1 : 2;
-
-      const yearA = parseYear(a.period);
-      const yearB = parseYear(b.period);
-
-      if (yearA !== yearB) return yearA - yearB;
-      return parseHalf(a.period) - parseHalf(b.period);
-    });
-  };
-
-  // Check if trend is improving
-  const isImprovingTrend = () => {
-    const chartData = getTrendChartData();
-    if (chartData.length < 2) return false;
-
-    const firstScore = chartData[0].avgScore;
-    const lastScore = chartData[chartData.length - 1].avgScore;
-    return lastScore > firstScore;
-  };
-
-  if (!user) return null;
-
-  const isTeamLead = user.hierarchyLevelId === 'level-4' ||
-                      user.hierarchyLevelId === 'level-3' ||
-                      user.hierarchyLevelId === 'level-2' ||
-                      user.hierarchyLevelId === 'level-1';
-  const trendData = getTrendChartData();
-  const improving = isImprovingTrend();
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4">
+      {/* Header - consistent with other dashboards */}
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">My Health Check Dashboard</h1>
-              <p className="text-gray-500">Personal Survey History & Trends</p>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-semibold text-gray-900">{user.name}</p>
-                <p className="text-xs text-gray-500">
-                  {user.hierarchyLevelId === 'level-1' ? 'VP' :
-                   user.hierarchyLevelId === 'level-2' ? 'Director' :
-                   user.hierarchyLevelId === 'level-3' ? 'Manager' :
-                   user.hierarchyLevelId === 'level-4' ? 'Team Lead' :
-                   'Team Member'}
-                </p>
+            <div className="flex items-center space-x-3">
+              <Building2 className="h-8 w-8 text-blue-600" />
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">Team360</h1>
+                <p className="text-sm text-gray-500">Member Home</p>
               </div>
-
+            </div>
+            <div className="relative">
               <button
-                onClick={handleLogout}
-                className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors"
+                onClick={() => setShowUserInfo(!showUserInfo)}
+                className="flex items-center space-x-2 text-gray-700 hover:text-gray-900"
               >
-                <LogOut className="w-4 h-4" />
-                Logout
+                <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="text-blue-600 font-medium text-sm">
+                    {user.fullName?.charAt(0) || user.username?.charAt(0) || 'U'}
+                  </span>
+                </div>
+                <span className="text-sm font-medium">{user.fullName || user.username}</span>
+                <ChevronDown className="h-4 w-4" />
               </button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="container mx-auto px-4 py-8">
-        {/* Action Buttons */}
-        <div className="mb-6 flex gap-4">
-          <button
-            onClick={() => router.push('/survey')}
-            className="flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
-          >
-            <FileText className="w-5 h-5" />
-            Take New Survey
-          </button>
-
-          {isTeamLead && (
-            <button
-              onClick={() => router.push('/manager')}
-              className="flex items-center gap-2 px-6 py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-semibold"
-            >
-              <BarChart3 className="w-5 h-5" />
-              Team Dashboard
-            </button>
-          )}
-        </div>
-
-        {/* Loading State */}
-        {loading && (
-          <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-            <Loader2 className="w-12 h-12 text-indigo-600 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-600">Loading your survey history...</p>
-          </div>
-        )}
-
-        {/* Error State */}
-        {error && !loading && (
-          <div className="bg-red-50 border border-red-300 rounded-xl p-6 flex items-center gap-4">
-            <AlertCircle className="w-8 h-8 text-red-600" />
-            <div>
-              <h3 className="font-semibold text-red-900">Error Loading History</h3>
-              <p className="text-red-700">{error}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Empty State */}
-        {!loading && !error && historyData && historyData.surveys.length === 0 && (
-          <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-            <FileText className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Surveys Yet</h3>
-            <p className="text-gray-600 mb-6">
-              You haven't submitted any health check surveys yet. Get started by taking your first survey!
-            </p>
-            <button
-              onClick={() => router.push('/survey')}
-              className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-semibold"
-            >
-              Take Your First Survey
-            </button>
-          </div>
-        )}
-
-        {/* Content */}
-        {!loading && !error && historyData && historyData.surveys.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Personal Trend Chart - Takes 2 columns on large screens */}
-            <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border p-6">
-              <div className="flex justify-between items-start mb-6">
-                <div>
-                  <h2 className="text-xl font-semibold text-gray-900 mb-1">Personal Health Trend</h2>
-                  <p className="text-sm text-gray-600">Average scores across assessment periods</p>
-                </div>
-                {improving && (
-                  <div className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    <TrendingUp className="w-4 h-4" />
-                    Improving
+              {showUserInfo && (
+                <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                  <div className="px-4 py-2 border-b border-gray-100">
+                    <p className="text-sm font-medium text-gray-900">{user.fullName || user.username}</p>
+                    <p className="text-xs text-gray-500">{getUserLevelName()}</p>
                   </div>
-                )}
-              </div>
-
-              <div data-testid="personal-trend-chart" className="w-full h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={trendData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis
-                      dataKey="period"
-                      tick={{ fontSize: 12 }}
-                      angle={-45}
-                      textAnchor="end"
-                      height={80}
-                    />
-                    <YAxis
-                      domain={[1, 3]}
-                      ticks={[1, 1.5, 2, 2.5, 3]}
-                      label={{ value: 'Health Score', angle: -90, position: 'insideLeft' }}
-                    />
-                    <Tooltip
-                      formatter={(value: number) => [formatHealthScore(value), 'Avg Score']}
-                    />
-                    <Legend />
-                    <Line
-                      type="monotone"
-                      dataKey="avgScore"
-                      stroke="#4F46E5"
-                      strokeWidth={3}
-                      name="Health Score"
-                      dot={{ fill: '#4F46E5', r: 5 }}
-                      activeDot={{ r: 7 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Summary Stats - Takes 1 column on large screens */}
-            <div className="bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Summary</h2>
-
-              <div className="space-y-4">
-                <div className="p-4 bg-indigo-50 rounded-lg">
-                  <div className="text-sm text-indigo-700 font-medium mb-1">Total Surveys</div>
-                  <div className="text-3xl font-bold text-indigo-900">{historyData.totalSurveys}</div>
-                </div>
-
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-700 font-medium mb-1">Latest Score</div>
-                  <div className="text-3xl font-bold text-gray-900">
-                    {formatHealthScore(historyData.surveys[0].avgScore)}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">
-                    {historyData.surveys[0].assessmentPeriod}
-                  </div>
-                </div>
-
-                {trendData.length > 0 && (
-                  <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-gray-700 font-medium mb-1">Overall Average</div>
-                    <div className="text-3xl font-bold text-gray-900">
-                      {formatHealthScore(
-                        trendData.reduce((sum, d) => sum + d.avgScore, 0) / trendData.length
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-500 mt-1">
-                      Across {trendData.length} {trendData.length === 1 ? 'period' : 'periods'}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Survey History - Full width */}
-            <div className="lg:col-span-3 bg-white rounded-xl shadow-sm border p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Survey History</h2>
-
-              <div data-testid="survey-history" className="space-y-3">
-                {historyData.surveys.map((survey) => (
-                  <div
-                    key={survey.sessionId}
-                    data-testid="survey-entry"
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  <button
+                    onClick={handleLogout}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
                   >
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-1">
-                        <Users className="w-5 h-5 text-gray-400" />
-                        <h3 className="font-semibold text-gray-900">{survey.teamName}</h3>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-gray-600 ml-8">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="w-4 h-4" />
-                          {formatDate(survey.date)}
-                        </div>
-                        <div className="text-gray-500">
-                          {survey.assessmentPeriod}
-                        </div>
-                        <div className="text-gray-500">
-                          {survey.responseCount} {survey.responseCount === 1 ? 'response' : 'responses'}
-                        </div>
-                      </div>
-                    </div>
+                    <LogOut className="h-4 w-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
 
-                    <div className="text-right">
-                      <div className={`inline-flex items-center px-4 py-2 rounded-lg font-bold text-2xl border-2 ${getHealthColor(survey.avgScore)}`}>
-                        {formatHealthScore(survey.avgScore)}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {((survey.avgScore / 3) * 100).toFixed(0)}% health
-                      </div>
-                    </div>
-                  </div>
-                ))}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Welcome Section */}
+        <div data-testid="welcome-message" className="mb-8">
+          <h2 className="text-2xl font-bold text-gray-900">Welcome back, {user.fullName || user.username}!</h2>
+          <p className="text-gray-600 mt-1">Track your team health check progress and insights.</p>
+        </div>
+
+        {/* Current Period CTA */}
+        <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-xl p-6 mb-8 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center space-x-2 mb-2">
+                <Calendar className="h-5 w-5" />
+                <span data-testid="current-period" className="text-sm font-medium opacity-90">{currentPeriod}</span>
+              </div>
+              <h3 className="text-xl font-bold mb-2">Ready to share your feedback?</h3>
+              <p className="text-blue-100">Your input helps the team improve. Take a few minutes to complete the health check.</p>
+            </div>
+            <button
+              data-testid="take-survey-btn"
+              onClick={handleTakeSurvey}
+              className="bg-white text-blue-600 px-6 py-3 rounded-lg font-semibold hover:bg-blue-50 transition-colors flex items-center space-x-2"
+            >
+              <ClipboardList className="h-5 w-5" />
+              <span>Take Survey</span>
+            </button>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : surveyHistory.length === 0 ? (
+          /* Empty State */
+          <div data-testid="empty-state" className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
+            <ClipboardList className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No surveys yet</h3>
+            <p className="text-gray-500 mb-6">Complete your first survey to start tracking your team's health.</p>
+            <button
+              onClick={handleTakeSurvey}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
+            >
+              <ClipboardList className="h-5 w-5" />
+              <span>Get Started</span>
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Latest Survey Summary - Radar Chart */}
+            {latestSurvey && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Latest Survey Summary</h3>
+                  <span className="text-sm text-gray-500">{latestSurvey.assessmentPeriod}</span>
+                </div>
+                <div data-testid="health-chart" className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={radarData}>
+                      <PolarGrid />
+                      <PolarAngleAxis dataKey="dimension" tick={{ fontSize: 10 }} />
+                      <PolarRadiusAxis domain={[0, 3]} tickCount={4} />
+                      <Radar
+                        name="Score"
+                        dataKey="score"
+                        stroke="#3b82f6"
+                        fill="#3b82f6"
+                        fillOpacity={0.5}
+                      />
+                      <Tooltip />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Trend Chart */}
+            {trendData.length > 1 && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center space-x-2 mb-4">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold text-gray-900">Your Progress Over Time</h3>
+                </div>
+                <div className="h-80">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="period" tick={{ fontSize: 10 }} />
+                      <YAxis domain={[0, 3]} tickCount={4} />
+                      <Tooltip />
+                      <Legend wrapperStyle={{ fontSize: '10px' }} />
+                      {HEALTH_DIMENSIONS.slice(0, 5).map((dim, index) => (
+                        <Line
+                          key={dim.id}
+                          type="monotone"
+                          dataKey={dim.name}
+                          stroke={dimensionColors[index % dimensionColors.length]}
+                          strokeWidth={2}
+                          dot={{ r: 4 }}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            )}
+
+            {/* Survey History Table */}
+            <div data-testid="survey-history" className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 lg:col-span-2">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Survey History</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-500 border-b border-gray-200">
+                      <th className="pb-3 font-medium">Assessment Period</th>
+                      <th className="pb-3 font-medium">Team</th>
+                      <th className="pb-3 font-medium">Date</th>
+                      <th className="pb-3 font-medium">Status</th>
+                      <th className="pb-3 font-medium">Avg Score</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {surveyHistory.map((entry) => {
+                      const avgScore = entry.responses.length > 0
+                        ? (entry.responses.reduce((sum, r) => sum + r.score, 0) / entry.responses.length).toFixed(1)
+                        : '-';
+                      return (
+                        <tr key={entry.sessionId} data-testid="history-entry" className="border-b border-gray-100 last:border-0">
+                          <td className="py-3 text-sm text-gray-900">{entry.assessmentPeriod}</td>
+                          <td className="py-3 text-sm text-gray-600">{entry.teamName}</td>
+                          <td className="py-3 text-sm text-gray-600">{new Date(entry.date).toLocaleDateString()}</td>
+                          <td className="py-3">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                              entry.completed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {entry.completed ? 'Completed' : 'In Progress'}
+                            </span>
+                          </td>
+                          <td className="py-3">
+                            <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+                              parseFloat(avgScore) >= 2.5 ? 'bg-green-100 text-green-800' :
+                              parseFloat(avgScore) >= 1.5 ? 'bg-yellow-100 text-yellow-800' :
+                              'bg-red-100 text-red-800'
+                            }`}>
+                              {avgScore}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }

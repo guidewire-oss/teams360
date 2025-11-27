@@ -88,6 +88,22 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 				err = page.Locator("button[type='submit']").Click()
 				Expect(err).NotTo(HaveOccurred())
 
+				// Wait for redirect to home page (team members now go to /home first)
+				Eventually(func() string {
+					return page.URL()
+				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("/home"))
+
+				// Navigate to survey from home page via Take Survey button
+				By("Clicking Take Survey button on home page")
+				surveyBtn := page.Locator("[data-testid='take-survey-btn']")
+				err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = surveyBtn.Click()
+				Expect(err).NotTo(HaveOccurred())
+
 				// Wait for redirect to survey page
 				Eventually(func() string {
 					return page.URL()

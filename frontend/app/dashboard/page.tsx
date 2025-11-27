@@ -54,6 +54,7 @@ export default function DashboardPage() {
   const [individualResponses, setIndividualResponses] = useState<IndividualResponse[]>([]);
   const [trends, setTrends] = useState<TrendData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPeriod, setSelectedPeriod] = useState<string>('');
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -67,18 +68,21 @@ export default function DashboardPage() {
     if (currentUser.teamIds && currentUser.teamIds.length > 0) {
       const firstTeamId = currentUser.teamIds[0];
       setTeamId(firstTeamId);
-      fetchDashboardData(firstTeamId);
+      fetchDashboardData(firstTeamId, '');
     } else {
       setLoading(false);
     }
   }, [router]);
 
-  const fetchDashboardData = async (teamId: string) => {
+  const fetchDashboardData = async (teamId: string, assessmentPeriod: string) => {
     try {
       setLoading(true);
 
+      // Build query string for assessment period filter
+      const periodQuery = assessmentPeriod ? `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}` : '';
+
       // Fetch health summary for radar chart
-      const healthRes = await fetch(`/api/v1/teams/${teamId}/dashboard/health-summary`);
+      const healthRes = await fetch(`/api/v1/teams/${teamId}/dashboard/health-summary${periodQuery}`);
       if (healthRes.ok) {
         const data = await healthRes.json();
         // Transform backend format to frontend format
@@ -98,7 +102,7 @@ export default function DashboardPage() {
       }
 
       // Fetch response distribution
-      const distRes = await fetch(`/api/v1/teams/${teamId}/dashboard/response-distribution`);
+      const distRes = await fetch(`/api/v1/teams/${teamId}/dashboard/response-distribution${periodQuery}`);
       if (distRes.ok) {
         const data = await distRes.json();
         // Transform backend format to frontend format
@@ -119,7 +123,7 @@ export default function DashboardPage() {
       }
 
       // Fetch individual responses
-      const respRes = await fetch(`/api/v1/teams/${teamId}/dashboard/individual-responses`);
+      const respRes = await fetch(`/api/v1/teams/${teamId}/dashboard/individual-responses${periodQuery}`);
       if (respRes.ok) {
         const data = await respRes.json();
         // Transform backend format to frontend format
@@ -152,7 +156,7 @@ export default function DashboardPage() {
         }
       }
 
-      // Fetch trends
+      // Fetch trends (trends don't filter by period - they show all periods)
       const trendsRes = await fetch(`/api/v1/teams/${teamId}/dashboard/trends`);
       if (trendsRes.ok) {
         const data = await trendsRes.json();
@@ -174,6 +178,13 @@ export default function DashboardPage() {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePeriodChange = (period: string) => {
+    setSelectedPeriod(period);
+    if (teamId) {
+      fetchDashboardData(teamId, period);
     }
   };
 
@@ -260,6 +271,29 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
+        {/* Assessment Period Filter */}
+        <div className="mb-6 flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-900">Team Health Overview</h2>
+          <div className="flex items-center gap-2">
+            <label htmlFor="period-filter" className="text-sm text-gray-600">
+              Assessment Period:
+            </label>
+            <select
+              id="period-filter"
+              data-testid="period-filter"
+              value={selectedPeriod}
+              onChange={(e) => handlePeriodChange(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+            >
+              <option value="">All Periods</option>
+              <option value="2024 - 2nd Half">2024 - 2nd Half</option>
+              <option value="2024 - 1st Half">2024 - 1st Half</option>
+              <option value="2023 - 2nd Half">2023 - 2nd Half</option>
+              <option value="2023 - 1st Half">2023 - 1st Half</option>
+            </select>
+          </div>
+        </div>
+
         {/* Tabs */}
         <div className="bg-white rounded-xl shadow-sm border mb-8">
           <div className="border-b">
@@ -432,13 +466,13 @@ export default function DashboardPage() {
                           <YAxis domain={[0, 3]} />
                           <Tooltip />
                           <Legend />
-                          {HEALTH_DIMENSIONS.slice(0, 5).map((dim, idx) => (
+                          {HEALTH_DIMENSIONS.map((dim, idx) => (
                             <Line
                               key={dim.id}
                               type="monotone"
                               dataKey={dim.id}
                               name={dim.name}
-                              stroke={`hsl(${idx * 60}, 70%, 50%)`}
+                              stroke={`hsl(${idx * 30}, 70%, 50%)`}
                               strokeWidth={2}
                             />
                           ))}

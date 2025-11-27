@@ -101,7 +101,8 @@ var _ = SynchronizedBeforeSuite(
 			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1),
 			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member One', 'level-5', 'e2e_lead1', $1),
 			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member Two', 'level-5', 'e2e_lead2', $1),
-			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1)
+			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1),
+			('e2e_fresh_member', 'e2e_fresh_member', 'e2e_fresh_member@teams360.demo', 'E2E Fresh Member', 'level-5', 'e2e_lead1', $1)
 			ON CONFLICT (id) DO NOTHING
 		`, DemoPasswordHash)
 		Expect(err).NotTo(HaveOccurred())
@@ -139,23 +140,28 @@ var _ = SynchronizedBeforeSuite(
 			('e2e_team1', 'e2e_member2'),
 			('e2e_team2', 'e2e_member2'),
 			('e2e_team2', 'e2e_member3'),
-			('e2e_team3', 'e2e_member1')
+			('e2e_team3', 'e2e_member1'),
+			('e2e_team1', 'e2e_fresh_member')
 			ON CONFLICT DO NOTHING
 		`)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Insert sample health check sessions
+		// IMPORTANT: Include sessions for e2e_demo to test survey history display on /home page
 		_, err = db.Exec(`
 			INSERT INTO health_check_sessions (id, team_id, user_id, date, assessment_period, completed) VALUES
 			('e2e_session1', 'e2e_team1', 'e2e_member1', '2024-01-15', '2023 - 2nd Half', true),
 			('e2e_session2', 'e2e_team1', 'e2e_member2', '2024-01-16', '2023 - 2nd Half', true),
 			('e2e_session3', 'e2e_team2', 'e2e_member2', '2024-07-15', '2024 - 1st Half', true),
-			('e2e_session4', 'e2e_team2', 'e2e_member3', '2024-07-16', '2024 - 1st Half', true)
+			('e2e_session4', 'e2e_team2', 'e2e_member3', '2024-07-16', '2024 - 1st Half', true),
+			('e2e_demo_session1', 'e2e_team1', 'e2e_demo', '2024-03-15', '2023 - 2nd Half', true),
+			('e2e_demo_session2', 'e2e_team1', 'e2e_demo', '2024-09-20', '2024 - 1st Half', true)
 			ON CONFLICT (id) DO NOTHING
 		`)
 		Expect(err).NotTo(HaveOccurred())
 
 		// Insert health check responses
+		// IMPORTANT: Include responses for e2e_demo sessions to test survey history on /home page
 		_, err = db.Exec(`
 			INSERT INTO health_check_responses (session_id, dimension_id, score, trend, comment) VALUES
 			('e2e_session1', 'mission', 3, 'improving', 'Clear direction'),
@@ -169,7 +175,13 @@ var _ = SynchronizedBeforeSuite(
 			('e2e_session3', 'speed', 3, 'improving', 'Fast delivery'),
 			('e2e_session4', 'mission', 2, 'stable', 'Okay clarity'),
 			('e2e_session4', 'value', 2, 'stable', 'Standard delivery'),
-			('e2e_session4', 'speed', 2, 'stable', 'Normal pace')
+			('e2e_session4', 'speed', 2, 'stable', 'Normal pace'),
+			('e2e_demo_session1', 'mission', 2, 'stable', 'Clear enough'),
+			('e2e_demo_session1', 'value', 2, 'stable', 'Good delivery'),
+			('e2e_demo_session1', 'speed', 1, 'declining', 'Too slow'),
+			('e2e_demo_session2', 'mission', 3, 'improving', 'Very clear now'),
+			('e2e_demo_session2', 'value', 3, 'improving', 'Great value'),
+			('e2e_demo_session2', 'speed', 2, 'improving', 'Getting faster')
 			ON CONFLICT DO NOTHING
 		`)
 		Expect(err).NotTo(HaveOccurred())

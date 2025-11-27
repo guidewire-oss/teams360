@@ -96,7 +96,48 @@ func (h *UserHandler) GetUserSurveyHistory(c *gin.Context) {
 			return
 		}
 
+		// Initialize empty responses slice
+		entry.Responses = []dto.SurveyHistoryResponseItem{}
 		surveyHistory = append(surveyHistory, entry)
+	}
+	rows.Close()
+
+	// Fetch responses for each session
+	responsesQuery := `
+		SELECT
+			hcr.dimension_id,
+			hd.name as dimension_name,
+			hcr.score,
+			COALESCE(hcr.trend, '') as trend,
+			COALESCE(hcr.comment, '') as comment
+		FROM health_check_responses hcr
+		JOIN health_dimensions hd ON hcr.dimension_id = hd.id
+		WHERE hcr.session_id = $1
+		ORDER BY hd.id
+	`
+
+	for i := range surveyHistory {
+		responseRows, err := h.db.Query(responsesQuery, surveyHistory[i].SessionID)
+		if err != nil {
+			// Log error but continue with empty responses
+			continue
+		}
+
+		for responseRows.Next() {
+			var response dto.SurveyHistoryResponseItem
+			err := responseRows.Scan(
+				&response.DimensionID,
+				&response.DimensionName,
+				&response.Score,
+				&response.Trend,
+				&response.Comment,
+			)
+			if err != nil {
+				continue
+			}
+			surveyHistory[i].Responses = append(surveyHistory[i].Responses, response)
+		}
+		responseRows.Close()
 	}
 
 	// Get total count of sessions (without limit)

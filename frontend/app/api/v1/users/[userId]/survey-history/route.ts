@@ -18,13 +18,13 @@ export async function GET(
 
     const data = await response.json();
 
-    // Transform backend response to match frontend expectations
+    // Pass through backend response directly - frontend expects same field names
     // Backend returns: { userId, surveyHistory, totalSessions }
-    // Frontend expects: { userId, surveys, totalSurveys }
+    // Frontend expects: { userId, surveyHistory, totalSessions }
     const transformedData = {
       userId: data.userId,
-      surveys: data.surveyHistory || [],
-      totalSurveys: data.totalSessions || 0,
+      surveyHistory: data.surveyHistory || [],
+      totalSessions: data.totalSessions || 0,
     };
 
     return NextResponse.json(transformedData, { status: response.status });

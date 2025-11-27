@@ -25,11 +25,33 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
 			Expect(err).NotTo(HaveOccurred())
 
-			// Clean up any pre-existing sessions for this user to ensure test isolation
-			// This runs once before all tests in this Ordered container
-			_, err = db.Exec("DELETE FROM health_check_responses WHERE session_id IN (SELECT id FROM health_check_sessions WHERE user_id = $1)", testUserID)
+			// Clean up ONLY sessions created by THIS test (identified by being in current assessment period for this team/user)
+			// This avoids deleting seeded historical data that other tests depend on
+			// The survey test creates new sessions in the current assessment period, so we clear those
+			// Sessions created by this test will have team_id='e2e_team1' and user_id='e2e_demo' with recent dates
+			// We preserve sessions from other tests:
+			// - e2e_demo_session% (seeded data)
+			// - e2e_home_% (from e2e_member_home_test)
+			// - e2e_trend_% (from e2e_user_home_test)
+			// - e2e_comment_% (from e2e_user_home_test)
+			_, err = db.Exec(`
+				DELETE FROM health_check_responses
+				WHERE session_id IN (
+					SELECT id FROM health_check_sessions
+					WHERE user_id = $1 AND team_id = $2
+					AND id NOT LIKE 'e2e_demo_session%'
+					AND id NOT LIKE 'e2e_home_%'
+					AND id NOT LIKE 'e2e_trend_%'
+					AND id NOT LIKE 'e2e_comment_%'
+				)`, testUserID, testTeamID)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = db.Exec("DELETE FROM health_check_sessions WHERE user_id = $1", testUserID)
+			_, err = db.Exec(`
+				DELETE FROM health_check_sessions
+				WHERE user_id = $1 AND team_id = $2
+				AND id NOT LIKE 'e2e_demo_session%'
+				AND id NOT LIKE 'e2e_home_%'
+				AND id NOT LIKE 'e2e_trend_%'
+				AND id NOT LIKE 'e2e_comment_%'`, testUserID, testTeamID)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -58,7 +80,24 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				err = loginButton.Click()
 				Expect(err).NotTo(HaveOccurred())
 
-				// Wait for redirect to survey page (Team Members go to /survey)
+				// Wait for redirect to home page (Team Members now go to /home first)
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				// Navigate to survey via Take Survey button
+				By("Clicking Take Survey button on home page")
+				surveyBtn := page.Locator("[data-testid='take-survey-btn']")
+				err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = surveyBtn.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for redirect to survey page
 				err = page.WaitForURL("**/survey", playwright.PageWaitForURLOptions{
 					Timeout: playwright.Float(5000),
 				})
@@ -172,92 +211,92 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			Expect(err).NotTo(HaveOccurred())
 			err = submitButton.Click()
 			Expect(err).NotTo(HaveOccurred())
-				By("Verifying success message appears")
-			successMessage := page.Locator("h1:has-text('Thank You')")
-				err = successMessage.WaitFor(playwright.LocatorWaitForOptions{
-					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(10000),
-				})
-				Expect(err).NotTo(HaveOccurred())
 
-				By("Extracting session ID from success message or URL")
-				// Try to get session ID from URL or page content
-				url := page.URL()
-				GinkgoWriter.Printf("Success page URL: %s\n", url)
-
-				By("Querying database to verify data was saved correctly")
-				// Find the most recent session for this team/user
-				var sessionID, teamID, userID, date, assessmentPeriod string
-				var completed bool
-
-				err = db.QueryRow(`
-					SELECT id, team_id, user_id, date, assessment_period, completed
-					FROM health_check_sessions
-					WHERE team_id = $1 AND user_id = $2
-					ORDER BY created_at DESC
-					LIMIT 1
-				`, testTeamID, testUserID).Scan(&sessionID, &teamID, &userID, &date, &assessmentPeriod, &completed)
-
-				Expect(err).NotTo(HaveOccurred(), "Session should exist in database")
-				Expect(teamID).To(Equal(testTeamID))
-				Expect(userID).To(Equal(testUserID))
-				Expect(completed).To(BeTrue())
-
-				testSessionID = sessionID
-				GinkgoWriter.Printf("Found session in database: %s\n", sessionID)
-
-				By("Verifying all 11 responses were saved")
-				var responseCount int
-				err = db.QueryRow(`
-					SELECT COUNT(*)
-					FROM health_check_responses
-					WHERE session_id = $1
-				`, sessionID).Scan(&responseCount)
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(responseCount).To(Equal(11), "Should have 11 dimension responses")
-
-				By("Verifying specific response data")
-				// Check Mission response
-				var dimensionID, trend, comment string
-				var score int
-
-				err = db.QueryRow(`
-					SELECT dimension_id, score, trend, comment
-					FROM health_check_responses
-					WHERE session_id = $1 AND dimension_id = 'mission'
-				`, sessionID).Scan(&dimensionID, &score, &trend, &comment)
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(dimensionID).To(Equal("mission"))
-				Expect(score).To(Equal(3))
-				Expect(trend).To(Equal("improving"))
-
-				// Check Speed response (Red, Declining)
-				err = db.QueryRow(`
-					SELECT dimension_id, score, trend
-					FROM health_check_responses
-					WHERE session_id = $1 AND dimension_id = 'speed'
-				`, sessionID).Scan(&dimensionID, &score, &trend)
-
-				Expect(err).NotTo(HaveOccurred())
-				Expect(dimensionID).To(Equal("speed"))
-				Expect(score).To(Equal(1))
-				Expect(trend).To(Equal("declining"))
-
-				By("Verifying assessment period was auto-calculated")
-				Expect(assessmentPeriod).NotTo(BeEmpty())
-				// Assessment period should be in format "YYYY - 1st Half" or "YYYY - 2nd Half"
-				Expect(assessmentPeriod).To(MatchRegexp(`\d{4} - (1st|2nd) Half`))
-
-				GinkgoWriter.Printf("✅ E2E Test PASSED: Survey submitted successfully\n")
-				GinkgoWriter.Printf("   Session ID: %s\n", sessionID)
-				GinkgoWriter.Printf("   Team ID: %s\n", teamID)
-				GinkgoWriter.Printf("   User ID: %s\n", userID)
-				GinkgoWriter.Printf("   Assessment Period: %s\n", assessmentPeriod)
-				GinkgoWriter.Printf("   Responses: %d/11\n", responseCount)
+			By("Waiting for redirect to home page after successful submission")
+			// The survey page auto-redirects to /home after successful submission
+			err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+				Timeout: playwright.Float(10000),
 			})
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying we're on the home page")
+			url := page.URL()
+			GinkgoWriter.Printf("Redirected to URL: %s\n", url)
+			Expect(url).To(ContainSubstring("/home"))
+
+			By("Querying database to verify data was saved correctly")
+			// Find the most recent session for this team/user
+			var sessionID, teamID, userID, date, assessmentPeriod string
+			var completed bool
+
+			err = db.QueryRow(`
+				SELECT id, team_id, user_id, date, assessment_period, completed
+				FROM health_check_sessions
+				WHERE team_id = $1 AND user_id = $2
+				ORDER BY created_at DESC
+				LIMIT 1
+			`, testTeamID, testUserID).Scan(&sessionID, &teamID, &userID, &date, &assessmentPeriod, &completed)
+
+			Expect(err).NotTo(HaveOccurred(), "Session should exist in database")
+			Expect(teamID).To(Equal(testTeamID))
+			Expect(userID).To(Equal(testUserID))
+			Expect(completed).To(BeTrue())
+
+			testSessionID = sessionID
+			GinkgoWriter.Printf("Found session in database: %s\n", sessionID)
+
+			By("Verifying all 11 responses were saved")
+			var responseCount int
+			err = db.QueryRow(`
+				SELECT COUNT(*)
+				FROM health_check_responses
+				WHERE session_id = $1
+			`, sessionID).Scan(&responseCount)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(responseCount).To(Equal(11), "Should have 11 dimension responses")
+
+			By("Verifying specific response data")
+			// Check Mission response
+			var dimensionID, trend, comment string
+			var score int
+
+			err = db.QueryRow(`
+				SELECT dimension_id, score, trend, comment
+				FROM health_check_responses
+				WHERE session_id = $1 AND dimension_id = 'mission'
+			`, sessionID).Scan(&dimensionID, &score, &trend, &comment)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(dimensionID).To(Equal("mission"))
+			Expect(score).To(Equal(3))
+			Expect(trend).To(Equal("improving"))
+
+			// Check Speed response (Red, Declining)
+			err = db.QueryRow(`
+				SELECT dimension_id, score, trend
+				FROM health_check_responses
+				WHERE session_id = $1 AND dimension_id = 'speed'
+			`, sessionID).Scan(&dimensionID, &score, &trend)
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(dimensionID).To(Equal("speed"))
+			Expect(score).To(Equal(1))
+			Expect(trend).To(Equal("declining"))
+
+			By("Verifying assessment period was auto-calculated")
+			Expect(assessmentPeriod).NotTo(BeEmpty())
+			// Assessment period should be in format "YYYY - 1st Half" or "YYYY - 2nd Half"
+			Expect(assessmentPeriod).To(MatchRegexp(`\d{4} - (1st|2nd) Half`))
+
+			GinkgoWriter.Printf("✅ E2E Test PASSED: Survey submitted successfully\n")
+			GinkgoWriter.Printf("   Session ID: %s\n", sessionID)
+			GinkgoWriter.Printf("   Team ID: %s\n", teamID)
+			GinkgoWriter.Printf("   User ID: %s\n", userID)
+			GinkgoWriter.Printf("   Assessment Period: %s\n", assessmentPeriod)
+			GinkgoWriter.Printf("   Responses: %d/11\n", responseCount)
 		})
+	})
 
 		Context("when viewing submitted survey results", func() {
 			It("should display the survey data on the results page", func() {
@@ -283,8 +322,8 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
 				Expect(err).NotTo(HaveOccurred())
 
-				// Wait for redirect
-				err = page.WaitForURL("**/survey", playwright.PageWaitForURLOptions{
+				// Wait for redirect to home (team members now go to /home first)
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
 					Timeout: playwright.Float(5000),
 				})
 				Expect(err).NotTo(HaveOccurred())
@@ -319,6 +358,22 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				err = page.Locator("#password").Fill("demo")
 				Expect(err).NotTo(HaveOccurred())
 				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for redirect to home page (Team Members now go to /home first)
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				// Navigate to survey via Take Survey button
+				surveyBtn := page.Locator("[data-testid='take-survey-btn']")
+				err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = surveyBtn.Click()
 				Expect(err).NotTo(HaveOccurred())
 
 				// Wait for redirect to survey page
