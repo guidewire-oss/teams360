@@ -1,0 +1,94 @@
+# OpenTelemetry Collector Configuration - Staging Environment
+# This configuration sends telemetry to cloud backends for staging testing
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  batch:
+    timeout: 5s
+    send_batch_size: 2048
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 1024
+    spike_limit_mib: 256
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: staging
+        action: upsert
+
+  # Filter out high-cardinality attributes for staging
+  attributes:
+    actions:
+      - key: http.user_agent
+        action: delete
+      - key: http.request.header.authorization
+        action: delete
+
+  # Tail sampling to reduce trace volume in staging
+  # Only sample 50% of successful traces, 100% of errors
+  # Note: Requires otelcol-contrib for tail_sampling processor
+  # tail_sampling:
+  #   decision_wait: 10s
+  #   num_traces: 100
+  #   expected_new_traces_per_sec: 10
+  #   policies:
+  #     - name: errors-policy
+  #       type: status_code
+  #       status_code: {status_codes: [ERROR]}
+  #     - name: probabilistic-policy
+  #       type: probabilistic
+  #       probabilistic: {sampling_percentage: 50}
+
+exporters:
+  # OTLP exporter for traces (e.g., to Grafana Tempo, Jaeger, etc.)
+  # Configure via environment variables:
+  # - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+  otlp/traces:
+    endpoint: "${env:OTEL_TRACES_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+    tls:
+      insecure: false
+
+  # Prometheus Remote Write for metrics (e.g., to Grafana Cloud, Cortex)
+  # Configure via environment variables:
+  # - PROMETHEUS_REMOTE_WRITE_ENDPOINT
+  prometheusremotewrite:
+    endpoint: "${env:PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${env:PROMETHEUS_AUTH_TOKEN}"
+    tls:
+      insecure: false
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes, batch]
+      exporters: [otlp/traces]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheusremotewrite]
+
+  telemetry:
+    logs:
+      level: warn
+    metrics:
+      address: "0.0.0.0:8888"

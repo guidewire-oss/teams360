@@ -1,0 +1,117 @@
+# Docker Compose for Local Observability Stack
+# This sets up Jaeger, Prometheus, and OpenTelemetry Collector for local development
+#
+# Usage:
+#   docker-compose -f docker-compose.observability.yaml up -d
+#
+# Services:
+#   - Jaeger UI: http://localhost:16686 (traces visualization)
+#   - Prometheus: http://localhost:9090 (metrics queries)
+#   - OTel Collector: localhost:4317 (gRPC), localhost:4318 (HTTP)
+#
+# To connect your app, set:
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+#   OTEL_ENABLED=true
+
+version: "3.8"
+
+services:
+  # OpenTelemetry Collector - receives telemetry and routes to backends
+  otel-collector:
+    image: otel/opentelemetry-collector:0.96.0
+    container_name: teams360-otel-collector
+    command: ["--config", "/etc/otel/config.yaml"]
+    volumes:
+      - ./otel/collector-local.yaml:/etc/otel/config.yaml:ro
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus metrics exporter
+      - "13133:13133" # Health check
+      - "55679:55679" # zpages debugging
+    depends_on:
+      - jaeger
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:13133/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Jaeger - distributed tracing backend
+  jaeger:
+    image: jaegertracing/all-in-one:1.54
+    container_name: teams360-jaeger
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14268:14268" # Jaeger HTTP collector (legacy)
+      - "14250:14250" # Jaeger gRPC collector (legacy)
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:16686/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Prometheus - metrics storage and querying
+  prometheus:
+    image: prom/prometheus:v2.50.0
+    container_name: teams360-prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Grafana - visualization dashboards (optional but recommended)
+  grafana:
+    image: grafana/grafana:10.3.3
+    container_name: teams360-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Viewer
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3001:3000"  # Using 3001 to avoid conflict with Next.js
+    depends_on:
+      - prometheus
+      - jaeger
+    networks:
+      - observability
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+networks:
+  observability:
+    name: teams360-observability
+
+volumes:
+  prometheus-data:
+    name: teams360-prometheus-data
+  grafana-data:
+    name: teams360-grafana-data

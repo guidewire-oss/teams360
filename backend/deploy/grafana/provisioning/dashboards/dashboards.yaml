@@ -1,0 +1,16 @@
+# Grafana Dashboard Provisioning Configuration
+# Automatically loads dashboards from the specified folder
+
+apiVersion: 1
+
+providers:
+  - name: 'Teams360 Dashboards'
+    orgId: 1
+    folder: 'Teams360'
+    folderUid: 'teams360'
+    type: file
+    disableDeletion: false
+    editable: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/json

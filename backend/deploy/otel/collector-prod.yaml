@@ -1,0 +1,129 @@
+# OpenTelemetry Collector Configuration - Production Environment
+# This configuration is optimized for production with high availability and security
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+        # TLS configuration for production
+        # tls:
+        #   cert_file: /etc/otel/tls/server.crt
+        #   key_file: /etc/otel/tls/server.key
+        #   client_ca_file: /etc/otel/tls/ca.crt
+      http:
+        endpoint: "0.0.0.0:4318"
+        # TLS configuration
+        # tls:
+        #   cert_file: /etc/otel/tls/server.crt
+        #   key_file: /etc/otel/tls/server.key
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 4096
+    send_batch_max_size: 8192
+
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 2048
+    spike_limit_mib: 512
+
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: production
+        action: upsert
+      - key: service.version
+        value: "${env:SERVICE_VERSION}"
+        action: upsert
+
+  # Remove sensitive attributes in production
+  attributes:
+    actions:
+      - key: http.user_agent
+        action: delete
+      - key: http.request.header.authorization
+        action: delete
+      - key: db.statement
+        action: hash  # Hash SQL statements for security
+      - key: http.request.body
+        action: delete
+      - key: http.response.body
+        action: delete
+
+  # Probabilistic sampling for high-volume production
+  # Note: Requires otelcol-contrib for probabilistic_sampler processor
+  # probabilistic_sampler:
+  #   sampling_percentage: 10  # Sample 10% of traces
+
+exporters:
+  # Primary traces backend (e.g., Grafana Tempo, Jaeger, Honeycomb)
+  otlp/traces:
+    endpoint: "${env:OTEL_TRACES_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${env:OTEL_AUTH_TOKEN}"
+    tls:
+      insecure: false
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      num_consumers: 10
+      queue_size: 5000
+
+  # Prometheus Remote Write for metrics
+  prometheusremotewrite:
+    endpoint: "${env:PROMETHEUS_REMOTE_WRITE_ENDPOINT}"
+    headers:
+      authorization: "Bearer ${env:PROMETHEUS_AUTH_TOKEN}"
+    tls:
+      insecure: false
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    remote_write_queue:
+      enabled: true
+      queue_size: 10000
+      num_consumers: 5
+
+  # Backup/failover exporter (e.g., local file for debugging)
+  # file:
+  #   path: /var/log/otel/traces.json
+  #   rotation:
+  #     max_megabytes: 100
+  #     max_days: 7
+  #     max_backups: 3
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  # Memory ballast for GC optimization
+  memory_ballast:
+    size_mib: 512
+
+service:
+  extensions: [health_check, memory_ballast]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, attributes, batch]
+      exporters: [otlp/traces]
+
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheusremotewrite]
+
+  telemetry:
+    logs:
+      level: error
+    metrics:
+      address: "0.0.0.0:8888"

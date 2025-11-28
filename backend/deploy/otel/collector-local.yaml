@@ -1,0 +1,95 @@
+# OpenTelemetry Collector Configuration - Local Development
+# This configuration is designed for local development with Jaeger and Prometheus
+#
+# Usage:
+#   docker run -v $(pwd)/collector-local.yaml:/etc/otel/config.yaml \
+#     otel/opentelemetry-collector:latest --config /etc/otel/config.yaml
+
+receivers:
+  # OTLP receiver for traces and metrics from the application
+  otlp:
+    protocols:
+      # gRPC for backend (Go) telemetry
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      # HTTP for frontend (browser) telemetry - requires CORS
+      http:
+        endpoint: "0.0.0.0:4318"
+        cors:
+          allowed_origins:
+            - "http://localhost:3000"
+            - "http://127.0.0.1:3000"
+          allowed_headers:
+            - "*"
+          max_age: 7200
+
+processors:
+  # Batch processor for efficiency
+  batch:
+    timeout: 1s
+    send_batch_size: 1024
+
+  # Memory limiter to prevent OOM
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+
+  # Resource processor to add environment info
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: local
+        action: upsert
+      - key: service.version
+        value: dev
+        action: upsert
+
+exporters:
+  # Debug exporter for local troubleshooting
+  debug:
+    verbosity: detailed
+
+  # Jaeger exporter for traces (local Jaeger instance)
+  otlp/jaeger:
+    endpoint: "jaeger:4317"
+    tls:
+      insecure: true
+
+  # Prometheus exporter for metrics (scraped by Prometheus)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: teams360
+    const_labels:
+      environment: local
+
+extensions:
+  # Health check endpoint
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+  # Performance profiling (zpages)
+  zpages:
+    endpoint: "0.0.0.0:55679"
+
+service:
+  extensions: [health_check, zpages]
+
+  pipelines:
+    # Traces pipeline
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/jaeger, debug]
+
+    # Metrics pipeline
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus, debug]
+
+  telemetry:
+    logs:
+      level: info
+    metrics:
+      address: "0.0.0.0:8888"
