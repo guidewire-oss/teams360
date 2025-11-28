@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
@@ -93,12 +94,20 @@ func main() {
 
 	// Initialize services
 	trendsService := trends.NewService(db)
+	jwtService := services.NewJWTService()
+
+	// Initialize password reset service
+	passwordResetRepo := postgres.NewPasswordResetRepository(db)
+	mockEmailService := services.NewMockEmailService() // Use mock for now
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, mockEmailService)
 
 	// Initialize router
 	router := gin.Default()
 
-	// Add CORS middleware
+	// Add security middleware
 	router.Use(middleware.CORSMiddleware())
+	router.Use(middleware.ContentTypeValidator())
+	router.Use(middleware.MaxBodySizeMiddleware(10 * 1024 * 1024)) // 10MB max body size
 
 	// Health check endpoint (used by tests and load balancers)
 	router.GET("/health", func(c *gin.Context) {
@@ -107,12 +116,14 @@ func main() {
 
 	// Setup API routes with repository injection
 	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
-	v1.SetupAuthRoutes(router, userRepo)
+	v1.SetupAuthRoutes(router, userRepo, jwtService)
 	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
 	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
-	v1.SetupTeamDashboardRoutes(router, db)  // Still uses db (complex dashboard queries)
-	v1.SetupUserRoutes(router, db)           // Still uses db (complex user queries)
+	v1.SetupTeamDashboardRoutes(router, db)      // Still uses db (complex dashboard queries)
+	v1.SetupUserRoutes(router, db)               // Still uses db (complex user queries)
+	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
 	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")
