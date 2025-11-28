@@ -48,6 +48,69 @@ func (h *SettingsAdminHandler) GetDimensions(c *gin.Context) {
 	c.JSON(http.StatusOK, dto.DimensionsResponse{Dimensions: dimensionDTOs})
 }
 
+// CreateDimension handles POST /api/v1/admin/settings/dimensions
+func (h *SettingsAdminHandler) CreateDimension(c *gin.Context) {
+	var req dto.CreateDimensionRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body", Message: err.Error()})
+		return
+	}
+
+	// Validate weight
+	if req.Weight < 0 || req.Weight > 10 {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Weight must be between 0 and 10"})
+		return
+	}
+
+	// Default isActive to true if not provided
+	isActive := true
+	if req.IsActive != nil {
+		isActive = *req.IsActive
+	}
+
+	// Default weight to 1.0 if not provided
+	weight := req.Weight
+	if weight == 0 {
+		weight = 1.0
+	}
+
+	// Create domain object
+	dim := &organization.HealthDimension{
+		ID:              req.ID,
+		Name:            req.Name,
+		Description:     req.Description,
+		GoodDescription: req.GoodDescription,
+		BadDescription:  req.BadDescription,
+		IsActive:        isActive,
+		Weight:          weight,
+	}
+
+	// Save using repository
+	if err := h.orgRepo.SaveDimension(c.Request.Context(), dim); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to create dimension",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Convert to DTO and return
+	responseDTO := dto.HealthDimensionDTO{
+		ID:              dim.ID,
+		Name:            dim.Name,
+		Description:     dim.Description,
+		GoodDescription: dim.GoodDescription,
+		BadDescription:  dim.BadDescription,
+		IsActive:        dim.IsActive,
+		Weight:          dim.Weight,
+		CreatedAt:       dim.CreatedAt,
+		UpdatedAt:       dim.UpdatedAt,
+	}
+
+	c.JSON(http.StatusCreated, responseDTO)
+}
+
 // UpdateDimension handles PUT /api/v1/admin/settings/dimensions/:id
 func (h *SettingsAdminHandler) UpdateDimension(c *gin.Context) {
 	id := c.Param("id")
@@ -72,6 +135,18 @@ func (h *SettingsAdminHandler) UpdateDimension(c *gin.Context) {
 	}
 
 	// Update fields if provided
+	if req.Name != nil {
+		dim.Name = *req.Name
+	}
+	if req.Description != nil {
+		dim.Description = *req.Description
+	}
+	if req.GoodDescription != nil {
+		dim.GoodDescription = *req.GoodDescription
+	}
+	if req.BadDescription != nil {
+		dim.BadDescription = *req.BadDescription
+	}
 	if req.IsActive != nil {
 		dim.IsActive = *req.IsActive
 	}
@@ -102,6 +177,22 @@ func (h *SettingsAdminHandler) UpdateDimension(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, responseDTO)
+}
+
+// DeleteDimension handles DELETE /api/v1/admin/settings/dimensions/:id
+func (h *SettingsAdminHandler) DeleteDimension(c *gin.Context) {
+	id := c.Param("id")
+
+	// Delete using repository
+	if err := h.orgRepo.DeleteDimension(c.Request.Context(), id); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to delete dimension",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Dimension deleted successfully"})
 }
 
 // GetNotificationSettings handles GET /api/v1/admin/settings/notifications

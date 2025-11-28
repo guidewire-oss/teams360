@@ -671,6 +671,25 @@ func (r *OrganizationRepository) UpdateDimension(ctx context.Context, dim *organ
 	return nil
 }
 
+// DeleteDimension removes a health dimension by ID
+func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string) error {
+	result, err := r.db.ExecContext(ctx, "DELETE FROM health_dimensions WHERE id = $1", id)
+	if err != nil {
+		return fmt.Errorf("failed to delete health dimension: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("health dimension not found: %s", id)
+	}
+
+	return nil
+}
+
 // Helper methods
 
 // saveHierarchyLevelTx saves a hierarchy level within a transaction

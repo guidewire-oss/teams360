@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -58,9 +59,15 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 		return
 	}
 
+	// Auto-generate ID from name if not provided
+	teamID := req.ID
+	if teamID == "" {
+		teamID = generateTeamIDFromName(req.Name)
+	}
+
 	// Create team domain model
 	tm := &team.Team{
-		ID:         req.ID,
+		ID:         teamID,
 		Name:       req.Name,
 		TeamLeadID: req.TeamLeadID,
 		Cadence:    req.Cadence,
@@ -158,4 +165,20 @@ func (h *TeamAdminHandler) DeleteTeam(c *gin.Context) {
 	}
 
 	dto.RespondMessage(c, http.StatusOK, "Team deleted successfully")
+}
+
+// generateTeamIDFromName creates a URL-safe ID from a team name
+// e.g., "Test Team 123" -> "test-team-123"
+func generateTeamIDFromName(name string) string {
+	// Convert to lowercase and replace spaces with hyphens
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	// Remove any characters that aren't alphanumeric or hyphens
+	var result strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }

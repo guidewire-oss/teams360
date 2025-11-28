@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -67,9 +68,15 @@ func (h *HierarchyAdminHandler) CreateHierarchyLevel(c *gin.Context) {
 	}
 	newPosition := maxPosition + 1
 
+	// Auto-generate ID from name if not provided
+	levelID := req.ID
+	if levelID == "" {
+		levelID = generateIDFromName(req.Name)
+	}
+
 	// Create hierarchy level domain model
 	level := &organization.HierarchyLevel{
-		ID:       req.ID,
+		ID:       levelID,
 		Name:     req.Name,
 		Position: newPosition,
 		Permissions: organization.Permissions{
@@ -251,4 +258,20 @@ func (h *HierarchyAdminHandler) DeleteHierarchyLevel(c *gin.Context) {
 	}
 
 	dto.RespondMessage(c, http.StatusOK, "Hierarchy level deleted successfully")
+}
+
+// generateIDFromName creates a URL-safe ID from a name
+// e.g., "Test Level 123" -> "test-level-123"
+func generateIDFromName(name string) string {
+	// Convert to lowercase and replace spaces with hyphens
+	id := strings.ToLower(name)
+	id = strings.ReplaceAll(id, " ", "-")
+	// Remove any characters that aren't alphanumeric or hyphens
+	var result strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }

@@ -27,8 +27,8 @@ type HierarchyPermissionsDTO struct {
 
 // CreateHierarchyLevelRequest represents request to create a hierarchy level
 type CreateHierarchyLevelRequest struct {
-	ID          string                  `json:"id" binding:"required"`
-	Name        string                  `json:"name" binding:"required"`
+	ID          string                  `json:"id"`                      // Optional - will be auto-generated from name if not provided
+	Name        string                  `json:"name" binding:"required"` // Required - used to generate ID if not provided
 	Permissions HierarchyPermissionsDTO `json:"permissions"`
 }
 
@@ -67,8 +67,8 @@ type AdminUserDTO struct {
 
 // CreateUserRequest represents request to create a user
 type CreateUserRequest struct {
-	ID             string  `json:"id" binding:"required"`
-	Username       string  `json:"username" binding:"required"`
+	ID             string  `json:"id"`                                  // Optional - will be auto-generated from username if not provided
+	Username       string  `json:"username" binding:"required"`         // Required - used to generate ID if not provided
 	Email          string  `json:"email" binding:"required,email"`
 	FullName       string  `json:"fullName" binding:"required"`
 	Password       string  `json:"password" binding:"required,min=4"`
@@ -110,8 +110,8 @@ type AdminTeamDTO struct {
 
 // CreateTeamRequest represents request to create a team
 type CreateTeamRequest struct {
-	ID         string  `json:"id" binding:"required"`
-	Name       string  `json:"name" binding:"required"`
+	ID         string  `json:"id"`                                                              // Optional - will be auto-generated from name if not provided
+	Name       string  `json:"name" binding:"required"`                                         // Required - used to generate ID if not provided
 	TeamLeadID *string `json:"teamLeadId"`
 	Cadence    string  `json:"cadence" binding:"required,oneof=weekly biweekly monthly quarterly"`
 }
@@ -146,10 +146,25 @@ type HealthDimensionDTO struct {
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
+// CreateDimensionRequest represents request to create a dimension
+type CreateDimensionRequest struct {
+	ID              string  `json:"id" binding:"required"`
+	Name            string  `json:"name" binding:"required"`
+	Description     string  `json:"description"`
+	GoodDescription string  `json:"goodDescription" binding:"required"`
+	BadDescription  string  `json:"badDescription" binding:"required"`
+	IsActive        *bool   `json:"isActive"`
+	Weight          float64 `json:"weight"`
+}
+
 // UpdateDimensionRequest represents request to update a dimension
 type UpdateDimensionRequest struct {
-	IsActive *bool    `json:"isActive"`
-	Weight   *float64 `json:"weight"`
+	Name            *string  `json:"name"`
+	Description     *string  `json:"description"`
+	GoodDescription *string  `json:"goodDescription"`
+	BadDescription  *string  `json:"badDescription"`
+	IsActive        *bool    `json:"isActive"`
+	Weight          *float64 `json:"weight"`
 }
 
 // DimensionsResponse represents response with list of dimensions

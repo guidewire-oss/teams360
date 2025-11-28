@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -73,9 +74,15 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
+	// Auto-generate ID from username if not provided
+	userID := req.ID
+	if userID == "" {
+		userID = generateUserIDFromUsername(req.Username)
+	}
+
 	// Create user domain model
 	usr := &user.User{
-		ID:               req.ID,
+		ID:               userID,
 		Username:         req.Username,
 		Email:            req.Email,
 		Name:             req.FullName,
@@ -196,4 +203,21 @@ func (h *UserAdminHandler) DeleteUser(c *gin.Context) {
 	}
 
 	dto.RespondMessage(c, http.StatusOK, "User deleted successfully")
+}
+
+// generateUserIDFromUsername creates a URL-safe ID from a username
+// e.g., "test_user" -> "test-user"
+func generateUserIDFromUsername(username string) string {
+	// Convert to lowercase, replace underscores and spaces with hyphens
+	id := strings.ToLower(username)
+	id = strings.ReplaceAll(id, "_", "-")
+	id = strings.ReplaceAll(id, " ", "-")
+	// Remove any characters that aren't alphanumeric or hyphens
+	var result strings.Builder
+	for _, r := range id {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			result.WriteRune(r)
+		}
+	}
+	return result.String()
 }

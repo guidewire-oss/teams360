@@ -97,8 +97,16 @@ func (h *AdminHandler) GetDimensions(c *gin.Context) {
 	h.SettingsHandler.GetDimensions(c)
 }
 
+func (h *AdminHandler) CreateDimension(c *gin.Context) {
+	h.SettingsHandler.CreateDimension(c)
+}
+
 func (h *AdminHandler) UpdateDimension(c *gin.Context) {
 	h.SettingsHandler.UpdateDimension(c)
+}
+
+func (h *AdminHandler) DeleteDimension(c *gin.Context) {
+	h.SettingsHandler.DeleteDimension(c)
 }
 
 func (h *AdminHandler) GetNotificationSettings(c *gin.Context) {

@@ -44,9 +44,11 @@ func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userR
 		// Settings
 		settings := admin.Group("/settings")
 		{
-			// Health Dimensions
+			// Health Dimensions - Full CRUD
 			settings.GET("/dimensions", handler.GetDimensions)
+			settings.POST("/dimensions", handler.CreateDimension)
 			settings.PUT("/dimensions/:id", handler.UpdateDimension)
+			settings.DELETE("/dimensions/:id", handler.DeleteDimension)
 
 			// Notifications
 			settings.GET("/notifications", handler.GetNotificationSettings)

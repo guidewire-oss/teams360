@@ -107,6 +107,144 @@ Use these demo credentials to explore different user roles:
 | Team Member | `demo` | `demo` | /home |
 | Administrator | `admin` | `admin` | /admin |
 
+## Getting Started: Implementing Health Checks in Your Organization
+
+### Step 1: Initial Setup (Admin)
+
+Before teams can start using Team360, an administrator needs to configure the organization structure. Log in as an admin (`admin/admin`) and navigate to the Admin Dashboard (`/admin`).
+
+#### Configure Hierarchy Levels
+
+The hierarchy defines your organization's reporting structure and permissions. Default levels include:
+
+| Level | Position | Typical Role | Key Permissions |
+|-------|----------|--------------|-----------------|
+| Level 1 | 1 | VP/Executive | View all teams, view analytics |
+| Level 2 | 2 | Director | View all teams, view analytics |
+| Level 3 | 3 | Manager | View assigned teams, view analytics |
+| Level 4 | 4 | Team Lead | View own team, take surveys |
+| Level 5 | 5 | Team Member | Take surveys only |
+
+**To customize hierarchy levels:**
+1. Go to Admin Dashboard → Hierarchy Levels tab
+2. Click "Add Level" to create new levels
+3. Configure permissions for each level:
+   - **Can View All Teams**: See health data across the organization
+   - **Can Edit Teams**: Modify team configurations
+   - **Can Manage Users**: Add/remove users
+   - **Can Take Survey**: Participate in health checks
+   - **Can View Analytics**: Access trend analysis and reports
+4. Use drag handles to reorder levels (higher position = higher authority)
+
+#### Create Teams
+
+Teams are the core unit for health assessments. Each team has members and a designated lead.
+
+1. Go to Admin Dashboard → Teams tab
+2. Click "Add Team" and provide:
+   - **Team Name**: A descriptive name (e.g., "Platform Squad", "Mobile Team")
+   - **Team Lead**: Assign a user responsible for the team (optional)
+   - **Cadence**: How often the team should complete health checks:
+     - Weekly (high-velocity teams)
+     - Biweekly (most common)
+     - Monthly (stable teams)
+     - Quarterly (strategic reviews)
+
+#### Add Users
+
+Create user accounts for everyone who will participate in health checks.
+
+1. Go to Admin Dashboard → Users tab
+2. Click "Add User" and provide:
+   - **Username**: Login identifier
+   - **Email**: Contact email
+   - **Full Name**: Display name
+   - **Password**: Initial password (users should change on first login)
+   - **Hierarchy Level**: Their position in the organization
+   - **Reports To**: Their direct supervisor (creates reporting chain)
+3. After creating users, assign them to teams in the Teams tab
+
+### Step 2: Establish Assessment Periods
+
+Team360 automatically determines assessment periods based on the calendar:
+- **January - June**: Surveys contribute to "Previous Year - 2nd Half" (reflecting on the period just ended)
+- **July - December**: Surveys contribute to "Current Year - 1st Half"
+
+This approach encourages reflection on completed work rather than in-progress activities.
+
+### Step 3: Conduct Health Check Sessions
+
+#### For Team Leads: Facilitating Sessions
+
+Health checks work best as structured team discussions, not just individual surveys:
+
+1. **Schedule a recurring meeting** based on your team's cadence (e.g., monthly for 1 hour)
+2. **Before the session**: Remind team members to complete their individual surveys
+3. **During the session**:
+   - Review the aggregated results on the Team Lead Dashboard (`/dashboard`)
+   - Discuss dimensions with significant spread (mixed red/yellow/green)
+   - Focus on the "trend" arrow - are things improving or declining?
+   - Identify 1-2 dimensions to actively improve
+4. **After the session**: Document action items and track progress
+
+#### For Team Members: Taking Surveys
+
+1. Log in and navigate to Home (`/home`)
+2. Click "Take Survey" to begin
+3. For each of the 11 dimensions:
+   - Read the "Good" and "Bad" descriptions
+   - Select your honest assessment (🟢 Green, 🟡 Yellow, 🔴 Red)
+   - Choose a trend direction (↑ Improving, → Stable, ↓ Declining)
+   - Optionally add a comment for context
+4. Submit the survey
+
+**Tips for honest assessment:**
+- Compare your current state to both the ideal ("Good") and worst case ("Bad")
+- Consider the past assessment period, not just today
+- Use the trend arrow to indicate direction of change
+- Comments help explain context to your team lead
+
+### Step 4: Review and Act on Results
+
+#### Team Lead View (`/dashboard`)
+
+Team Leads see detailed breakdowns for their specific team:
+- **Radar Chart**: Visual overview of all 11 dimensions
+- **Response Distribution**: Bar chart showing green/yellow/red spread
+- **Trend Lines**: Historical view across assessment periods
+- **Individual Responses**: Detailed view of each team member's input (for follow-up)
+
+#### Manager/Executive View (`/manager`)
+
+Managers, Directors, and VPs see aggregated data across their supervised teams:
+- **Team Cards**: Quick health overview for each team
+- **Radar Comparison**: Compare multiple teams on one chart
+- **Aggregated Trends**: Roll-up trends across all supervised teams
+- **Assessment Period Filter**: Focus on specific time periods
+
+### Step 5: Drive Improvements
+
+The goal isn't perfect scores—it's continuous improvement:
+
+1. **Identify patterns**: Are multiple teams struggling with the same dimension?
+2. **Prioritize**: Focus on 1-2 dimensions at a time
+3. **Create action items**: Specific, measurable improvements
+4. **Track progress**: Use trend lines to verify improvements
+5. **Celebrate wins**: Acknowledge when dimensions move from red to yellow to green
+
+### Best Practices for Adoption
+
+| Practice | Description |
+|----------|-------------|
+| **Start small** | Pilot with 2-3 teams before organization-wide rollout |
+| **Consistent cadence** | Stick to your chosen frequency (biweekly works for most) |
+| **Psychological safety** | Emphasize that red scores lead to support, not punishment |
+| **Action-oriented** | Always end sessions with specific improvement actions |
+| **Celebrate progress** | Highlight teams that improve, regardless of absolute scores |
+| **Review quarterly** | Step back quarterly to assess overall organizational health |
+
+---
+
 ## Health Dimensions
 
 Teams assess themselves across 11 dimensions:
@@ -238,10 +376,26 @@ ginkgo -v acceptance/
 ### Users
 - `GET /api/v1/users/:userId/survey-history` - User's survey history
 
-### Admin
-- `GET /api/v1/admin/users` - List users
-- `GET /api/v1/admin/teams` - List teams
-- `GET /api/v1/admin/hierarchy-levels` - List hierarchy levels
+### Admin - Hierarchy Levels
+- `GET /api/v1/admin/hierarchy-levels` - List all hierarchy levels
+- `POST /api/v1/admin/hierarchy-levels` - Create hierarchy level
+- `PUT /api/v1/admin/hierarchy-levels/:id` - Update hierarchy level
+- `PUT /api/v1/admin/hierarchy-levels/:id/position` - Reorder hierarchy level
+- `DELETE /api/v1/admin/hierarchy-levels/:id` - Delete hierarchy level
+
+### Admin - Users
+- `GET /api/v1/admin/users` - List all users
+- `POST /api/v1/admin/users` - Create user
+- `PUT /api/v1/admin/users/:id` - Update user
+- `DELETE /api/v1/admin/users/:id` - Delete user
+
+### Admin - Teams
+- `GET /api/v1/admin/teams` - List all teams
+- `POST /api/v1/admin/teams` - Create team
+- `PUT /api/v1/admin/teams/:id` - Update team
+- `DELETE /api/v1/admin/teams/:id` - Delete team
+- `POST /api/v1/admin/teams/:teamId/members` - Add member to team
+- `DELETE /api/v1/admin/teams/:teamId/members/:userId` - Remove member from team
 
 ## Configuration
 

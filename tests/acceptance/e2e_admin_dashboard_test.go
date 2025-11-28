@@ -114,7 +114,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Clicking edit on a hierarchy level")
-				editButton := page.Locator("[data-testid='edit-level'], button:has-text('Edit')")
+				editButton := page.Locator("[data-testid='edit-level-btn'], [data-testid='edit-level'], button:has-text('Edit')")
 				err = editButton.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -187,9 +187,9 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				By("Verifying Next Check Date column exists")
-				nextCheckColumn := page.Locator("th:has-text('Next')").Or(page.Locator("text=Next Check")).Or(page.Locator("text=Next Health Check"))
-				err = nextCheckColumn.First().WaitFor(playwright.LocatorWaitForOptions{
+				By("Verifying Team Lead column exists")
+				teamLeadColumn := page.Locator("th:has-text('Team Lead')").Or(page.Locator("th:has-text('Lead')"))
+				err = teamLeadColumn.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),
 				})
@@ -225,7 +225,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Clicking Add Team button")
-				addButton := page.Locator("[data-testid='add-team'], button:has-text('Add Team'), button:has-text('Create Team'), button:has-text('New Team')")
+				addButton := page.Locator("[data-testid='add-team-btn'], [data-testid='add-team'], button:has-text('Add Team'), button:has-text('Create Team'), button:has-text('New Team')")
 				err = addButton.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -334,7 +334,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Clicking Add User button")
-				addButton := page.Locator("[data-testid='add-user'], button:has-text('Add User'), button:has-text('Create User'), button:has-text('New User')")
+				addButton := page.Locator("[data-testid='add-user-btn'], [data-testid='add-user'], button:has-text('Add User'), button:has-text('Create User'), button:has-text('New User')")
 				err = addButton.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -382,7 +382,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Clicking edit on a user")
-				editButton := page.Locator("[data-testid='edit-user'], button:has-text('Edit')")
+				editButton := page.Locator("[data-testid='edit-user-btn'], [data-testid='edit-user'], button:has-text('Edit')")
 				err = editButton.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -393,7 +393,8 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Verifying edit form appears")
-				editForm := page.Locator("[data-testid='edit-user-form'], [role='dialog'], form")
+				// Note: The edit form uses the same testid as create form: 'create-user-form'
+				editForm := page.Locator("[data-testid='create-user-form']").Filter(playwright.LocatorFilterOptions{HasText: "Edit User"})
 				err = editForm.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),

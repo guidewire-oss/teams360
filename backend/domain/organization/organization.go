@@ -77,4 +77,5 @@ type Repository interface {
 	FindDimensionByID(ctx context.Context, id string) (*HealthDimension, error)
 	SaveDimension(ctx context.Context, dim *HealthDimension) error
 	UpdateDimension(ctx context.Context, dim *HealthDimension) error
+	DeleteDimension(ctx context.Context, id string) error
 }
