@@ -2,6 +2,7 @@
 # Follows DDD architecture and TDD practices with Ginkgo/Gomega
 
 .PHONY: help install run build test test-verbose test-coverage clean lint fmt vet tidy
+.PHONY: otel-start otel-stop otel-status otel-logs run-with-otel
 
 # Default target
 .DEFAULT_GOAL := help
@@ -107,6 +108,38 @@ docker-build: ## Build Docker image
 docker-run: ## Run Docker container
 	@echo "Running Docker container..."
 	docker run -p 8080:8080 team360-api:latest
+
+# =============================================================================
+# Observability Stack (Jaeger, Prometheus, Grafana, OTel Collector)
+# =============================================================================
+
+otel-start: ## Start observability stack (Jaeger, Prometheus, Grafana)
+	@echo "Starting observability stack..."
+	@docker compose -f deploy/docker-compose.observability.yaml up -d
+	@echo ""
+	@echo "Observability stack started! Access at:"
+	@echo "  Jaeger UI:    http://localhost:16686"
+	@echo "  Prometheus:   http://localhost:9090"
+	@echo "  Grafana:      http://localhost:3001 (admin/admin)"
+	@echo ""
+	@echo "Run 'make run-with-otel' to start the API with telemetry enabled"
+
+otel-stop: ## Stop observability stack
+	@echo "Stopping observability stack..."
+	@docker compose -f deploy/docker-compose.observability.yaml down
+	@echo "Observability stack stopped"
+
+otel-status: ## Check observability stack status
+	@docker compose -f deploy/docker-compose.observability.yaml ps
+
+otel-logs: ## View OTel collector logs
+	@docker compose -f deploy/docker-compose.observability.yaml logs -f otel-collector
+
+run-with-otel: ## Run API server with telemetry enabled
+	@echo "Starting Team360 API with OpenTelemetry enabled..."
+	@echo "Make sure observability stack is running (make otel-start)"
+	@echo ""
+	OTEL_ENABLED=true $(GOCMD) run $(MAIN_PATH)/main.go
 
 .PHONY: all
 all: clean install lint test build ## Run all tasks (clean, install, lint, test, build)

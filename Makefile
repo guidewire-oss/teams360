@@ -42,7 +42,8 @@ FRONTEND_PID := $(PID_DIR)/frontend.pid
 .PHONY: docker-build docker-run
 .PHONY: status info
 .PHONY: all ci
-.PHONY: _ensure-deps _ensure-db _kill-servers _print-banner _start-frontend _start-backend _ensure-pid-dir
+.PHONY: otel-start otel-stop otel-status otel-logs run-with-otel
+.PHONY: _ensure-deps _ensure-db _kill-servers _print-banner _start-frontend _start-backend _ensure-pid-dir _ensure-otel _start-frontend-otel _start-backend-otel
 
 # =============================================================================
 # Help
@@ -419,3 +420,83 @@ ci: clean install lint test build ## Full CI pipeline
 	@echo "$(BOLD)$(GREEN)CI pipeline completed successfully!$(RESET)"
 
 all: ci ## Alias for ci
+
+# =============================================================================
+# Observability Stack (Jaeger, Prometheus, Grafana, OTel Collector)
+# =============================================================================
+
+otel-start: ## Start observability stack (Jaeger, Prometheus, Grafana)
+	@echo "$(CYAN)Starting observability stack...$(RESET)"
+	@docker compose -f backend/deploy/docker-compose.observability.yaml up -d
+	@echo ""
+	@echo "$(GREEN)Observability stack started!$(RESET)"
+	@echo ""
+	@echo "$(BOLD)Access URLs:$(RESET)"
+	@echo "  $(CYAN)Jaeger UI:$(RESET)    http://localhost:16686  (traces)"
+	@echo "  $(CYAN)Prometheus:$(RESET)   http://localhost:9090   (metrics)"
+	@echo "  $(CYAN)Grafana:$(RESET)      http://localhost:3001   (dashboards, admin/admin)"
+	@echo ""
+	@echo "Run '$(CYAN)make run-with-otel$(RESET)' to start the full app with telemetry enabled"
+
+otel-stop: ## Stop observability stack
+	@echo "$(CYAN)Stopping observability stack...$(RESET)"
+	@docker compose -f backend/deploy/docker-compose.observability.yaml down
+	@echo "$(GREEN)Observability stack stopped$(RESET)"
+
+otel-status: ## Check observability stack status
+	@docker compose -f backend/deploy/docker-compose.observability.yaml ps
+
+otel-logs: ## View OTel collector logs
+	@docker compose -f backend/deploy/docker-compose.observability.yaml logs -f otel-collector
+
+run-with-otel: _ensure-deps _ensure-db _kill-servers _ensure-otel ## Run full app with telemetry enabled
+	@echo ""
+	@echo "$(BOLD)$(CYAN)Starting Team360 with OpenTelemetry...$(RESET)"
+	@echo ""
+	@echo "  $(CYAN)Frontend:$(RESET)   http://localhost:3000"
+	@echo "  $(CYAN)Backend:$(RESET)    http://localhost:8080"
+	@echo "  $(CYAN)Jaeger:$(RESET)     http://localhost:16686  (traces)"
+	@echo "  $(CYAN)Prometheus:$(RESET) http://localhost:9090   (metrics)"
+	@echo "  $(CYAN)Grafana:$(RESET)    http://localhost:3001   (dashboards)"
+	@echo ""
+	@echo "$(YELLOW)Press Ctrl+C to stop$(RESET)"
+	@echo ""
+	@$(MAKE) -j2 _start-frontend-otel _start-backend-otel
+
+_ensure-otel:
+	@echo "$(CYAN)Checking observability stack...$(RESET)"
+	@if ! docker compose -f backend/deploy/docker-compose.observability.yaml ps --status running 2>/dev/null | grep -q "otel-collector"; then \
+		echo "$(CYAN)Starting observability stack (Jaeger, Prometheus, Grafana, OTel Collector)...$(RESET)"; \
+		docker compose -f backend/deploy/docker-compose.observability.yaml up -d; \
+		echo "$(CYAN)Waiting for OTel Collector to be ready...$(RESET)"; \
+		for i in $$(seq 1 30); do \
+			if curl -s http://localhost:13133/health >/dev/null 2>&1; then \
+				echo "$(GREEN)OTel Collector ready!$(RESET)"; \
+				break; \
+			fi; \
+			if [ $$i -eq 30 ]; then \
+				echo "$(RED)OTel Collector failed to start. Check with 'make otel-logs'$(RESET)"; \
+				exit 1; \
+			fi; \
+			sleep 1; \
+		done; \
+		echo "$(CYAN)Waiting for Jaeger to be ready...$(RESET)"; \
+		for i in $$(seq 1 30); do \
+			if curl -s http://localhost:16686 >/dev/null 2>&1; then \
+				echo "$(GREEN)Jaeger ready!$(RESET)"; \
+				break; \
+			fi; \
+			if [ $$i -eq 30 ]; then \
+				echo "$(YELLOW)Jaeger may not be fully ready, continuing...$(RESET)"; \
+			fi; \
+			sleep 1; \
+		done; \
+	else \
+		echo "$(GREEN)Observability stack already running.$(RESET)"; \
+	fi
+
+_start-frontend-otel:
+	@cd frontend && NEXT_PUBLIC_OTEL_ENABLED=true npm run dev
+
+_start-backend-otel:
+	@cd backend && OTEL_ENABLED=true DATABASE_URL="$(DATABASE_URL)" go run cmd/api/main.go
