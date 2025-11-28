@@ -42,16 +42,39 @@ Monitor your team's health with detailed breakdowns and individual response trac
 - **Node.js 18+** (for frontend)
 - **Go 1.25+** (for backend)
 - **PostgreSQL 14+** (for database)
-- **Docker** (optional, for running PostgreSQL)
+- **Docker** (recommended, for running PostgreSQL)
 
-### 1. Clone the Repository
+### One-Command Setup
+
+The easiest way to run Team360 locally:
+
+```bash
+git clone https://github.com/anthropics/teams360.git
+cd teams360
+make run
+```
+
+This single command will:
+1. Install all dependencies (if not already installed)
+2. Start PostgreSQL in Docker (if Docker is available)
+3. Run database migrations automatically
+4. Start both frontend and backend servers
+5. Display demo credentials for login
+
+**That's it!** Open http://localhost:3000 in your browser.
+
+### Manual Setup (Alternative)
+
+If you prefer manual control or don't have Docker:
+
+#### 1. Clone the Repository
 
 ```bash
 git clone https://github.com/anthropics/teams360.git
 cd teams360
 ```
 
-### 2. Start PostgreSQL Database
+#### 2. Start PostgreSQL Database
 
 Using Docker (recommended):
 ```bash
@@ -65,7 +88,7 @@ docker run -d \
 
 Or use an existing PostgreSQL instance and set the connection string.
 
-### 3. Start the Backend
+#### 3. Start the Backend
 
 ```bash
 cd backend
@@ -80,7 +103,7 @@ go run cmd/api/main.go
 
 The API server will start at http://localhost:8080
 
-### 4. Start the Frontend
+#### 4. Start the Frontend
 
 ```bash
 cd frontend
@@ -310,21 +333,30 @@ teams360/
 
 ### Using Make Commands
 
+Team360 uses a comprehensive Makefile for common development tasks. See [docs/MAKEFILE.md](docs/MAKEFILE.md) for full documentation.
+
 ```bash
+# Quick start - run the full application
+make run
+
 # Install all dependencies
 make install
 
-# Run both frontend and backend
+# Run with hot reload (development mode)
 make dev
 
 # Run tests
-make test
+make test                # Backend unit tests
+make test-e2e            # Full E2E tests with Playwright
 
 # Build for production
 make build
 
 # View all available commands
 make help
+
+# Check project status
+make status
 ```
 
 ### Running Services Separately
@@ -341,16 +373,40 @@ npm run lint         # Run linter
 ```bash
 cd backend
 go run cmd/api/main.go    # Start server
-go test ./...             # Run tests
-ginkgo -v ./...           # Run Ginkgo tests
+ginkgo -r ./...           # Run Ginkgo tests
 ```
 
-### Running E2E Tests
+### Testing
+
+Team360 uses a comprehensive testing strategy:
+
+| Test Type | Command | Description |
+|-----------|---------|-------------|
+| Unit Tests | `make test-backend` | Backend unit tests with Ginkgo |
+| E2E Tests | `make test-e2e` | Full stack tests with Playwright |
+| Coverage | `make test-backend-coverage` | Generate coverage report |
+| Watch Mode | `make test-backend-watch` | Re-run tests on file changes |
+
+**Running E2E Tests Manually:**
 
 ```bash
+# The make command handles everything automatically
+make test-e2e
+
+# Or manually:
 cd tests
 export TEST_DATABASE_URL="postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
 ginkgo -v acceptance/
+```
+
+### Database Management
+
+```bash
+make db-start        # Start PostgreSQL container
+make db-stop         # Stop PostgreSQL container
+make db-setup        # Run migrations and seed data
+make db-reset        # Reset database (WARNING: deletes data)
+make db-test-setup   # Setup test database
 ```
 
 ## API Endpoints

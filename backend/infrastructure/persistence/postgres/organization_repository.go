@@ -671,11 +671,16 @@ func (r *OrganizationRepository) UpdateDimension(ctx context.Context, dim *organ
 	return nil
 }
 
-// DeleteDimension removes a health dimension by ID
+// DeleteDimension soft-deletes a health dimension by setting is_active=false.
+// This preserves historical survey data that references the dimension.
 func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string) error {
-	result, err := r.db.ExecContext(ctx, "DELETE FROM health_dimensions WHERE id = $1", id)
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE health_dimensions
+		SET is_active = false, updated_at = CURRENT_TIMESTAMP
+		WHERE id = $1 AND is_active = true
+	`, id)
 	if err != nil {
-		return fmt.Errorf("failed to delete health dimension: %w", err)
+		return fmt.Errorf("failed to deactivate health dimension: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -684,7 +689,7 @@ func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("health dimension not found: %s", id)
+		return fmt.Errorf("health dimension not found or already inactive: %s", id)
 	}
 
 	return nil

@@ -33,8 +33,8 @@ help: ## Display this help message
 
 install: ## Install dependencies and tools
 	@echo "Installing Go dependencies..."
-	$(GOGET) -u ./...
 	$(GOMOD) download
+	$(GOMOD) tidy
 	@echo "Installing Ginkgo CLI..."
 	$(GOCMD) install github.com/onsi/ginkgo/v2/ginkgo@latest
 	@echo "Installing development tools..."

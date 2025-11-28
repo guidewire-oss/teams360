@@ -648,14 +648,17 @@ export default function DimensionConfig() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Confirm Delete
+              Deactivate Dimension
             </h3>
-            <p className="text-gray-600 mb-6">
-              Are you sure you want to delete the dimension{" "}
+            <p className="text-gray-600 mb-4">
+              Are you sure you want to deactivate the dimension{" "}
               <strong>
                 {dimensions.find((d) => d.id === deleteConfirmId)?.name}
               </strong>
-              ? This action cannot be undone.
+              ?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              The dimension will be hidden from new surveys but historical data will be preserved. You can reactivate it later using the toggle button.
             </p>
             <div className="flex gap-4 justify-end">
               <button
@@ -668,9 +671,9 @@ export default function DimensionConfig() {
                 data-testid="confirm-delete-btn"
                 onClick={handleDelete}
                 disabled={deletingId !== null}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
               >
-                {deletingId ? "Deleting..." : "Delete Dimension"}
+                {deletingId ? "Deactivating..." : "Deactivate"}
               </button>
             </div>
           </div>
