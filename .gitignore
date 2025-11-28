@@ -238,3 +238,8 @@ hive-mind-prompt-*.txt
 
 # Documentation scaffolding
 backend/docs/
+
+# Internal analysis documents (do not commit)
+docs/FEATURE_ANALYSIS.md
+docs/CODE_REVIEW_REPORT.md
+docs/prompts.txt
