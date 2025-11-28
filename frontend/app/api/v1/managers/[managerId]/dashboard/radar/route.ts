@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyGet } from '@/lib/api-proxy';
 
 export async function GET(
   request: NextRequest,
@@ -11,17 +10,12 @@ export async function GET(
   const assessmentPeriod = searchParams.get('assessmentPeriod') || '';
 
   try {
-    const url = assessmentPeriod
-      ? `${BACKEND_URL}/api/v1/managers/${managerId}/dashboard/radar?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
-      : `${BACKEND_URL}/api/v1/managers/${managerId}/dashboard/radar`;
+    let backendPath = `/api/v1/managers/${managerId}/dashboard/radar`;
+    if (assessmentPeriod) {
+      backendPath += `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`;
+    }
 
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyGet(request, backendPath);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

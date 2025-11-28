@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyGet } from '@/lib/api-proxy';
 
 export async function GET(
   request: NextRequest,
@@ -9,13 +8,7 @@ export async function GET(
   const { userId } = await params;
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/users/${userId}/survey-history`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyGet(request, `/api/v1/users/${userId}/survey-history`);
     const data = await response.json();
 
     // Pass through backend response directly - frontend expects same field names

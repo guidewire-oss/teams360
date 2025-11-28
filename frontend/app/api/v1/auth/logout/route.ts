@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyPost } from '@/lib/api-proxy';
 
 export async function POST(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/auth/logout`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyPost(request, '/api/v1/auth/logout');
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { proxyGet, proxyPost } from '@/lib/api-proxy';
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
-
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/admin/teams`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyGet(request, '/api/v1/admin/teams');
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
@@ -26,14 +19,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/api/v1/admin/teams`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
+    const response = await proxyPost(request, '/api/v1/admin/teams', body);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

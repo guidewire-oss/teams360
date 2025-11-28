@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyGet } from '@/lib/api-proxy';
 
 export async function GET(
   request: NextRequest,
@@ -10,19 +9,13 @@ export async function GET(
   const searchParams = request.nextUrl.searchParams;
   const assessmentPeriod = searchParams.get('assessmentPeriod');
 
-  let backendUrl = `${BACKEND_URL}/api/v1/health-checks/team/${teamId}`;
+  let backendPath = `/api/v1/health-checks/team/${teamId}`;
   if (assessmentPeriod) {
-    backendUrl += `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`;
+    backendPath += `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`;
   }
 
   try {
-    const response = await fetch(backendUrl, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyGet(request, backendPath);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

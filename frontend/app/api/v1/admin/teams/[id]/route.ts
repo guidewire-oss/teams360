@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyPut, proxyDelete } from '@/lib/api-proxy';
 
 export async function PUT(
   request: NextRequest,
@@ -11,14 +10,7 @@ export async function PUT(
   try {
     const body = await request.json();
 
-    const response = await fetch(`${BACKEND_URL}/api/v1/admin/teams/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(body),
-    });
-
+    const response = await proxyPut(request, `/api/v1/admin/teams/${id}`, body);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
@@ -37,13 +29,7 @@ export async function DELETE(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/admin/teams/${id}`, {
-      method: 'DELETE',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyDelete(request, `/api/v1/admin/teams/${id}`);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {

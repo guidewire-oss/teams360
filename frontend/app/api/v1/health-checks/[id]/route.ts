@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8080';
+import { proxyGet } from '@/lib/api-proxy';
 
 export async function GET(
   request: NextRequest,
@@ -9,13 +8,7 @@ export async function GET(
   const { id } = await params;
 
   try {
-    const response = await fetch(`${BACKEND_URL}/api/v1/health-checks/${id}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
+    const response = await proxyGet(request, `/api/v1/health-checks/${id}`);
     const data = await response.json();
     return NextResponse.json(data, { status: response.status });
   } catch (error) {
