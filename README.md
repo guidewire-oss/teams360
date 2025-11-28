@@ -40,7 +40,7 @@ Monitor your team's health with detailed breakdowns and individual response trac
 ### Prerequisites
 
 - **Node.js 18+** (for frontend)
-- **Go 1.21+** (for backend)
+- **Go 1.25+** (for backend)
 - **PostgreSQL 14+** (for database)
 - **Docker** (optional, for running PostgreSQL)
 
@@ -296,7 +296,7 @@ teams360/
 - Lucide React (icons)
 
 **Backend:**
-- Go 1.21+
+- Go 1.25+
 - Gin web framework
 - PostgreSQL
 - Domain-Driven Design (DDD)
