@@ -35,4 +35,6 @@ type Repository interface {
 	// Additional methods for team membership
 	FindTeamIDsForUser(ctx context.Context, userID string) ([]string, error)
 	FindTeamsWhereUserIsLead(ctx context.Context, userID string) ([]string, error)
+	// Password management
+	UpdatePassword(ctx context.Context, userID string, hashedPassword string) error
 }

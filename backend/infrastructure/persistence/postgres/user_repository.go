@@ -645,6 +645,29 @@ func (r *UserRepository) scanUsers(ctx context.Context, rows *sql.Rows) ([]*user
 	return users, nil
 }
 
+// UpdatePassword updates a user's password hash
+func (r *UserRepository) UpdatePassword(ctx context.Context, userID string, hashedPassword string) error {
+	result, err := r.db.ExecContext(ctx, `
+		UPDATE users
+		SET password_hash = $1, updated_at = $2
+		WHERE id = $3
+	`, hashedPassword, time.Now(), userID)
+
+	if err != nil {
+		return fmt.Errorf("failed to update password: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found: %s", userID)
+	}
+
+	return nil
+}
+
 // VerifyPassword checks if the provided password matches the user's password hash
 // This is a helper method, not part of the repository interface
 func (r *UserRepository) VerifyPassword(ctx context.Context, username, password string) (*user.User, error) {

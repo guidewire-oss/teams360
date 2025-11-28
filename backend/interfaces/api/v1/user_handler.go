@@ -5,7 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,6 +20,47 @@ type UserHandler struct {
 func NewUserHandler(db *sql.DB) *UserHandler {
 	return &UserHandler{
 		db: db,
+	}
+}
+
+// GetCurrentUser returns the currently authenticated user's info
+// GET /api/v1/users/me (requires JWT auth)
+func (h *UserHandler) GetCurrentUser(c *gin.Context) {
+	// Get user claims from JWT middleware
+	claims, ok := middleware.GetClaimsFromContext(c)
+	if !ok {
+		dto.RespondError(c, http.StatusUnauthorized, "User not authenticated")
+		return
+	}
+
+	// Return user info from JWT claims
+	response := dto.UserDTO{
+		ID:             claims.UserID,
+		Username:       claims.Username,
+		Email:          claims.Email,
+		HierarchyLevel: claims.HierarchyLevel,
+		TeamIds:        claims.TeamIDs,
+	}
+
+	// Get full name from database
+	var fullName string
+	err := h.db.QueryRow("SELECT full_name FROM users WHERE id = $1", claims.UserID).Scan(&fullName)
+	if err == nil {
+		response.FullName = fullName
+	}
+
+	dto.RespondSuccess(c, http.StatusOK, response)
+}
+
+// SetupProtectedUserRoutes sets up user routes that require JWT authentication
+func SetupProtectedUserRoutes(router *gin.Engine, db *sql.DB, jwtService *services.JWTService) {
+	handler := NewUserHandler(db)
+
+	// Protected user routes (require JWT)
+	protected := router.Group("/api/v1/users")
+	protected.Use(middleware.JWTAuthMiddleware(jwtService))
+	{
+		protected.GET("/me", handler.GetCurrentUser)
 	}
 }
 
