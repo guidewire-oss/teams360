@@ -1,0 +1,128 @@
+# =============================================================================
+# Dependabot Configuration
+# Automated dependency updates with security focus
+# =============================================================================
+version: 2
+
+updates:
+  # -----------------------------------------------------------------------------
+  # GitHub Actions
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    commit-message:
+      prefix: "ci"
+    labels:
+      - "dependencies"
+      - "github-actions"
+    # Group minor/patch updates together
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # -----------------------------------------------------------------------------
+  # Go Backend
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    commit-message:
+      prefix: "deps(backend)"
+    labels:
+      - "dependencies"
+      - "backend"
+      - "go"
+    # Group all Go updates
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore pre-release versions
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-prerelease"]
+
+  # -----------------------------------------------------------------------------
+  # Go Test Dependencies
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "gomod"
+    directory: "/tests"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+    commit-message:
+      prefix: "deps(tests)"
+    labels:
+      - "dependencies"
+      - "tests"
+      - "go"
+
+  # -----------------------------------------------------------------------------
+  # Frontend (npm)
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    commit-message:
+      prefix: "deps(frontend)"
+    labels:
+      - "dependencies"
+      - "frontend"
+      - "npm"
+    # Group updates by type
+    groups:
+      # Group all production dependencies
+      production-dependencies:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      # Group all dev dependencies
+      dev-dependencies:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
+    # Ignore pre-release and beta versions
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-prerelease"]
+
+  # -----------------------------------------------------------------------------
+  # Docker
+  # -----------------------------------------------------------------------------
+  - package-ecosystem: "docker"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "thursday"
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"

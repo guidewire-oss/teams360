@@ -1,0 +1,74 @@
+# =============================================================================
+# Frontend Docker Ignore - Exclude unnecessary files from build context
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# Dependencies (will be installed in container)
+node_modules
+
+# Build output (will be generated in container)
+.next
+out
+build
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Development files
+.eslintcache
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Docker files (prevent recursive copy)
+Dockerfile*
+docker-compose*
+.docker*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Environment files (NEVER include in image)
+.env
+.env.*
+*.env
+.env.local
+.env.development
+.env.production
+!.env.example
+
+# Secrets (NEVER include in image)
+*.pem
+*.key
+*.crt
+*.secret
+credentials*
+secrets*
+
+# Playwright
+playwright-report/
+test-results/
+
+# Storybook
+storybook-static/
+
+# TypeScript
+*.tsbuildinfo

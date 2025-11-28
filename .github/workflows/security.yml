@@ -1,0 +1,125 @@
+# Security Scanning Workflow
+# Runs CodeQL for code analysis and Trivy for container scanning
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run weekly on Sunday at midnight UTC
+    - cron: '0 0 * * 0'
+
+# Minimal permissions
+permissions:
+  contents: read
+  security-events: write
+  # actions: read required for CodeQL to analyze workflows
+  actions: read
+
+jobs:
+  # =============================================================================
+  # CodeQL Analysis
+  # =============================================================================
+
+  codeql:
+    name: CodeQL Analysis
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ['go', 'javascript-typescript']
+        include:
+          - language: go
+            working-directory: backend
+          - language: javascript-typescript
+            working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          # Security queries plus additional quality queries
+          queries: +security-extended,security-and-quality
+
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@v3
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
+
+  # =============================================================================
+  # Dependency Scanning
+  # =============================================================================
+
+  dependency-review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    # Only run on PRs (not on push)
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          # Fail on high or critical vulnerabilities
+          fail-on-severity: high
+          # Allow specific licenses commonly used in OSS
+          allow-licenses: MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, 0BSD
+
+  # =============================================================================
+  # Container Image Scanning (on releases)
+  # =============================================================================
+
+  trivy-scan:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    # Only run on main branch pushes (after images are built)
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    strategy:
+      matrix:
+        image: ['teams360-api', 'teams360-frontend']
+    steps:
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:latest'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
+      - name: Upload Trivy scan results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+        # Don't fail if image doesn't exist yet
+        continue-on-error: true
+
+  # =============================================================================
+  # Secret Scanning Alert
+  # =============================================================================
+
+  secrets-scan:
+    name: Secrets Scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: TruffleHog OSS
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          base: ${{ github.event.repository.default_branch }}
+          head: HEAD
+          extra_args: --only-verified

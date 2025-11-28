@@ -1,0 +1,45 @@
+# =============================================================================
+# Team360 Docker Compose - Local Development with PostgreSQL
+# Use this for local development only - NOT for production
+# =============================================================================
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+#
+# Or with the Makefile:
+#   make docker-dev
+
+services:
+  # ---------------------------------------------------------------------------
+  # PostgreSQL Database (Development Only)
+  # ---------------------------------------------------------------------------
+  db:
+    image: postgres:17-alpine
+    container_name: teams360-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: teams360
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Override API to use local database
+  # ---------------------------------------------------------------------------
+  api:
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/teams360?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

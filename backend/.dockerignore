@@ -1,0 +1,58 @@
+# =============================================================================
+# Backend Docker Ignore - Exclude unnecessary files from build context
+# =============================================================================
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Build artifacts
+bin/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+coverage.out
+coverage.html
+*.test
+
+# Development files
+.air.toml
+tmp/
+
+# Documentation (not needed in container)
+*.md
+!README.md
+
+# Docker files (prevent recursive copy)
+Dockerfile*
+docker-compose*
+.docker*
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+
+# Environment files (NEVER include in image)
+.env
+.env.*
+*.env
+!.env.example
+
+# Secrets (NEVER include in image)
+*.pem
+*.key
+*.crt
+*.secret
+credentials*
+secrets*
