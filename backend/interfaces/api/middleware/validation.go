@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
@@ -208,10 +209,20 @@ func (rl *RateLimiter) Allow(key string) bool {
 // RateLimitMiddleware creates rate limiting middleware
 func RateLimitMiddleware(limiter *RateLimiter) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// Use client IP as rate limit key
-		key := c.ClientIP()
+		log := logger.Get()
 
-		if !limiter.Allow(key) {
+		// Use client IP as rate limit key
+		clientIP := c.ClientIP()
+		requestID := c.GetString("request_id")
+		endpoint := c.Request.URL.Path
+
+		if !limiter.Allow(clientIP) {
+			log.Security("rate_limit_exceeded").
+				IP(clientIP).
+				RequestID(requestID).
+				Endpoint(endpoint).
+				Details("Client exceeded maximum allowed requests per time window").
+				Log()
 			dto.RespondError(c, http.StatusTooManyRequests, "Too many requests. Please try again later.")
 			c.Abort()
 			return

@@ -9,6 +9,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -53,6 +54,8 @@ var (
 
 // NewJWTService creates a new JWT service
 func NewJWTService() *JWTService {
+	log := logger.Get()
+
 	// Get secret from environment or generate a secure default for development
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -60,7 +63,7 @@ func NewJWTService() *JWTService {
 		randomBytes := make([]byte, 32)
 		rand.Read(randomBytes)
 		secret = base64.StdEncoding.EncodeToString(randomBytes)
-		fmt.Println("WARNING: Using randomly generated JWT_SECRET. Set JWT_SECRET environment variable for production.")
+		log.Security("config_warning").Details("Using randomly generated JWT_SECRET - set JWT_SECRET env var for production").Log()
 	}
 
 	// Get expiry durations from environment or use defaults

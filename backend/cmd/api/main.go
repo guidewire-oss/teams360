@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"log"
 	"os"
 
 	"github.com/agopalakrishnan/teams360/backend/application/services"
@@ -10,6 +9,7 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
@@ -18,6 +18,20 @@ import (
 )
 
 func main() {
+	// Initialize logger
+	logLevel := os.Getenv("LOG_LEVEL")
+	if logLevel == "" {
+		logLevel = "info"
+	}
+	prettyLogs := os.Getenv("LOG_PRETTY") == "true"
+
+	logger.Init(logger.Config{
+		Level:  logLevel,
+		Pretty: prettyLogs,
+	})
+
+	log := logger.Get()
+
 	// Set Gin mode based on environment
 	mode := os.Getenv("GIN_MODE")
 	if mode == "" {
@@ -33,43 +47,43 @@ func main() {
 
 	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.WithError(err).Fatal("failed to connect to database")
 	}
 	defer db.Close()
 
 	// Verify database connection - if database doesn't exist, create it
 	if err := db.Ping(); err != nil {
 		// Try to create the database if it doesn't exist
-		log.Println("Database doesn't exist, attempting to create it...")
+		log.Info("database doesn't exist, attempting to create it")
 		adminDB, err := sql.Open("postgres", "postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable")
 		if err != nil {
-			log.Fatalf("Failed to connect to postgres database: %v", err)
+			log.WithError(err).Fatal("failed to connect to postgres database")
 		}
 		_, err = adminDB.Exec("CREATE DATABASE teams360")
 		adminDB.Close()
 
 		if err != nil {
-			log.Fatalf("Failed to create database: %v", err)
+			log.WithError(err).Fatal("failed to create database")
 		}
 
-		log.Println("Database created successfully")
+		log.Info("database created successfully")
 
 		// Reconnect to the new database
 		db, err = sql.Open("postgres", databaseURL)
 		if err != nil {
-			log.Fatalf("Failed to connect to newly created database: %v", err)
+			log.WithError(err).Fatal("failed to connect to newly created database")
 		}
 
 		if err := db.Ping(); err != nil {
-			log.Fatalf("Failed to ping newly created database: %v", err)
+			log.WithError(err).Fatal("failed to ping newly created database")
 		}
 	}
-	log.Println("Successfully connected to database")
+	log.Info("database connection established")
 
 	// Run migrations
 	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
 	if err != nil {
-		log.Fatalf("Failed to create migration driver: %v", err)
+		log.WithError(err).Fatal("failed to create migration driver")
 	}
 
 	migrationEngine, err := migrate.NewWithDatabaseInstance(
@@ -78,13 +92,13 @@ func main() {
 		driver,
 	)
 	if err != nil {
-		log.Fatalf("Failed to create migration engine: %v", err)
+		log.WithError(err).Fatal("failed to create migration engine")
 	}
 
 	if err := migrationEngine.Up(); err != nil && err != migrate.ErrNoChange {
-		log.Fatalf("Failed to run migrations: %v", err)
+		log.WithError(err).Fatal("failed to run migrations")
 	}
-	log.Println("Database migrations completed successfully")
+	log.Info("database migrations completed")
 
 	// Initialize repositories
 	healthCheckRepo := postgres.NewHealthCheckRepository(db)
@@ -101,8 +115,13 @@ func main() {
 	mockEmailService := services.NewMockEmailService() // Use mock for now
 	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, mockEmailService)
 
-	// Initialize router
-	router := gin.Default()
+	// Initialize router (use gin.New() instead of gin.Default() to disable default logger)
+	router := gin.New()
+	router.Use(gin.Recovery()) // Keep panic recovery
+
+	// Add request ID and logging middleware (our zerolog-based logger replaces Gin's default)
+	router.Use(middleware.RequestIDMiddleware())
+	router.Use(middleware.RequestLoggerMiddleware())
 
 	// Add security middleware
 	router.Use(middleware.CORSMiddleware())
@@ -131,8 +150,8 @@ func main() {
 		port = "8080"
 	}
 
-	log.Printf("Starting Team360 API server on port %s", port)
+	log.WithField("port", port).Info("starting Team360 API server")
 	if err := router.Run(":" + port); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.WithError(err).Fatal("failed to start server")
 	}
 }

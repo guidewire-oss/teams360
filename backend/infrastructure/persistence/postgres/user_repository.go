@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -45,7 +46,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", id)
+		return nil, fmt.Errorf("user not found with provided ID")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -109,7 +110,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", username)
+		return nil, fmt.Errorf("user not found with provided username")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -173,7 +174,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("user not found: %s", email)
+		return nil, fmt.Errorf("user not found with provided email")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to find user: %w", err)
@@ -341,9 +342,17 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 
 // Save persists a new user
 func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
+	log := logger.Get()
+
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		log.DB("begin_transaction").
+			Table("users").
+			Context("starting transaction to create new user account").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -390,6 +399,12 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 	`, u.ID, u.Username, u.Name, email, hierarchyLevelID, reportsTo, passwordHash, u.CreatedAt, u.UpdatedAt)
 
 	if err != nil {
+		log.DB("insert").
+			Table("users").
+			Context("inserting new user record into database").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to save user: %w", err)
 	}
 
@@ -406,6 +421,12 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 
 	// Commit transaction
 	if err = tx.Commit(); err != nil {
+		log.DB("commit_transaction").
+			Table("users").
+			Context("committing transaction after creating user and team memberships").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -414,9 +435,17 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 
 // Update updates an existing user
 func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
+	log := logger.Get()
+
 	// Begin transaction
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
+		log.DB("begin_transaction").
+			Table("users").
+			Context("starting transaction to update existing user account").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -449,6 +478,12 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 	`, u.Username, u.Name, email, hierarchyLevelID, reportsTo, u.UpdatedAt, u.ID)
 
 	if err != nil {
+		log.DB("update").
+			Table("users").
+			Context("updating user profile fields (username, name, email, hierarchy, reports_to)").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to update user: %w", err)
 	}
 
@@ -457,7 +492,12 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", u.ID)
+		log.DB("update").
+			Table("users").
+			Context("user record not found during update - may have been deleted").
+			RecordID(u.ID).
+			Failure()
+		return fmt.Errorf("user not found for update")
 	}
 
 	// Update team memberships
@@ -480,6 +520,12 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 
 	// Commit transaction
 	if err = tx.Commit(); err != nil {
+		log.DB("commit_transaction").
+			Table("users").
+			Context("committing transaction after updating user and team memberships").
+			RecordID(u.ID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -488,8 +534,16 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 
 // Delete removes a user
 func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	log := logger.Get()
+
 	result, err := r.db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)
 	if err != nil {
+		log.DB("delete").
+			Table("users").
+			Context("removing user account from database").
+			RecordID(id).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to delete user: %w", err)
 	}
 
@@ -499,7 +553,12 @@ func (r *UserRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", id)
+		log.DB("delete").
+			Table("users").
+			Context("user not found during delete - may have already been removed").
+			RecordID(id).
+			Failure()
+		return fmt.Errorf("user not found for delete")
 	}
 
 	return nil
@@ -662,7 +721,7 @@ func (r *UserRepository) UpdatePassword(ctx context.Context, userID string, hash
 		return fmt.Errorf("failed to get rows affected: %w", err)
 	}
 	if rowsAffected == 0 {
-		return fmt.Errorf("user not found: %s", userID)
+		return fmt.Errorf("user not found for password update")
 	}
 
 	return nil

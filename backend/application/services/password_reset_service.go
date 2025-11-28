@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -73,17 +74,21 @@ func NewPasswordResetService(
 // Note: For security, always returns success even if user doesn't exist (prevents email enumeration)
 func (s *PasswordResetService) CreateResetToken(email string) (string, error) {
 	ctx := context.Background()
+	log := logger.Get()
 
 	// Find user by email
 	usr, err := s.userRepo.FindByEmail(ctx, email)
 	if err != nil {
 		// User not found - return empty token but no error (security)
+		// Log at debug level to avoid email enumeration via logs
+		log.WithField("email", logger.MaskEmail(email)).Debug("password reset requested for email not found in system - returning success to prevent enumeration")
 		return "", nil
 	}
 
 	// Generate a secure random token
 	tokenBytes := make([]byte, 32)
 	if _, err := rand.Read(tokenBytes); err != nil {
+		log.WithError(err).Error("failed to generate cryptographically secure random bytes for password reset token")
 		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
 	plainToken := base64.URLEncoding.EncodeToString(tokenBytes)
@@ -91,6 +96,7 @@ func (s *PasswordResetService) CreateResetToken(email string) (string, error) {
 	// Hash the token for storage
 	tokenHash, err := bcrypt.GenerateFromPassword([]byte(plainToken), bcrypt.DefaultCost)
 	if err != nil {
+		log.WithError(err).Error("failed to bcrypt hash password reset token before storage")
 		return "", fmt.Errorf("failed to hash token: %w", err)
 	}
 
@@ -110,6 +116,12 @@ func (s *PasswordResetService) CreateResetToken(email string) (string, error) {
 
 	// Save to database
 	if err := s.resetRepo.Create(ctx, resetToken); err != nil {
+		log.DB("insert").
+			Table("password_reset_tokens").
+			Context("storing new password reset token for user").
+			RecordID(usr.ID).
+			Error(err).
+			Failure()
 		return "", fmt.Errorf("failed to save token: %w", err)
 	}
 
@@ -117,19 +129,27 @@ func (s *PasswordResetService) CreateResetToken(email string) (string, error) {
 	if s.emailService != nil {
 		if err := s.emailService.SendPasswordResetEmail(ctx, email, plainToken); err != nil {
 			// Log error but don't fail - token is created
-			fmt.Printf("Warning: Failed to send reset email: %v\n", err)
+			log.WithError(err).WithField("email", logger.MaskEmail(email)).Warn("password reset token created but email delivery failed - user will not receive reset link")
 		}
 	}
 
+	log.Security("password_reset_token_created").
+		UserID(usr.ID).
+		Details("Password reset token generated and stored, expires in 1 hour").
+		Log()
 	return plainToken, nil
 }
 
 // ResetPassword validates the token and updates the user's password
 func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	ctx := context.Background()
+	log := logger.Get()
 
 	// Validate password strength
 	if len(newPassword) < 8 {
+		log.Security("password_reset_rejected").
+			Details("New password rejected: must be at least 8 characters, received " + fmt.Sprintf("%d", len(newPassword)) + " characters").
+			Log()
 		return ErrPasswordTooShort
 	}
 
@@ -137,36 +157,58 @@ func (s *PasswordResetService) ResetPassword(token, newPassword string) error {
 	// In production, you might want to limit this or use a different approach
 	resetToken, err := s.findValidTokenByPlainToken(ctx, token)
 	if err != nil {
+		log.Security("password_reset_rejected").
+			Details("Reset token not found or failed validation - token may be malformed or not exist in database").
+			Log()
 		return ErrInvalidResetToken
 	}
 
 	// Check if token is expired
 	if time.Now().After(resetToken.ExpiresAt) {
+		log.Security("password_reset_rejected").
+			UserID(resetToken.UserID).
+			Details("Reset token has expired - tokens are valid for 1 hour after creation").
+			Log()
 		return ErrInvalidResetToken
 	}
 
 	// Check if token has already been used
 	if resetToken.UsedAt != nil {
+		log.Security("password_reset_rejected").
+			UserID(resetToken.UserID).
+			Details("Reset token has already been used - each token can only be used once").
+			Log()
 		return ErrInvalidResetToken
 	}
 
 	// Hash the new password
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
+		log.WithError(err).Error("failed to bcrypt hash new password during password reset")
 		return fmt.Errorf("failed to hash password: %w", err)
 	}
 
 	// Update user's password
 	if err := s.userRepo.UpdatePassword(ctx, resetToken.UserID, string(hashedPassword)); err != nil {
+		log.DB("update").
+			Table("users").
+			Context("updating user password hash after successful reset token validation").
+			RecordID(resetToken.UserID).
+			Error(err).
+			Failure()
 		return fmt.Errorf("failed to update password: %w", err)
 	}
 
 	// Mark token as used
 	if err := s.resetRepo.MarkAsUsed(ctx, resetToken.ID); err != nil {
 		// Log error but don't fail - password is updated
-		fmt.Printf("Warning: Failed to mark token as used: %v\n", err)
+		log.WithError(err).Warn("password updated successfully but failed to mark reset token as used - token may be reusable until expiry")
 	}
 
+	log.Security("password_reset_completed").
+		UserID(resetToken.UserID).
+		Details("User password updated successfully via password reset flow").
+		Log()
 	return nil
 }
 
