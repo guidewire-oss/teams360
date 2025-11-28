@@ -102,8 +102,8 @@ export default function MemberHomePage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 
@@ -157,6 +157,7 @@ export default function MemberHomePage() {
             </div>
             <div className="relative">
               <button
+                data-testid="user-menu-button"
                 onClick={() => setShowUserInfo(!showUserInfo)}
                 className="flex items-center space-x-2 text-gray-700 hover:text-gray-900"
               >
@@ -175,6 +176,7 @@ export default function MemberHomePage() {
                     <p className="text-xs text-gray-500">{getUserLevelName()}</p>
                   </div>
                   <button
+                    data-testid="logout-button"
                     onClick={handleLogout}
                     className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center space-x-2"
                   >

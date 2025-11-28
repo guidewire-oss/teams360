@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
+import { setAuthData, LoginResponse } from '@/lib/auth';
 import { Lock, User, AlertCircle, Users, ChevronRight } from 'lucide-react';
 
 export default function LoginPage() {
@@ -32,12 +33,11 @@ export default function LoginPage() {
         return;
       }
 
-      const data = await response.json();
+      const data: LoginResponse = await response.json();
       const user = data.user;
 
-      // Store user in cookie (for now using localStorage until we implement proper session management)
-      // URL-encode the JSON to prevent issues with special characters in cookie value
-      document.cookie = `user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=86400`; // 1 day
+      // Store JWT tokens and user data using the auth module
+      setAuthData(data);
 
       // Route based on permissions
       if (user.hierarchyLevel === 'admin' || user.hierarchyLevel === 'level-admin') {
