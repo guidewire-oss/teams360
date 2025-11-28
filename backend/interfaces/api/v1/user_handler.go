@@ -26,6 +26,8 @@ func NewUserHandler(db *sql.DB) *UserHandler {
 // GetCurrentUser returns the currently authenticated user's info
 // GET /api/v1/users/me (requires JWT auth)
 func (h *UserHandler) GetCurrentUser(c *gin.Context) {
+	ctx := c.Request.Context()
+
 	// Get user claims from JWT middleware
 	claims, ok := middleware.GetClaimsFromContext(c)
 	if !ok {
@@ -44,7 +46,7 @@ func (h *UserHandler) GetCurrentUser(c *gin.Context) {
 
 	// Get full name from database
 	var fullName string
-	err := h.db.QueryRow("SELECT full_name FROM users WHERE id = $1", claims.UserID).Scan(&fullName)
+	err := h.db.QueryRowContext(ctx, "SELECT full_name FROM users WHERE id = $1", claims.UserID).Scan(&fullName)
 	if err == nil {
 		response.FullName = fullName
 	}
@@ -66,6 +68,7 @@ func SetupProtectedUserRoutes(router *gin.Engine, db *sql.DB, jwtService *servic
 
 // GetUserSurveyHistory handles GET /api/v1/users/:userId/survey-history
 func (h *UserHandler) GetUserSurveyHistory(c *gin.Context) {
+	ctx := c.Request.Context()
 	userID := c.Param("userId")
 
 	// Validate input
@@ -107,7 +110,7 @@ func (h *UserHandler) GetUserSurveyHistory(c *gin.Context) {
 		LIMIT $3
 	`
 
-	rows, err := h.db.Query(query, userID, assessmentPeriod, limit)
+	rows, err := h.db.QueryContext(ctx, query, userID, assessmentPeriod, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Database query failed",
@@ -160,7 +163,7 @@ func (h *UserHandler) GetUserSurveyHistory(c *gin.Context) {
 	`
 
 	for i := range surveyHistory {
-		responseRows, err := h.db.Query(responsesQuery, surveyHistory[i].SessionID)
+		responseRows, err := h.db.QueryContext(ctx, responsesQuery, surveyHistory[i].SessionID)
 		if err != nil {
 			// Log error but continue with empty responses
 			continue
@@ -192,7 +195,7 @@ func (h *UserHandler) GetUserSurveyHistory(c *gin.Context) {
 	`
 
 	var totalSessions int
-	err = h.db.QueryRow(countQuery, userID, assessmentPeriod).Scan(&totalSessions)
+	err = h.db.QueryRowContext(ctx, countQuery, userID, assessmentPeriod).Scan(&totalSessions)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to get total session count",

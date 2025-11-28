@@ -7,6 +7,7 @@ import (
 
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 	"github.com/gin-gonic/gin"
 )
 
@@ -27,6 +28,7 @@ func NewTeamDashboardHandler(db *sql.DB) *TeamDashboardHandler {
 // GetHealthSummary handles GET /api/v1/teams/:teamId/dashboard/health-summary
 // Returns radar chart data (avg score per dimension)
 func (h *TeamDashboardHandler) GetHealthSummary(c *gin.Context) {
+	ctx := c.Request.Context()
 	teamID := c.Param("teamId")
 
 	// Validate input
@@ -39,6 +41,9 @@ func (h *TeamDashboardHandler) GetHealthSummary(c *gin.Context) {
 	}
 
 	assessmentPeriod := c.Query("assessmentPeriod") // Optional filter
+
+	// Record team lead dashboard view
+	telemetry.RecordTeamLeadDashboardView(ctx, teamID, "health_summary")
 
 	// Query to get team info, overall health, and dimension averages
 	query := `
@@ -96,7 +101,7 @@ func (h *TeamDashboardHandler) GetHealthSummary(c *gin.Context) {
 	var overallHealth float64
 	var dimensionsJSON []byte
 
-	err := h.db.QueryRow(query, teamID, assessmentPeriod).Scan(
+	err := h.db.QueryRowContext(ctx, query, teamID, assessmentPeriod).Scan(
 		&teamID_result,
 		&teamName,
 		&submissionCount,
@@ -150,6 +155,7 @@ func (h *TeamDashboardHandler) GetHealthSummary(c *gin.Context) {
 // GetResponseDistribution handles GET /api/v1/teams/:teamId/dashboard/response-distribution
 // Returns score distribution per dimension (red/yellow/green counts for bar chart)
 func (h *TeamDashboardHandler) GetResponseDistribution(c *gin.Context) {
+	ctx := c.Request.Context()
 	teamID := c.Param("teamId")
 
 	if teamID == "" {
@@ -161,6 +167,9 @@ func (h *TeamDashboardHandler) GetResponseDistribution(c *gin.Context) {
 	}
 
 	assessmentPeriod := c.Query("assessmentPeriod") // Optional filter
+
+	// Record team lead dashboard view
+	telemetry.RecordTeamLeadDashboardView(ctx, teamID, "response_distribution")
 
 	// Query to count red/yellow/green scores per dimension
 	query := `
@@ -178,7 +187,7 @@ func (h *TeamDashboardHandler) GetResponseDistribution(c *gin.Context) {
 		ORDER BY hcr.dimension_id
 	`
 
-	rows, err := h.db.Query(query, teamID, assessmentPeriod)
+	rows, err := h.db.QueryContext(ctx, query, teamID, assessmentPeriod)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Database query failed",
@@ -213,6 +222,7 @@ func (h *TeamDashboardHandler) GetResponseDistribution(c *gin.Context) {
 // GetIndividualResponses handles GET /api/v1/teams/:teamId/dashboard/individual-responses
 // Returns individual team member responses with comments
 func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
+	ctx := c.Request.Context()
 	teamID := c.Param("teamId")
 
 	if teamID == "" {
@@ -224,6 +234,9 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 	}
 
 	assessmentPeriod := c.Query("assessmentPeriod") // Optional filter
+
+	// Record team lead dashboard view
+	telemetry.RecordTeamLeadDashboardView(ctx, teamID, "individual_responses")
 
 	// Query to get individual sessions with aggregated responses
 	query := `
@@ -259,7 +272,7 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 		ORDER BY date DESC
 	`
 
-	rows, err := h.db.Query(query, teamID, assessmentPeriod)
+	rows, err := h.db.QueryContext(ctx, query, teamID, assessmentPeriod)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Database query failed",
@@ -317,6 +330,7 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 // GetTrends handles GET /api/v1/teams/:teamId/dashboard/trends
 // Returns trend data across assessment periods
 func (h *TeamDashboardHandler) GetTrends(c *gin.Context) {
+	ctx := c.Request.Context()
 	teamID := c.Param("teamId")
 
 	if teamID == "" {
@@ -327,7 +341,11 @@ func (h *TeamDashboardHandler) GetTrends(c *gin.Context) {
 		return
 	}
 
-	result, err := h.trendsService.GetTrendsForTeam(teamID)
+	// Record team lead dashboard view for trends
+	telemetry.RecordTeamLeadDashboardView(ctx, teamID, "trends")
+	telemetry.RecordTrendReportView(ctx, teamID, "team_lead")
+
+	result, err := h.trendsService.GetTrendsForTeam(ctx, teamID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to fetch trend data",

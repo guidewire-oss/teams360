@@ -1,6 +1,7 @@
 package trends
 
 import (
+	"context"
 	"database/sql"
 
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -39,7 +40,7 @@ type TrendResult struct {
 }
 
 // GetTrendsForTeam returns trend data for a single team
-func (s *Service) GetTrendsForTeam(teamID string) (*TrendResult, error) {
+func (s *Service) GetTrendsForTeam(ctx context.Context, teamID string) (*TrendResult, error) {
 	// Get distinct assessment periods for this team
 	periodsQuery := `
 		SELECT DISTINCT assessment_period
@@ -51,7 +52,7 @@ func (s *Service) GetTrendsForTeam(teamID string) (*TrendResult, error) {
 		ORDER BY assessment_period
 	`
 
-	periods, err := s.fetchPeriods(periodsQuery, teamID)
+	periods, err := s.fetchPeriods(ctx, periodsQuery, teamID)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func (s *Service) GetTrendsForTeam(teamID string) (*TrendResult, error) {
 		ORDER BY hcr.dimension_id, hcs.assessment_period
 	`
 
-	dimensions, err := s.fetchTrendData(trendsQuery, teamID, periods)
+	dimensions, err := s.fetchTrendData(ctx, trendsQuery, teamID, periods)
 	if err != nil {
 		return nil, err
 	}
@@ -91,7 +92,7 @@ func (s *Service) GetTrendsForTeam(teamID string) (*TrendResult, error) {
 }
 
 // GetTrendsForManager returns aggregated trend data across all teams supervised by a manager
-func (s *Service) GetTrendsForManager(managerID string) (*TrendResult, error) {
+func (s *Service) GetTrendsForManager(ctx context.Context, managerID string) (*TrendResult, error) {
 	// Get distinct assessment periods for supervised teams
 	periodsQuery := `
 		SELECT DISTINCT hcs.assessment_period
@@ -105,7 +106,7 @@ func (s *Service) GetTrendsForManager(managerID string) (*TrendResult, error) {
 		ORDER BY hcs.assessment_period
 	`
 
-	periods, err := s.fetchPeriods(periodsQuery, managerID)
+	periods, err := s.fetchPeriods(ctx, periodsQuery, managerID)
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +136,7 @@ func (s *Service) GetTrendsForManager(managerID string) (*TrendResult, error) {
 		ORDER BY hcr.dimension_id, hcs.assessment_period
 	`
 
-	dimensions, err := s.fetchTrendData(trendsQuery, managerID, periods)
+	dimensions, err := s.fetchTrendData(ctx, trendsQuery, managerID, periods)
 	if err != nil {
 		return nil, err
 	}
@@ -147,8 +148,8 @@ func (s *Service) GetTrendsForManager(managerID string) (*TrendResult, error) {
 }
 
 // fetchPeriods executes a periods query and returns the distinct periods
-func (s *Service) fetchPeriods(query string, id string) ([]string, error) {
-	rows, err := s.db.Query(query, id)
+func (s *Service) fetchPeriods(ctx context.Context, query string, id string) ([]string, error) {
+	rows, err := s.db.QueryContext(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}
@@ -167,8 +168,8 @@ func (s *Service) fetchPeriods(query string, id string) ([]string, error) {
 
 // fetchTrendData executes a trends query and returns the dimension trends
 // Always returns all 11 dimensions, with 0 scores for periods where no data exists
-func (s *Service) fetchTrendData(query string, id string, periods []string) ([]dto.DimensionTrend, error) {
-	rows, err := s.db.Query(query, id)
+func (s *Service) fetchTrendData(ctx context.Context, query string, id string, periods []string) ([]dto.DimensionTrend, error) {
+	rows, err := s.db.QueryContext(ctx, query, id)
 	if err != nil {
 		return nil, err
 	}

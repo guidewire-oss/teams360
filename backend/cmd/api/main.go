@@ -1,23 +1,32 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"os"
+	"os/signal"
+	"syscall"
 
+	"github.com/XSAM/otelsql"
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
+	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
 	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
 func main() {
+	ctx := context.Background()
+
 	// Initialize logger
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
@@ -32,6 +41,19 @@ func main() {
 
 	log := logger.Get()
 
+	// Initialize OpenTelemetry
+	otelCfg := telemetry.DefaultConfig()
+	shutdownTelemetry, err := telemetry.Init(ctx, otelCfg)
+	if err != nil {
+		log.WithError(err).Warn("failed to initialize telemetry, continuing without it")
+	} else {
+		defer func() {
+			if err := shutdownTelemetry(ctx); err != nil {
+				log.WithError(err).Warn("error shutting down telemetry")
+			}
+		}()
+	}
+
 	// Set Gin mode based on environment
 	mode := os.Getenv("GIN_MODE")
 	if mode == "" {
@@ -39,13 +61,19 @@ func main() {
 	}
 	gin.SetMode(mode)
 
-	// Connect to database
+	// Connect to database with OTel instrumentation
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
 		databaseURL = "postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable"
 	}
 
-	db, err := sql.Open("postgres", databaseURL)
+	// Register the otelsql driver wrapper
+	db, err := otelsql.Open("postgres", databaseURL,
+		otelsql.WithAttributes(
+			semconv.DBSystemPostgreSQL,
+			semconv.DBNameKey.String("teams360"),
+		),
+	)
 	if err != nil {
 		log.WithError(err).Fatal("failed to connect to database")
 	}
@@ -68,8 +96,13 @@ func main() {
 
 		log.Info("database created successfully")
 
-		// Reconnect to the new database
-		db, err = sql.Open("postgres", databaseURL)
+		// Reconnect to the new database with OTel instrumentation
+		db, err = otelsql.Open("postgres", databaseURL,
+			otelsql.WithAttributes(
+				semconv.DBSystemPostgreSQL,
+				semconv.DBNameKey.String("teams360"),
+			),
+		)
 		if err != nil {
 			log.WithError(err).Fatal("failed to connect to newly created database")
 		}
@@ -119,6 +152,9 @@ func main() {
 	router := gin.New()
 	router.Use(gin.Recovery()) // Keep panic recovery
 
+	// Add OpenTelemetry middleware for distributed tracing
+	router.Use(otelgin.Middleware("teams360-api"))
+
 	// Add request ID and logging middleware (our zerolog-based logger replaces Gin's default)
 	router.Use(middleware.RequestIDMiddleware())
 	router.Use(middleware.RequestLoggerMiddleware())
@@ -150,8 +186,18 @@ func main() {
 		port = "8080"
 	}
 
-	log.WithField("port", port).Info("starting Team360 API server")
-	if err := router.Run(":" + port); err != nil {
-		log.WithError(err).Fatal("failed to start server")
-	}
+	// Setup graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		log.WithField("port", port).Info("starting Team360 API server")
+		if err := router.Run(":" + port); err != nil {
+			log.WithError(err).Fatal("failed to start server")
+		}
+	}()
+
+	// Wait for interrupt signal
+	<-quit
+	log.Info("shutting down server gracefully...")
 }

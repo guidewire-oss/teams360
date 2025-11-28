@@ -2,12 +2,15 @@ package v1
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
+	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 	"github.com/gin-gonic/gin"
+	"go.opentelemetry.io/otel/attribute"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -27,13 +30,22 @@ func NewAuthHandler(userRepo user.Repository, jwtService *services.JWTService) *
 
 // Login handles user authentication
 func (h *AuthHandler) Login(c *gin.Context) {
-	log := logger.Get()
+	ctx := c.Request.Context()
+	startTime := time.Now()
+
+	// Start business trace span
+	ctx, span := telemetry.StartAuthSpan(ctx, "login")
+	defer span.End()
+
+	log := logger.Get().WithContext(ctx)
 	clientIP := c.ClientIP()
 	requestID := c.GetString("request_id")
 	endpoint := "/api/v1/auth/login"
 
 	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		telemetry.RecordLogin(ctx, false, time.Since(startTime), "missing_credentials")
+		telemetry.SetSpanError(span, err)
 		log.Auth("login").
 			IP(clientIP).
 			RequestID(requestID).
@@ -45,9 +57,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	span.SetAttributes(attribute.String("auth.username_masked", maskUsername(req.Username)))
+
 	// Find user by username using repository
-	usr, err := h.userRepo.FindByUsername(c.Request.Context(), req.Username)
+	usr, err := h.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
+		telemetry.RecordLogin(ctx, false, time.Since(startTime), "user_not_found")
+		telemetry.SetSpanError(span, err)
 		log.Auth("login").
 			Username(req.Username).
 			IP(clientIP).
@@ -60,8 +76,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	span.SetAttributes(attribute.String("user.id", usr.ID))
+
 	// Validate password using bcrypt
 	if err := bcrypt.CompareHashAndPassword([]byte(usr.PasswordHash), []byte(req.Password)); err != nil {
+		telemetry.RecordLogin(ctx, false, time.Since(startTime), "incorrect_password")
+		telemetry.SetSpanError(span, err)
 		log.Auth("login").
 			Username(req.Username).
 			UserID(usr.ID).
@@ -120,6 +140,11 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
+	// Record successful login metrics
+	telemetry.RecordLogin(ctx, true, time.Since(startTime), "")
+	telemetry.IncrementActiveSessions(ctx)
+	telemetry.SetSpanOK(span)
+
 	// Log successful login
 	log.Auth("login").
 		UserID(usr.ID).
@@ -149,13 +174,21 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 // Refresh handles token refresh requests
 func (h *AuthHandler) Refresh(c *gin.Context) {
-	log := logger.Get()
+	ctx := c.Request.Context()
+
+	// Start business trace span
+	ctx, span := telemetry.StartAuthSpan(ctx, "token_refresh")
+	defer span.End()
+
+	log := logger.Get().WithContext(ctx)
 	clientIP := c.ClientIP()
 	requestID := c.GetString("request_id")
 	endpoint := "/api/v1/auth/refresh"
 
 	var req dto.RefreshTokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
+		telemetry.RecordTokenRefresh(ctx, false, "missing_refresh_token")
+		telemetry.SetSpanError(span, err)
 		log.Auth("token_refresh").
 			IP(clientIP).
 			RequestID(requestID).
@@ -176,6 +209,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 			reason = "refresh_token_expired"
 			details = "Refresh token has expired, user must re-authenticate"
 		}
+		telemetry.RecordTokenRefresh(ctx, false, reason)
+		telemetry.SetSpanError(span, err)
 		log.Auth("token_refresh").
 			IP(clientIP).
 			RequestID(requestID).
@@ -187,9 +222,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
+	span.SetAttributes(attribute.String("user.id", userID))
+
 	// Get user from repository to get current data
-	usr, err := h.userRepo.FindByID(c.Request.Context(), userID)
+	usr, err := h.userRepo.FindByID(ctx, userID)
 	if err != nil {
+		telemetry.RecordTokenRefresh(ctx, false, "user_not_found")
+		telemetry.SetSpanError(span, err)
 		log.Auth("token_refresh").
 			UserID(userID).
 			IP(clientIP).
@@ -203,13 +242,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 	}
 
 	// Get team IDs
-	teamIds, err := h.userRepo.FindTeamIDsForUser(c.Request.Context(), usr.ID)
+	teamIds, err := h.userRepo.FindTeamIDsForUser(ctx, usr.ID)
 	if err != nil {
 		teamIds = []string{}
 	}
 
 	// Get teams where user is lead
-	leadTeamIds, err := h.userRepo.FindTeamsWhereUserIsLead(c.Request.Context(), usr.ID)
+	leadTeamIds, err := h.userRepo.FindTeamsWhereUserIsLead(ctx, usr.ID)
 	if err == nil {
 		teamIdSet := make(map[string]bool)
 		for _, id := range teamIds {
@@ -224,7 +263,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 	// Generate new access token
 	newAccessToken, err := h.jwtService.RefreshAccessToken(
-		c.Request.Context(),
+		ctx,
 		req.RefreshToken,
 		usr.ID,
 		usr.Username,
@@ -233,6 +272,8 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		teamIds,
 	)
 	if err != nil {
+		telemetry.RecordTokenRefresh(ctx, false, "token_generation_failed")
+		telemetry.SetSpanError(span, err)
 		log.Auth("token_refresh").
 			UserID(usr.ID).
 			IP(clientIP).
@@ -244,6 +285,10 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		dto.RespondError(c, http.StatusUnauthorized, "Failed to refresh token")
 		return
 	}
+
+	// Record successful token refresh
+	telemetry.RecordTokenRefresh(ctx, true, "")
+	telemetry.SetSpanOK(span)
 
 	log.Auth("token_refresh").
 		UserID(usr.ID).
@@ -263,7 +308,13 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 
 // Logout handles user logout (token invalidation)
 func (h *AuthHandler) Logout(c *gin.Context) {
-	log := logger.Get()
+	ctx := c.Request.Context()
+
+	// Start business trace span
+	ctx, span := telemetry.StartAuthSpan(ctx, "logout")
+	defer span.End()
+
+	log := logger.Get().WithContext(ctx)
 	clientIP := c.ClientIP()
 	requestID := c.GetString("request_id")
 	endpoint := "/api/v1/auth/logout"
@@ -271,6 +322,7 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// Try to get user ID from context if authenticated
 	userID, exists := c.Get("user_id")
 	if exists {
+		span.SetAttributes(attribute.String("user.id", userID.(string)))
 		log.Auth("logout").
 			UserID(userID.(string)).
 			IP(clientIP).
@@ -288,7 +340,21 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 			Success()
 	}
 
+	// Record logout metric and decrement active sessions
+	telemetry.RecordLogout(ctx)
+	telemetry.DecrementActiveSessions(ctx)
+	telemetry.SetSpanOK(span)
+
 	// For stateless JWT, logout is handled client-side by removing tokens
 	// In a production system, you would add the token to a blacklist
 	dto.RespondSuccess(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+// maskUsername masks username for privacy (shows first 2 and last char)
+// Example: "johndoe" -> "jo***e"
+func maskUsername(username string) string {
+	if len(username) <= 3 {
+		return "***"
+	}
+	return username[:2] + "***" + string(username[len(username)-1])
 }

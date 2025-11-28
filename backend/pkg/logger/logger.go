@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel/trace"
 )
 
 // contextKey is a custom type for context keys to avoid collisions
@@ -95,7 +96,7 @@ func Get() *Logger {
 	return globalLogger
 }
 
-// WithContext returns a logger with context values (request_id, user_id)
+// WithContext returns a logger with context values (request_id, user_id, trace_id, span_id)
 func (l *Logger) WithContext(ctx context.Context) *Logger {
 	zl := l.zl
 
@@ -107,7 +108,45 @@ func (l *Logger) WithContext(ctx context.Context) *Logger {
 		zl = zl.With().Str("user_id", userID).Logger()
 	}
 
+	// Add trace context from OpenTelemetry
+	span := trace.SpanFromContext(ctx)
+	if span != nil {
+		sc := span.SpanContext()
+		if sc.HasTraceID() {
+			zl = zl.With().Str("trace_id", sc.TraceID().String()).Logger()
+		}
+		if sc.HasSpanID() {
+			zl = zl.With().Str("span_id", sc.SpanID().String()).Logger()
+		}
+	}
+
 	return &Logger{zl: zl}
+}
+
+// TraceID extracts trace ID from context as a string
+func TraceID(ctx context.Context) string {
+	span := trace.SpanFromContext(ctx)
+	if span == nil {
+		return ""
+	}
+	sc := span.SpanContext()
+	if !sc.HasTraceID() {
+		return ""
+	}
+	return sc.TraceID().String()
+}
+
+// SpanID extracts span ID from context as a string
+func SpanID(ctx context.Context) string {
+	span := trace.SpanFromContext(ctx)
+	if span == nil {
+		return ""
+	}
+	sc := span.SpanContext()
+	if !sc.HasSpanID() {
+		return ""
+	}
+	return sc.SpanID().String()
 }
 
 // WithField returns a logger with an additional field

@@ -6,6 +6,7 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 	"github.com/gin-gonic/gin"
 )
 
@@ -25,6 +26,7 @@ func NewManagerHandler(healthCheckRepo healthcheck.Repository, trendsService *tr
 
 // GetManagerTeamsHealth handles GET /api/v1/managers/:managerId/teams/health
 func (h *ManagerHandler) GetManagerTeamsHealth(c *gin.Context) {
+	ctx := c.Request.Context()
 	managerID := c.Param("managerId")
 
 	// Validate input
@@ -35,8 +37,11 @@ func (h *ManagerHandler) GetManagerTeamsHealth(c *gin.Context) {
 
 	assessmentPeriod := c.Query("assessmentPeriod") // Optional filter
 
+	// Record manager dashboard view
+	telemetry.RecordManagerDashboardView(ctx, managerID, "teams_health")
+
 	// Use repository to fetch aggregated team health data
-	teamSummaries, err := h.healthCheckRepo.FindTeamHealthByManager(c.Request.Context(), managerID, assessmentPeriod)
+	teamSummaries, err := h.healthCheckRepo.FindTeamHealthByManager(ctx, managerID, assessmentPeriod)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database query failed", err.Error())
 		return
@@ -76,6 +81,7 @@ func (h *ManagerHandler) GetManagerTeamsHealth(c *gin.Context) {
 // GetManagerAggregatedRadar handles GET /api/v1/managers/:managerId/dashboard/radar
 // Returns aggregated radar chart data across all supervised teams
 func (h *ManagerHandler) GetManagerAggregatedRadar(c *gin.Context) {
+	ctx := c.Request.Context()
 	managerID := c.Param("managerId")
 
 	if managerID == "" {
@@ -85,8 +91,11 @@ func (h *ManagerHandler) GetManagerAggregatedRadar(c *gin.Context) {
 
 	assessmentPeriod := c.Query("assessmentPeriod")
 
+	// Record manager dashboard view
+	telemetry.RecordManagerDashboardView(ctx, managerID, "radar")
+
 	// Use repository to fetch aggregated dimension scores
-	dimensionSummaries, err := h.healthCheckRepo.FindAggregatedDimensionsByManager(c.Request.Context(), managerID, assessmentPeriod)
+	dimensionSummaries, err := h.healthCheckRepo.FindAggregatedDimensionsByManager(ctx, managerID, assessmentPeriod)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Database query failed", err.Error())
 		return
@@ -114,6 +123,7 @@ func (h *ManagerHandler) GetManagerAggregatedRadar(c *gin.Context) {
 // GetManagerTrends handles GET /api/v1/managers/:managerId/dashboard/trends
 // Returns trend data across assessment periods for all supervised teams
 func (h *ManagerHandler) GetManagerTrends(c *gin.Context) {
+	ctx := c.Request.Context()
 	managerID := c.Param("managerId")
 
 	if managerID == "" {
@@ -121,7 +131,11 @@ func (h *ManagerHandler) GetManagerTrends(c *gin.Context) {
 		return
 	}
 
-	result, err := h.trendsService.GetTrendsForManager(managerID)
+	// Record manager dashboard view for trends
+	telemetry.RecordManagerDashboardView(ctx, managerID, "trends")
+	telemetry.RecordTrendReportView(ctx, managerID, "manager")
+
+	result, err := h.trendsService.GetTrendsForManager(ctx, managerID)
 	if err != nil {
 		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch trend data", err.Error())
 		return
