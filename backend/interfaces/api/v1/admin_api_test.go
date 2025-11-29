@@ -31,7 +31,7 @@ func setupTestDB(t *testing.T) *sql.DB {
 		testDB.Exec("DELETE FROM teams WHERE id LIKE 'test-%'")
 		testDB.Exec("DELETE FROM users WHERE id LIKE 'test-%'")
 		testDB.Exec("DELETE FROM hierarchy_levels WHERE id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM health_dimensions WHERE id LIKE 'test-%' OR id LIKE 'e2e-%'")
+		testDB.Exec("DELETE FROM health_dimensions WHERE id LIKE 'test-%' OR id LIKE 'e2e-%' OR id LIKE 'dim-%'")
 		return testDB
 	}
 
