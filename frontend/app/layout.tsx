@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "Team360 Health Check",
-  description: "Squad Health Check Model - Track and improve your team's health",
+  description: "Squad Health Check Model - Track and improve your team&apos;s health",
 };
 
 export default function RootLayout({

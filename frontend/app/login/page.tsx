@@ -170,10 +170,10 @@ export default function LoginPage() {
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <p className="text-xs text-blue-700 leading-relaxed">
                     <strong className="block mb-2">All Accounts:</strong>
-                    • All passwords are <strong>"demo"</strong> except admin<br/>
+                    • All passwords are <strong>&quot;demo&quot;</strong> except admin<br/>
                     • Use director1, director2, manager1-3, teamlead1-5<br/>
                     • Or team members: alice, bob, carol, david, eve<br/>
-                    • Admin password is <strong>"admin"</strong>
+                    • Admin password is <strong>&quot;admin&quot;</strong>
                   </p>
                 </div>
 

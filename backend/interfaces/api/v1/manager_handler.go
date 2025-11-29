@@ -144,10 +144,7 @@ func (h *ManagerHandler) GetManagerTrends(c *gin.Context) {
 	// Convert trend dimensions to DTO format
 	dimensions := make([]dto.ManagerDimensionTrend, len(result.Dimensions))
 	for i, dim := range result.Dimensions {
-		dimensions[i] = dto.ManagerDimensionTrend{
-			DimensionID: dim.DimensionID,
-			Scores:      dim.Scores,
-		}
+		dimensions[i] = dto.ManagerDimensionTrend(dim)
 	}
 
 	response := dto.ManagerTrendsResponse{

@@ -228,7 +228,7 @@ export default function MemberHomePage() {
           <div data-testid="empty-state" className="text-center py-12 bg-white rounded-xl shadow-sm border border-gray-200">
             <ClipboardList className="h-16 w-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No surveys yet</h3>
-            <p className="text-gray-500 mb-6">Complete your first survey to start tracking your team's health.</p>
+            <p className="text-gray-500 mb-6">Complete your first survey to start tracking your team&apos;s health.</p>
             <button
               onClick={handleTakeSurvey}
               className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 transition-colors inline-flex items-center space-x-2"
