@@ -260,7 +260,7 @@ jobs:
         working-directory: tests
         run: |
           go mod download
-          npx playwright install chromium --with-deps
+          go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
 
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
