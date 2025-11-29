@@ -35,7 +35,7 @@ FRONTEND_PID := $(PID_DIR)/frontend.pid
 .PHONY: install install-frontend install-backend
 .PHONY: run run-frontend run-backend dev dev-backend
 .PHONY: build build-frontend build-backend
-.PHONY: test test-all test-frontend test-frontend-watch test-frontend-coverage test-backend test-backend-verbose test-backend-coverage test-backend-watch test-e2e
+.PHONY: test test-unit test-frontend test-frontend-unit test-frontend-watch test-frontend-coverage test-backend test-backend-unit test-backend-verbose test-backend-coverage test-backend-watch test-e2e
 .PHONY: lint lint-frontend lint-backend fmt-backend
 .PHONY: clean clean-frontend clean-backend clean-all
 .PHONY: db-start db-stop db-setup db-reset db-test-setup
@@ -243,11 +243,13 @@ build-backend: ## [Backend] Build Go API binary
 # Testing
 # =============================================================================
 
-test: test-frontend test-backend ## Run all unit and integration tests (frontend + backend)
+test: test-frontend test-backend test-e2e ## Run ALL tests (frontend + backend + E2E)
 
-test-all: test-frontend test-backend test-e2e ## Run ALL tests (frontend + backend + E2E)
+test-unit: test-frontend-unit test-backend-unit ## Run only unit/integration tests (no E2E)
 
-test-frontend: ## [Frontend] Run frontend unit tests (Vitest)
+test-frontend: test-frontend-unit ## [Frontend] Alias for test-frontend-unit
+
+test-frontend-unit: ## [Frontend] Run frontend unit tests (Vitest)
 	@echo "$(CYAN)Running frontend tests...$(RESET)"
 	@cd frontend && npm test
 	@echo "$(GREEN)Frontend tests complete!$(RESET)"
@@ -258,7 +260,9 @@ test-frontend-watch: ## [Frontend] Run frontend tests in watch mode
 test-frontend-coverage: ## [Frontend] Run frontend tests with coverage
 	@cd frontend && npm run test:coverage
 
-test-backend: ## [Backend] Run backend unit and integration tests
+test-backend: test-backend-unit ## [Backend] Alias for test-backend-unit
+
+test-backend-unit: ## [Backend] Run backend unit and integration tests
 	@echo "$(CYAN)Running backend tests...$(RESET)"
 	@cd backend && ginkgo -r --skip-package=tests/acceptance ./...
 
