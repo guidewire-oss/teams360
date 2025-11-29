@@ -1,5 +1,6 @@
 # Security Scanning Workflow
-# Runs CodeQL for code analysis, dependency review, container scanning, and secret scanning
+# Runs dependency review, container scanning, and secret scanning
+# NOTE: CodeQL is handled by GitHub's default setup (enabled via UI)
 name: Security
 
 on:
@@ -15,45 +16,8 @@ on:
 permissions:
   contents: read
   security-events: write
-  # actions: read required for CodeQL to analyze workflows
-  actions: read
 
 jobs:
-  # =============================================================================
-  # CodeQL Analysis
-  # =============================================================================
-
-  codeql:
-    name: CodeQL Analysis
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        language: ['go', 'javascript-typescript']
-        include:
-          - language: go
-            working-directory: backend
-          - language: javascript-typescript
-            working-directory: frontend
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
-        with:
-          languages: ${{ matrix.language }}
-          # Security queries plus additional quality queries
-          queries: +security-extended,security-and-quality
-
-      - name: Autobuild
-        uses: github/codeql-action/autobuild@v3
-
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
-        with:
-          category: "/language:${{ matrix.language }}"
-
   # =============================================================================
   # Dependency Scanning
   # =============================================================================
