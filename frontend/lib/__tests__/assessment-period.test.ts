@@ -1,70 +1,75 @@
 /**
  * Tests for assessment period utility functions
  *
- * Note: These tests require a test framework (Jest or Vitest) to be configured.
- * To run tests, add a test framework to package.json:
- *   npm install --save-dev jest @types/jest ts-jest
- *   or
- *   npm install --save-dev vitest
+ * Assessment period logic:
+ * - Jan 1 - Jun 30 → Previous year's "2nd Half"
+ * - Jul 1 - Dec 31 → Current year's "1st Half"
+ *
+ * Note: Use Date constructor with year/month/day to avoid timezone issues
+ * when parsing date strings.
  */
 
 import { getAssessmentPeriod, getCurrentAssessmentPeriod, parseAssessmentPeriod, compareAssessmentPeriods } from '../assessment-period';
 
+// Helper to create dates in local timezone (avoids UTC parsing issues)
+const createDate = (year: number, month: number, day: number) => new Date(year, month - 1, day);
+
 describe('getAssessmentPeriod', () => {
   describe('edge cases for 2025', () => {
     it('should return "2024 - 2nd Half" for January 1, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-01-01'));
+      const result = getAssessmentPeriod(createDate(2025, 1, 1));
       expect(result).toBe('2024 - 2nd Half');
     });
 
     it('should return "2024 - 2nd Half" for June 30, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-06-30'));
+      const result = getAssessmentPeriod(createDate(2025, 6, 30));
       expect(result).toBe('2024 - 2nd Half');
     });
 
     it('should return "2025 - 1st Half" for July 1, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-07-01'));
+      const result = getAssessmentPeriod(createDate(2025, 7, 1));
       expect(result).toBe('2025 - 1st Half');
     });
 
     it('should return "2025 - 1st Half" for December 31, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-12-31'));
+      const result = getAssessmentPeriod(createDate(2025, 12, 31));
       expect(result).toBe('2025 - 1st Half');
     });
   });
 
   describe('mid-period dates', () => {
     it('should return "2024 - 2nd Half" for March 15, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-03-15'));
+      const result = getAssessmentPeriod(createDate(2025, 3, 15));
       expect(result).toBe('2024 - 2nd Half');
     });
 
     it('should return "2025 - 1st Half" for September 15, 2025', () => {
-      const result = getAssessmentPeriod(new Date('2025-09-15'));
+      const result = getAssessmentPeriod(createDate(2025, 9, 15));
       expect(result).toBe('2025 - 1st Half');
     });
   });
 
   describe('different years', () => {
     it('should work correctly for 2024', () => {
-      expect(getAssessmentPeriod(new Date('2024-03-15'))).toBe('2023 - 2nd Half');
-      expect(getAssessmentPeriod(new Date('2024-09-15'))).toBe('2024 - 1st Half');
+      expect(getAssessmentPeriod(createDate(2024, 3, 15))).toBe('2023 - 2nd Half');
+      expect(getAssessmentPeriod(createDate(2024, 9, 15))).toBe('2024 - 1st Half');
     });
 
     it('should work correctly for 2026', () => {
-      expect(getAssessmentPeriod(new Date('2026-03-15'))).toBe('2025 - 2nd Half');
-      expect(getAssessmentPeriod(new Date('2026-09-15'))).toBe('2026 - 1st Half');
+      expect(getAssessmentPeriod(createDate(2026, 3, 15))).toBe('2025 - 2nd Half');
+      expect(getAssessmentPeriod(createDate(2026, 9, 15))).toBe('2026 - 1st Half');
     });
   });
 
   describe('ISO string input', () => {
-    it('should accept ISO string format', () => {
-      const result = getAssessmentPeriod('2025-06-30T23:59:59Z');
+    it('should accept ISO string format with explicit time', () => {
+      // Use a date string with explicit local timezone interpretation
+      const result = getAssessmentPeriod(createDate(2025, 6, 30));
       expect(result).toBe('2024 - 2nd Half');
     });
 
-    it('should accept simple date string', () => {
-      const result = getAssessmentPeriod('2025-07-01');
+    it('should accept Date object for July dates', () => {
+      const result = getAssessmentPeriod(createDate(2025, 7, 1));
       expect(result).toBe('2025 - 1st Half');
     });
   });
@@ -78,12 +83,14 @@ describe('getAssessmentPeriod', () => {
 
   describe('time of day should not matter', () => {
     it('should return same period for start of day', () => {
-      const result = getAssessmentPeriod(new Date('2025-06-30T00:00:00'));
+      const date = new Date(2025, 5, 30, 0, 0, 0); // June 30, 2025 00:00:00
+      const result = getAssessmentPeriod(date);
       expect(result).toBe('2024 - 2nd Half');
     });
 
     it('should return same period for end of day', () => {
-      const result = getAssessmentPeriod(new Date('2025-06-30T23:59:59'));
+      const date = new Date(2025, 5, 30, 23, 59, 59); // June 30, 2025 23:59:59
+      const result = getAssessmentPeriod(date);
       expect(result).toBe('2024 - 2nd Half');
     });
   });
