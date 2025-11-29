@@ -1,5 +1,5 @@
 # Security Scanning Workflow
-# Runs CodeQL for code analysis and Trivy for container scanning
+# Runs CodeQL for code analysis, dependency review, container scanning, and secret scanning
 name: Security
 
 on:
@@ -84,7 +84,10 @@ jobs:
     runs-on: ubuntu-latest
     # Only run on main branch pushes (after images are built)
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Don't fail the workflow if images don't exist yet
+    continue-on-error: true
     strategy:
+      fail-fast: false
       matrix:
         image: ['teams360-api', 'teams360-frontend']
     steps:
@@ -95,12 +98,14 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
+        # Don't fail if image doesn't exist yet
+        continue-on-error: true
 
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
+        if: success()
         with:
           sarif_file: 'trivy-results.sarif'
-        # Don't fail if image doesn't exist yet
         continue-on-error: true
 
   # =============================================================================
