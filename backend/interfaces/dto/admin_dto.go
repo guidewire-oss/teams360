@@ -67,8 +67,8 @@ type AdminUserDTO struct {
 
 // CreateUserRequest represents request to create a user
 type CreateUserRequest struct {
-	ID             string  `json:"id"`                                  // Optional - will be auto-generated from username if not provided
-	Username       string  `json:"username" binding:"required"`         // Required - used to generate ID if not provided
+	ID             string  `json:"id"`                          // Optional - will be auto-generated from username if not provided
+	Username       string  `json:"username" binding:"required"` // Required - used to generate ID if not provided
 	Email          string  `json:"email" binding:"required,email"`
 	FullName       string  `json:"fullName" binding:"required"`
 	Password       string  `json:"password" binding:"required,min=4"`
@@ -110,8 +110,8 @@ type AdminTeamDTO struct {
 
 // CreateTeamRequest represents request to create a team
 type CreateTeamRequest struct {
-	ID         string  `json:"id"`                                                              // Optional - will be auto-generated from name if not provided
-	Name       string  `json:"name" binding:"required"`                                         // Required - used to generate ID if not provided
+	ID         string  `json:"id"`                      // Optional - will be auto-generated from name if not provided
+	Name       string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
 	TeamLeadID *string `json:"teamLeadId"`
 	Cadence    string  `json:"cadence" binding:"required,oneof=weekly biweekly monthly quarterly"`
 }
@@ -174,12 +174,12 @@ type DimensionsResponse struct {
 
 // NotificationSettings represents notification configuration
 type NotificationSettings struct {
-	EmailEnabled        bool     `json:"emailEnabled"`
-	SlackEnabled        bool     `json:"slackEnabled"`
-	NotifyOnSubmission  bool     `json:"notifyOnSubmission"`
-	NotifyManagers      bool     `json:"notifyManagers"`
-	ReminderDaysBefore  int      `json:"reminderDaysBefore"`
-	ReminderRecipients  []string `json:"reminderRecipients"`
+	EmailEnabled       bool     `json:"emailEnabled"`
+	SlackEnabled       bool     `json:"slackEnabled"`
+	NotifyOnSubmission bool     `json:"notifyOnSubmission"`
+	NotifyManagers     bool     `json:"notifyManagers"`
+	ReminderDaysBefore int      `json:"reminderDaysBefore"`
+	ReminderRecipients []string `json:"reminderRecipients"`
 }
 
 // RetentionPolicy represents data retention configuration

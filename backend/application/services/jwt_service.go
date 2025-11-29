@@ -46,10 +46,10 @@ type TokenPair struct {
 }
 
 var (
-	ErrInvalidToken      = errors.New("invalid token")
-	ErrExpiredToken      = errors.New("token has expired")
-	ErrInvalidTokenType  = errors.New("invalid token type")
-	ErrTokenRevoked      = errors.New("token has been revoked")
+	ErrInvalidToken     = errors.New("invalid token")
+	ErrExpiredToken     = errors.New("token has expired")
+	ErrInvalidTokenType = errors.New("invalid token type")
+	ErrTokenRevoked     = errors.New("token has been revoked")
 )
 
 // NewJWTService creates a new JWT service
@@ -67,7 +67,7 @@ func NewJWTService() *JWTService {
 	}
 
 	// Get expiry durations from environment or use defaults
-	accessExpiry := 15 * time.Minute  // Short-lived access token
+	accessExpiry := 15 * time.Minute    // Short-lived access token
 	refreshExpiry := 7 * 24 * time.Hour // 7 days refresh token
 
 	if envAccessExpiry := os.Getenv("JWT_ACCESS_EXPIRY"); envAccessExpiry != "" {

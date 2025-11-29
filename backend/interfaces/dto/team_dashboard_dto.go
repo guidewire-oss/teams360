@@ -2,18 +2,18 @@ package dto
 
 // TeamDashboardHealthSummary represents radar chart data (avg score per dimension)
 type TeamDashboardHealthSummary struct {
-	TeamID           string                        `json:"teamId"`
-	TeamName         string                        `json:"teamName"`
-	AssessmentPeriod string                        `json:"assessmentPeriod,omitempty"`
-	Dimensions       []DimensionSummary            `json:"dimensions"`
-	OverallHealth    float64                       `json:"overallHealth"`
-	SubmissionCount  int                           `json:"submissionCount"`
+	TeamID           string             `json:"teamId"`
+	TeamName         string             `json:"teamName"`
+	AssessmentPeriod string             `json:"assessmentPeriod,omitempty"`
+	Dimensions       []DimensionSummary `json:"dimensions"`
+	OverallHealth    float64            `json:"overallHealth"`
+	SubmissionCount  int                `json:"submissionCount"`
 }
 
 // ResponseDistribution represents score distribution per dimension (for bar chart)
 type ResponseDistribution struct {
-	TeamID       string                    `json:"teamId"`
-	Distribution []DimensionDistribution   `json:"distribution"`
+	TeamID       string                  `json:"teamId"`
+	Distribution []DimensionDistribution `json:"distribution"`
 }
 
 // DimensionDistribution represents red/yellow/green counts for a dimension

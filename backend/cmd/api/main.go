@@ -174,8 +174,8 @@ func main() {
 	v1.SetupAuthRoutes(router, userRepo, jwtService)
 	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
 	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
-	v1.SetupTeamDashboardRoutes(router, db)      // Still uses db (complex dashboard queries)
-	v1.SetupUserRoutes(router, db)               // Still uses db (complex user queries)
+	v1.SetupTeamDashboardRoutes(router, db)             // Still uses db (complex dashboard queries)
+	v1.SetupUserRoutes(router, db)                      // Still uses db (complex user queries)
 	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
 	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
 	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)

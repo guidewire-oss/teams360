@@ -141,12 +141,12 @@ func (h *TeamDashboardHandler) GetHealthSummary(c *gin.Context) {
 	}
 
 	response := dto.TeamDashboardHealthSummary{
-		TeamID:          teamID_result,
-		TeamName:        teamName,
+		TeamID:           teamID_result,
+		TeamName:         teamName,
 		AssessmentPeriod: assessmentPeriod,
-		Dimensions:      dimensions,
-		OverallHealth:   overallHealth,
-		SubmissionCount: submissionCount,
+		Dimensions:       dimensions,
+		OverallHealth:    overallHealth,
+		SubmissionCount:  submissionCount,
 	}
 
 	c.JSON(http.StatusOK, response)

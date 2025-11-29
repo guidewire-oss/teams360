@@ -424,15 +424,15 @@ func (l *Logger) HTTP() *HTTPEvent {
 
 // HTTPEvent represents an HTTP event for structured logging
 type HTTPEvent struct {
-	logger     *Logger
-	method     string
-	path       string
-	status     int
-	duration   time.Duration
-	ip         string
-	userAgent  string
-	requestID  string
-	err        error
+	logger    *Logger
+	method    string
+	path      string
+	status    int
+	duration  time.Duration
+	ip        string
+	userAgent string
+	requestID string
+	err       error
 }
 
 // Method sets the HTTP method

@@ -23,14 +23,14 @@ var (
 	passwordResetComplete metric.Int64Counter
 
 	// --- Session & Engagement Metrics (Product Analytics) ---
-	activeSessionsGauge    metric.Int64UpDownCounter // Currently logged-in users
-	sessionDuration        metric.Float64Histogram   // How long users stay logged in
-	pageViews              metric.Int64Counter       // Page/endpoint views
-	featureUsage           metric.Int64Counter       // Feature engagement tracking
-	userReturnVisits       metric.Int64Counter       // Returning users (vs new)
-	dailyActiveUsers       metric.Int64Gauge         // DAU tracking
-	weeklyActiveUsers      metric.Int64Gauge         // WAU tracking
-	monthlyActiveUsers     metric.Int64Gauge         // MAU tracking
+	activeSessionsGauge metric.Int64UpDownCounter // Currently logged-in users
+	sessionDuration     metric.Float64Histogram   // How long users stay logged in
+	pageViews           metric.Int64Counter       // Page/endpoint views
+	featureUsage        metric.Int64Counter       // Feature engagement tracking
+	userReturnVisits    metric.Int64Counter       // Returning users (vs new)
+	dailyActiveUsers    metric.Int64Gauge         // DAU tracking
+	weeklyActiveUsers   metric.Int64Gauge         // WAU tracking
+	monthlyActiveUsers  metric.Int64Gauge         // MAU tracking
 
 	// --- Health Check / Survey Metrics ---
 	surveySubmittedTotal  metric.Int64Counter
@@ -41,27 +41,27 @@ var (
 	activeSurveySessions  metric.Int64UpDownCounter
 
 	// --- Survey Funnel Metrics (Drop-off Analysis) ---
-	surveyStartedTotal    metric.Int64Counter     // Surveys started (page loaded)
-	surveyAbandonedTotal  metric.Int64Counter     // Surveys abandoned (started but not completed)
-	surveyTimeToComplete  metric.Float64Histogram // Full time from start to submit
-	surveyCommentsTotal   metric.Int64Counter     // Responses with comments
-	surveyCommentRate     metric.Float64Gauge     // % of responses with comments
+	surveyStartedTotal   metric.Int64Counter     // Surveys started (page loaded)
+	surveyAbandonedTotal metric.Int64Counter     // Surveys abandoned (started but not completed)
+	surveyTimeToComplete metric.Float64Histogram // Full time from start to submit
+	surveyCommentsTotal  metric.Int64Counter     // Responses with comments
+	surveyCommentRate    metric.Float64Gauge     // % of responses with comments
 
 	// --- Team Health Business Metrics ---
 	teamHealthQueriesTotal  metric.Int64Counter
 	teamHealthQueryDuration metric.Float64Histogram
 	teamsActiveTotal        metric.Int64Gauge
-	teamsAtRiskTotal        metric.Int64Gauge         // Teams with health < 2.0
-	teamHealthScoreAvg      metric.Float64Gauge       // Org-wide average health
-	teamHealthByDimension   metric.Float64Histogram   // Health distribution by dimension
-	teamsImprovingTotal     metric.Int64Counter       // Teams showing improvement
-	teamsDecliningTotal     metric.Int64Counter       // Teams showing decline
+	teamsAtRiskTotal        metric.Int64Gauge       // Teams with health < 2.0
+	teamHealthScoreAvg      metric.Float64Gauge     // Org-wide average health
+	teamHealthByDimension   metric.Float64Histogram // Health distribution by dimension
+	teamsImprovingTotal     metric.Int64Counter     // Teams showing improvement
+	teamsDecliningTotal     metric.Int64Counter     // Teams showing decline
 
 	// --- Manager/Dashboard Engagement ---
-	managerDashboardViews metric.Int64Counter   // Manager dashboard access
-	teamLeadDashboardViews metric.Int64Counter  // Team lead dashboard access
-	trendReportViews      metric.Int64Counter   // Trend analysis views
-	exportReportTotal     metric.Int64Counter   // Report exports (future feature)
+	managerDashboardViews  metric.Int64Counter // Manager dashboard access
+	teamLeadDashboardViews metric.Int64Counter // Team lead dashboard access
+	trendReportViews       metric.Int64Counter // Trend analysis views
+	exportReportTotal      metric.Int64Counter // Report exports (future feature)
 
 	// --- User Metrics ---
 	userRegistrations metric.Int64Counter

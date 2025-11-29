@@ -84,10 +84,10 @@ var _ = Describe("Validation Middleware", func() {
 			})
 
 			It("should reject invalid usernames", func() {
-				Expect(middleware.IsValidUsername("a")).To(BeFalse())  // Too short (1 char)
-				Expect(middleware.IsValidUsername("john@doe")).To(BeFalse())  // Invalid char
-				Expect(middleware.IsValidUsername("john doe")).To(BeFalse())  // Space
-				Expect(middleware.IsValidUsername("")).To(BeFalse())  // Empty
+				Expect(middleware.IsValidUsername("a")).To(BeFalse())        // Too short (1 char)
+				Expect(middleware.IsValidUsername("john@doe")).To(BeFalse()) // Invalid char
+				Expect(middleware.IsValidUsername("john doe")).To(BeFalse()) // Space
+				Expect(middleware.IsValidUsername("")).To(BeFalse())         // Empty
 			})
 		})
 

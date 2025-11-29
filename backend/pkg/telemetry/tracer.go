@@ -21,20 +21,20 @@ const (
 
 // Common attribute keys for business context
 const (
-	AttrUserID          = "user.id"
-	AttrUsername        = "user.username"
-	AttrTeamID          = "team.id"
-	AttrTeamName        = "team.name"
-	AttrHierarchyLevel  = "user.hierarchy_level"
-	AttrHealthCheckID   = "healthcheck.id"
+	AttrUserID           = "user.id"
+	AttrUsername         = "user.username"
+	AttrTeamID           = "team.id"
+	AttrTeamName         = "team.name"
+	AttrHierarchyLevel   = "user.hierarchy_level"
+	AttrHealthCheckID    = "healthcheck.id"
 	AttrAssessmentPeriod = "healthcheck.assessment_period"
-	AttrSurveyComplete  = "survey.complete"
-	AttrDimensionCount  = "survey.dimension_count"
-	AttrAuthMethod      = "auth.method"
-	AttrAuthSuccess     = "auth.success"
-	AttrDBOperation     = "db.operation"
-	AttrDBTable         = "db.table"
-	AttrDBRowsAffected  = "db.rows_affected"
+	AttrSurveyComplete   = "survey.complete"
+	AttrDimensionCount   = "survey.dimension_count"
+	AttrAuthMethod       = "auth.method"
+	AttrAuthSuccess      = "auth.success"
+	AttrDBOperation      = "db.operation"
+	AttrDBTable          = "db.table"
+	AttrDBRowsAffected   = "db.rows_affected"
 )
 
 // Tracer returns a named tracer for the given component

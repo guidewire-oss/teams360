@@ -33,8 +33,8 @@ type ManagerRadarResponse struct {
 
 // ManagerTrendsResponse represents trend data for manager's teams
 type ManagerTrendsResponse struct {
-	ManagerID  string                    `json:"managerId"`
-	Periods    []string                  `json:"periods"`
+	ManagerID  string                  `json:"managerId"`
+	Periods    []string                `json:"periods"`
 	Dimensions []ManagerDimensionTrend `json:"dimensions"`
 }
 

@@ -24,11 +24,11 @@ type HealthCheckSession struct {
 
 // TeamHealthSummary represents aggregated health data for a team
 type TeamHealthSummary struct {
-	TeamID          string              `json:"teamId"`
-	TeamName        string              `json:"teamName"`
-	SubmissionCount int                 `json:"submissionCount"`
-	OverallHealth   float64             `json:"overallHealth"`
-	Dimensions      []DimensionSummary  `json:"dimensions"`
+	TeamID          string             `json:"teamId"`
+	TeamName        string             `json:"teamName"`
+	SubmissionCount int                `json:"submissionCount"`
+	OverallHealth   float64            `json:"overallHealth"`
+	Dimensions      []DimensionSummary `json:"dimensions"`
 }
 
 // DimensionSummary represents aggregated dimension health

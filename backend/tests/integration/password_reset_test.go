@@ -21,10 +21,10 @@ import (
 
 var _ = Describe("Password Reset API Integration Tests", func() {
 	var (
-		router              *gin.Engine
-		db                  *sql.DB
-		cleanup             func()
-		jwtService          *services.JWTService
+		router               *gin.Engine
+		db                   *sql.DB
+		cleanup              func()
+		jwtService           *services.JWTService
 		passwordResetService *services.PasswordResetService
 	)
 
