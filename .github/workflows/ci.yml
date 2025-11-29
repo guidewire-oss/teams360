@@ -265,26 +265,14 @@ jobs:
       - name: Install Ginkgo
         run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
-      - name: Start backend server
-        working-directory: backend
-        run: |
-          go run cmd/api/main.go &
-          sleep 10
-          curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:8080/health || exit 1
-
-      - name: Start frontend server
-        working-directory: frontend
-        run: |
-          npm run build
-          npm start &
-          sleep 10
-          curl --retry 30 --retry-delay 1 --retry-connrefused http://localhost:3000 || exit 1
-        env:
-          NEXT_PUBLIC_API_URL: http://localhost:8080
+      # Note: Do NOT start servers here - the test suite (suite_test.go) handles
+      # database setup, seeding, and server startup in SynchronizedBeforeSuite
 
       - name: Run E2E tests
         working-directory: tests
         run: ginkgo -v acceptance/
+        env:
+          TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable
 
   # =============================================================================
   # Final Status Check
