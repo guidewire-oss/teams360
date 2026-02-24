@@ -1,0 +1,75 @@
+# GatewayConfig resources for Guidewire EKS (oort.ccs.guidewire.com)
+# These create Kong Ingress + Service + KongUpstreamPolicy automatically.
+#
+# KubeVela creates services named after the component:
+#   - "backend"  (port 8080)
+#   - "frontend" (port 3000)
+#
+# These GatewayConfigs route external traffic to those services.
+#
+# NOTE: Delete existing Helm-based GatewayConfig first if it exists:
+#   helm uninstall teams360 -n aicoeind
+#   OR
+#   kubectl delete gatewayconfig teams360-frontend -n aicoeind
+---
+apiVersion: oort.ccs.guidewire.com/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: teams360-vela-frontend
+  namespace: aicoeind
+  labels:
+    app.kubernetes.io/instance: teams360-vela
+    app.kubernetes.io/managed-by: kubevela
+    app.kubernetes.io/version: 0.1.0
+    gwcp.guidewire.com/app-name: teams360-vela-frontend
+    gwcp.guidewire.com/created-by: pod-danville
+    gwcp.guidewire.com/dept: "000"
+    gwcp.guidewire.com/maintained-by: pod-aicoeind
+    gwcp.guidewire.com/tenant-name: quadrant-shared
+spec:
+  enable_sub_domain: false
+  path_configs:
+    - name: Default
+      paths:
+        - /**
+      profiles:
+        - Default
+  profiles:
+    - name: Default
+  retries: 0
+  service_alias: teams360-vela-frontend-svc
+  service_ref: frontend
+  sticky_session_config:
+    fallback_strategy_type: none
+    strategy_type: none
+---
+apiVersion: oort.ccs.guidewire.com/v1alpha1
+kind: GatewayConfig
+metadata:
+  name: teams360-vela-backend
+  namespace: aicoeind
+  labels:
+    app.kubernetes.io/instance: teams360-vela
+    app.kubernetes.io/managed-by: kubevela
+    app.kubernetes.io/version: 0.1.0
+    gwcp.guidewire.com/app-name: teams360-vela-backend
+    gwcp.guidewire.com/created-by: pod-danville
+    gwcp.guidewire.com/dept: "000"
+    gwcp.guidewire.com/maintained-by: pod-aicoeind
+    gwcp.guidewire.com/tenant-name: quadrant-shared
+spec:
+  enable_sub_domain: false
+  path_configs:
+    - name: Default
+      paths:
+        - /**
+      profiles:
+        - Default
+  profiles:
+    - name: Default
+  retries: 0
+  service_alias: teams360-vela-backend-svc
+  service_ref: backend
+  sticky_session_config:
+    fallback_strategy_type: none
+    strategy_type: none
