@@ -1,0 +1,193 @@
+# =============================================================================
+# Team360 KubeVela + CNPG Deployment Automation
+# Included from root Makefile via: -include Makefile.kubevela
+#
+# Full pipeline:  make kubevela-deploy-all
+# Quick rebuild:  make kubevela-deploy-quick
+# Tear down:      make kubevela-delete && make kubevela-k3d-delete
+# =============================================================================
+
+# Configuration
+KUBEVELA_CLUSTER  := teams360
+KUBEVELA_NS       := teams360
+KUBEVELA_DOMAIN   := teams360.local
+KUBEVELA_LB_PORT  := 8080
+
+# Colors (reuse from root Makefile if included, define otherwise)
+CYAN  ?= \033[36m
+GREEN ?= \033[32m
+YELLOW?= \033[33m
+RED   ?= \033[31m
+RESET ?= \033[0m
+BOLD  ?= \033[1m
+
+# =============================================================================
+# k3d Cluster Management
+# =============================================================================
+
+.PHONY: kubevela-k3d-create kubevela-k3d-delete kubevela-k3d-status
+
+kubevela-k3d-create: ## [KubeVela] Create k3d cluster with Traefik ingress
+	@echo "$(CYAN)Creating k3d cluster '$(KUBEVELA_CLUSTER)'...$(RESET)"
+	@k3d cluster create $(KUBEVELA_CLUSTER) \
+		--port "$(KUBEVELA_LB_PORT):80@loadbalancer" \
+		--agents 2 \
+		--wait
+	@echo "$(GREEN)k3d cluster '$(KUBEVELA_CLUSTER)' created!$(RESET)"
+
+kubevela-k3d-delete: ## [KubeVela] Delete k3d cluster
+	@echo "$(RED)Deleting k3d cluster '$(KUBEVELA_CLUSTER)'...$(RESET)"
+	@k3d cluster delete $(KUBEVELA_CLUSTER)
+	@echo "$(GREEN)Cluster deleted.$(RESET)"
+
+kubevela-k3d-status: ## [KubeVela] Show cluster info and nodes
+	@echo "$(BOLD)$(CYAN)k3d Cluster Status$(RESET)"
+	@echo ""
+	@k3d cluster list
+	@echo ""
+	@kubectl get nodes -o wide 2>/dev/null || echo "$(YELLOW)kubectl not connected to cluster$(RESET)"
+
+# =============================================================================
+# Prerequisites
+# =============================================================================
+
+.PHONY: kubevela-check-hosts kubevela-check-install-kubevela kubevela-check-install-cnpg
+
+kubevela-check-hosts: ## [KubeVela] Verify /etc/hosts has teams360.local entry
+	@echo "$(CYAN)Checking /etc/hosts for $(KUBEVELA_DOMAIN)...$(RESET)"
+	@if grep -q "$(KUBEVELA_DOMAIN)" /etc/hosts; then \
+		echo "$(GREEN)/etc/hosts contains $(KUBEVELA_DOMAIN)$(RESET)"; \
+	else \
+		echo "$(RED)Missing entry! Add this line to /etc/hosts:$(RESET)"; \
+		echo "  127.0.0.1 $(KUBEVELA_DOMAIN)"; \
+		echo ""; \
+		echo "Run: echo '127.0.0.1 $(KUBEVELA_DOMAIN)' | sudo tee -a /etc/hosts"; \
+		exit 1; \
+	fi
+
+kubevela-check-install-kubevela: ## [KubeVela] Install KubeVela CLI + operator if not present
+	@echo "$(CYAN)Checking KubeVela installation...$(RESET)"
+	@if ! command -v vela >/dev/null 2>&1; then \
+		echo "$(CYAN)Installing KubeVela CLI...$(RESET)"; \
+		curl -fsSl https://kubevela.io/script/install.sh | bash; \
+	else \
+		echo "$(GREEN)KubeVela CLI already installed: $$(vela version --short 2>/dev/null || vela version)$(RESET)"; \
+	fi
+	@if ! kubectl get namespace vela-system >/dev/null 2>&1; then \
+		echo "$(CYAN)Installing KubeVela operator via Helm...$(RESET)"; \
+		helm repo add kubevela https://kubevela.github.io/charts 2>/dev/null || true; \
+		helm repo update kubevela; \
+		helm install --create-namespace -n vela-system kubevela kubevela/vela-core --wait; \
+		echo "$(GREEN)KubeVela operator installed!$(RESET)"; \
+	else \
+		echo "$(GREEN)KubeVela operator already running in vela-system$(RESET)"; \
+	fi
+
+kubevela-check-install-cnpg: ## [KubeVela] Install CNPG operator if not present
+	@echo "$(CYAN)Checking CNPG operator...$(RESET)"
+	@if ! kubectl get namespace cnpg-system >/dev/null 2>&1; then \
+		echo "$(CYAN)Installing CloudNativePG operator via Helm...$(RESET)"; \
+		helm repo add cnpg https://cloudnative-pg.github.io/charts 2>/dev/null || true; \
+		helm repo update cnpg; \
+		helm install --create-namespace -n cnpg-system cnpg-operator cnpg/cloudnative-pg --wait; \
+		echo "$(GREEN)CNPG operator installed!$(RESET)"; \
+	else \
+		echo "$(GREEN)CNPG operator already running in cnpg-system$(RESET)"; \
+	fi
+
+# =============================================================================
+# Image Build & Load
+# =============================================================================
+
+.PHONY: kubevela-build-and-load-images
+
+kubevela-build-and-load-images: ## [KubeVela] Build Docker images and import into k3d
+	@echo "$(CYAN)Building backend image...$(RESET)"
+	@docker build -f backend/Dockerfile -t teams360-api:latest backend/
+	@echo "$(CYAN)Building frontend image...$(RESET)"
+	@docker build -f frontend/Dockerfile -t teams360-frontend:latest frontend/
+	@echo "$(CYAN)Importing images into k3d cluster...$(RESET)"
+	@k3d image import teams360-api:latest teams360-frontend:latest -c $(KUBEVELA_CLUSTER)
+	@echo "$(GREEN)Images built and loaded!$(RESET)"
+
+# =============================================================================
+# Deploy / Delete
+# =============================================================================
+
+.PHONY: kubevela-deploy kubevela-delete
+
+kubevela-deploy: ## [KubeVela] Apply CUE definitions and deploy the KubeVela application
+	@echo "$(CYAN)Creating namespace $(KUBEVELA_NS) (if needed)...$(RESET)"
+	@kubectl create namespace $(KUBEVELA_NS) 2>/dev/null || true
+	@echo "$(CYAN)Applying CUE component/trait definitions...$(RESET)"
+	@vela def apply kubevela/components/cnpg.cue
+	@vela def apply kubevela/components/gateway.cue
+	@echo "$(CYAN)Deploying KubeVela application...$(RESET)"
+	@kubectl apply -f kubevela/teams360-kubevela.yaml
+	@echo "$(GREEN)Application deployed! Use 'make kubevela-status' to monitor.$(RESET)"
+
+kubevela-delete: ## [KubeVela] Delete the KubeVela application
+	@echo "$(RED)Deleting KubeVela application...$(RESET)"
+	@vela delete teams360 -n $(KUBEVELA_NS) -y 2>/dev/null || \
+		kubectl delete -f kubevela/teams360-kubevela.yaml 2>/dev/null || true
+	@echo "$(GREEN)Application deleted.$(RESET)"
+
+# =============================================================================
+# Status
+# =============================================================================
+
+.PHONY: kubevela-status
+
+kubevela-status: ## [KubeVela] Show application status, pods, services, ingress
+	@echo "$(BOLD)$(CYAN)KubeVela Application Status$(RESET)"
+	@echo ""
+	@echo "$(CYAN)--- VelaApp Status ---$(RESET)"
+	@vela status teams360 -n $(KUBEVELA_NS) 2>/dev/null || echo "$(YELLOW)Application not found$(RESET)"
+	@echo ""
+	@echo "$(CYAN)--- Pods ---$(RESET)"
+	@kubectl get pods -n $(KUBEVELA_NS) -o wide 2>/dev/null || echo "$(YELLOW)No pods$(RESET)"
+	@echo ""
+	@echo "$(CYAN)--- Services ---$(RESET)"
+	@kubectl get svc -n $(KUBEVELA_NS) 2>/dev/null || echo "$(YELLOW)No services$(RESET)"
+	@echo ""
+	@echo "$(CYAN)--- Ingress ---$(RESET)"
+	@kubectl get ingress -n $(KUBEVELA_NS) 2>/dev/null || echo "$(YELLOW)No ingress$(RESET)"
+	@echo ""
+	@echo "$(CYAN)--- CNPG Clusters ---$(RESET)"
+	@kubectl get clusters.postgresql.cnpg.io -n $(KUBEVELA_NS) 2>/dev/null || echo "$(YELLOW)No CNPG clusters$(RESET)"
+
+# =============================================================================
+# Composite Targets
+# =============================================================================
+
+.PHONY: kubevela-deploy-all kubevela-deploy-quick
+
+kubevela-deploy-all: ## [KubeVela] Full pipeline: cluster -> prereqs -> build -> deploy
+	@echo "$(BOLD)$(CYAN)========================================$(RESET)"
+	@echo "$(BOLD)$(CYAN)  Team360 KubeVela Full Deployment$(RESET)"
+	@echo "$(BOLD)$(CYAN)========================================$(RESET)"
+	@echo ""
+	$(MAKE) kubevela-k3d-create
+	$(MAKE) kubevela-check-hosts
+	$(MAKE) kubevela-check-install-kubevela
+	$(MAKE) kubevela-check-install-cnpg
+	$(MAKE) kubevela-build-and-load-images
+	$(MAKE) kubevela-deploy
+	@echo ""
+	@echo "$(BOLD)$(GREEN)Deployment complete!$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Waiting for workflow to progress (CNPG needs ~45s)...$(RESET)"
+	@echo "Monitor with: make kubevela-status"
+	@echo ""
+	@echo "$(BOLD)Access:$(RESET)"
+	@echo "  Frontend:  http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/"
+	@echo "  API:       http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/api/v1/health-dimensions"
+	@echo "  Login:     demo / demo"
+
+kubevela-deploy-quick: ## [KubeVela] Quick rebuild + redeploy (assumes cluster + prereqs exist)
+	@echo "$(BOLD)$(CYAN)Quick Redeploy$(RESET)"
+	$(MAKE) kubevela-build-and-load-images
+	$(MAKE) kubevela-delete
+	@sleep 3
+	$(MAKE) kubevela-deploy
+	@echo "$(GREEN)Quick redeploy complete!$(RESET)"
