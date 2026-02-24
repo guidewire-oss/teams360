@@ -38,18 +38,24 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     cmd/api/main.go
 
 # -----------------------------------------------------------------------------
-# Stage 2: Runtime
+# Stage 2: Runtime (alpine for migration files + wget health check)
 # -----------------------------------------------------------------------------
-FROM scratch
+FROM alpine:3.21
 
-# Import from builder
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
+# Install runtime dependencies (wget for health check, ca-certs for TLS)
+RUN apk add --no-cache ca-certificates tzdata wget
+
+# Create non-root user
+RUN adduser -D -g '' appuser
+
+WORKDIR /app
 
 # Copy binary
-COPY --from=builder /build/team360-api /team360-api
+COPY --from=builder /build/team360-api ./team360-api
+
+# Copy migration SQL files (required by golang-migrate file:// source at runtime)
+COPY --from=builder /build/infrastructure/persistence/postgres/migrations/ \
+    ./infrastructure/persistence/postgres/migrations/
 
 # Use non-root user
 USER appuser
@@ -57,9 +63,9 @@ USER appuser
 # Expose port (documentation only - doesn't publish)
 EXPOSE 8080
 
-# Health check
+# Health check using wget (available in alpine)
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/team360-api", "health"] || exit 1
+    CMD wget -qO- http://localhost:8080/health || exit 1
 
 # Run the binary
-ENTRYPOINT ["/team360-api"]
+ENTRYPOINT ["./team360-api"]

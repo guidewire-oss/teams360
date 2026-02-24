@@ -1,0 +1,147 @@
+# Team360 KubeVela Application Manifest
+# Deploys: CNPG PostgreSQL + Go backend + Next.js frontend
+# Usage: kubectl apply -f kubevela/teams360-kubevela.yaml
+#
+# Prerequisites:
+#   - KubeVela operator installed (vela-system namespace)
+#   - CNPG operator installed (cnpg-system namespace)
+#   - CUE definitions applied (vela def apply kubevela/components/*.cue)
+#   - Container images available in ghcr.io
+#
+# Access (no ingress — use port-forward):
+#   kubectl port-forward svc/frontend -n aicoeind 3000:3000
+#   kubectl port-forward svc/backend -n aicoeind 8080:8080
+
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: teams360
+  namespace: aicoeind
+spec:
+  components:
+    # -------------------------------------------------------------------------
+    # PostgreSQL via CloudNativePG operator
+    # -------------------------------------------------------------------------
+    - name: postgres
+      type: cloud-native-postgres
+      properties:
+        name: postgres
+        instances: 1
+        storageSize: "0.5Gi"
+        database: teams360
+        owner: teams360
+
+    # -------------------------------------------------------------------------
+    # Go/Gin backend API
+    # -------------------------------------------------------------------------
+    - name: backend
+      type: webservice
+      properties:
+        image: ghcr.io/anirudh-333/teams360-api:0.1.0
+        imagePullPolicy: Always
+        port: 8080
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      traits:
+        - type: service-binding
+          properties:
+            envMappings:
+              DATABASE_URL:
+                secret: postgres-app
+                key: uri
+        - type: labels
+          properties:
+            gwcp.guidewire.com/app-name: teams360-vela-backend
+            gwcp.guidewire.com/created-by: pod-danville
+            gwcp.guidewire.com/dept: "000"
+            gwcp.guidewire.com/maintained-by: pod-aicoeind
+            gwcp.guidewire.com/tenant-name: quadrant-shared
+            gwcp.guidewire.com/version: atmos-cd-3477
+        - type: expose
+          properties:
+            port:
+              - 8080
+            type: ClusterIP
+
+    # -------------------------------------------------------------------------
+    # Next.js frontend
+    # -------------------------------------------------------------------------
+    - name: frontend
+      type: webservice
+      properties:
+        image: ghcr.io/anirudh-333/teams360-frontend:0.1.0
+        imagePullPolicy: Always
+        port: 3000
+        env:
+          - name: BACKEND_URL
+            value: "http://backend:8080"
+      traits:
+        - type: labels
+          properties:
+            gwcp.guidewire.com/app-name: teams360-vela-frontend
+            gwcp.guidewire.com/created-by: pod-danville
+            gwcp.guidewire.com/dept: "000"
+            gwcp.guidewire.com/maintained-by: pod-aicoeind
+            gwcp.guidewire.com/tenant-name: quadrant-shared
+            gwcp.guidewire.com/version: atmos-cd-3477
+        - type: expose
+          properties:
+            port:
+              - 3000
+            type: ClusterIP
+
+  # ---------------------------------------------------------------------------
+  # Policies
+  # ---------------------------------------------------------------------------
+  policies:
+    - name: override-dev
+      type: override
+      properties:
+        components:
+          - name: backend
+            properties:
+              replicas: 1
+          - name: frontend
+            properties:
+              replicas: 1
+
+  # ---------------------------------------------------------------------------
+  # Workflow — ordered deployment with CNPG readiness wait
+  # ---------------------------------------------------------------------------
+  workflow:
+    steps:
+      - name: deploy-database
+        type: apply-component
+        properties:
+          component: postgres
+
+      - name: wait-for-infrastructure
+        type: suspend
+        properties:
+          duration: "45s"
+        dependsOn:
+          - deploy-database
+
+      - name: deploy-backend
+        type: apply-component
+        properties:
+          component: backend
+        dependsOn:
+          - wait-for-infrastructure
+
+      - name: deploy-frontend
+        type: apply-component
+        properties:
+          component: frontend
+        dependsOn:
+          - deploy-backend
