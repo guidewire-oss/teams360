@@ -8,15 +8,16 @@
 #   - CUE definitions applied (vela def apply kubevela/components/*.cue)
 #   - Container images available in ghcr.io
 #
-# Access (no ingress — use port-forward):
-#   kubectl port-forward svc/frontend -n aicoeind 3000:3000
-#   kubectl port-forward svc/backend -n aicoeind 8080:8080
+# Placeholders (substituted by CI/CD pipeline at deploy time):
+#   DEPLOY_NAMESPACE — target Kubernetes namespace
+#   REPO_OWNER       — GitHub repository owner (e.g., guidewire-oss)
+#   IMAGE_TAG        — semver tag (e.g., 0.2.0)
 
 apiVersion: core.oam.dev/v1beta1
 kind: Application
 metadata:
   name: teams360
-  namespace: aicoeind
+  namespace: DEPLOY_NAMESPACE
 spec:
   components:
     # -------------------------------------------------------------------------
@@ -37,7 +38,7 @@ spec:
     - name: backend
       type: webservice
       properties:
-        image: ghcr.io/anirudh-333/teams360-api:0.1.0
+        image: ghcr.io/REPO_OWNER/teams360-api:IMAGE_TAG
         imagePullPolicy: Always
         port: 8080
         livenessProbe:
@@ -79,7 +80,7 @@ spec:
     - name: frontend
       type: webservice
       properties:
-        image: ghcr.io/anirudh-333/teams360-frontend:0.1.0
+        image: ghcr.io/REPO_OWNER/teams360-frontend:IMAGE_TAG
         imagePullPolicy: Always
         port: 3000
         env:
