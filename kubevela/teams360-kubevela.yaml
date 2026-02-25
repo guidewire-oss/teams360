@@ -10,7 +10,7 @@
 #
 # Placeholders (substituted by CI/CD pipeline at deploy time):
 #   DEPLOY_NAMESPACE — target Kubernetes namespace
-#   REPO_OWNER       — GitHub repository owner (e.g., guidewire-oss)
+#   REPO_OWNER       — GitHub repository owner (lowercase)
 #   IMAGE_TAG        — semver tag (e.g., 0.2.0)
 
 apiVersion: core.oam.dev/v1beta1
@@ -60,14 +60,6 @@ spec:
               DATABASE_URL:
                 secret: postgres-app
                 key: uri
-        - type: labels
-          properties:
-            gwcp.guidewire.com/app-name: teams360-vela-backend
-            gwcp.guidewire.com/created-by: pod-danville
-            gwcp.guidewire.com/dept: "000"
-            gwcp.guidewire.com/maintained-by: pod-aicoeind
-            gwcp.guidewire.com/tenant-name: quadrant-shared
-            gwcp.guidewire.com/version: atmos-cd-3477
         - type: expose
           properties:
             port:
@@ -87,14 +79,6 @@ spec:
           - name: BACKEND_URL
             value: "http://backend:8080"
       traits:
-        - type: labels
-          properties:
-            gwcp.guidewire.com/app-name: teams360-vela-frontend
-            gwcp.guidewire.com/created-by: pod-danville
-            gwcp.guidewire.com/dept: "000"
-            gwcp.guidewire.com/maintained-by: pod-aicoeind
-            gwcp.guidewire.com/tenant-name: quadrant-shared
-            gwcp.guidewire.com/version: atmos-cd-3477
         - type: expose
           properties:
             port:
