@@ -16,7 +16,7 @@ apiVersion: oort.ccs.guidewire.com/v1alpha1
 kind: GatewayConfig
 metadata:
   name: teams360-vela-frontend
-  namespace: aicoeind
+  namespace: DEPLOY_NAMESPACE
   labels:
     app.kubernetes.io/instance: teams360-vela
     app.kubernetes.io/managed-by: kubevela
@@ -47,7 +47,7 @@ apiVersion: oort.ccs.guidewire.com/v1alpha1
 kind: GatewayConfig
 metadata:
   name: teams360-vela-backend
-  namespace: aicoeind
+  namespace: DEPLOY_NAMESPACE
   labels:
     app.kubernetes.io/instance: teams360-vela
     app.kubernetes.io/managed-by: kubevela
