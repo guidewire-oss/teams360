@@ -268,7 +268,6 @@ jobs:
 
       - name: Verify deployment
         run: |
-          echo "Waiting 90s for CNPG bootstrap + pod startup..."
-          sleep 90
-          kubectl get pods -n ${{ vars.DEPLOY_NAMESPACE }} -l app.oam.dev/component=backend
-          kubectl get pods -n ${{ vars.DEPLOY_NAMESPACE }} -l app.oam.dev/component=frontend
+          echo "Waiting for pods to become ready..."
+          kubectl wait --for=condition=ready pod -n ${{ vars.DEPLOY_NAMESPACE }} -l app.oam.dev/component=backend --timeout=180s
+          kubectl wait --for=condition=ready pod -n ${{ vars.DEPLOY_NAMESPACE }} -l app.oam.dev/component=frontend --timeout=180s
