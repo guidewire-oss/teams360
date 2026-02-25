@@ -42,6 +42,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 # Build the application
 RUN npm run build
 
+# Prune devDependencies for production runtime
+RUN npm prune --omit=dev
+
 # -----------------------------------------------------------------------------
 # Stage 3: Runtime
 # -----------------------------------------------------------------------------
