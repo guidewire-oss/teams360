@@ -250,13 +250,16 @@ jobs:
           sed -i "s|DEPLOY_NAMESPACE|${{ vars.DEPLOY_NAMESPACE }}|g" kubevela/teams360-kubevela.yaml
           sed -i "s|DEPLOY_NAMESPACE|${{ vars.DEPLOY_NAMESPACE }}|g" kubevela/gateway-configs.yaml
 
-      - name: Configure kubectl
-        uses: azure/setup-kubectl@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Set kubeconfig
+      - name: Configure kubectl
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
+          aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }} --region ${{ vars.AWS_REGION }}
 
       - name: Deploy KubeVela application
         run: |
