@@ -567,7 +567,7 @@ make kubevela-k3d-delete    # Remove cluster
 | File | Purpose |
 |------|---------|
 | `kubevela/components/cnpg.cue` | CUE definition: `cloud-native-postgres` component type (renders CNPG Cluster CR) |
-| `kubevela/components/gateway.cue` | CUE definition: `gateway` trait (renders Service + Ingress) |
+| `kubevela/components/gateway.cue` | CUE definition: `gateway` trait (renders Service + Ingress, k3d/Traefik only — production deployments should define their own ingress) |
 | `kubevela/teams360-kubevela.yaml` | KubeVela Application manifest (3 components + ordered workflow) |
 | `Makefile.kubevela` | All `kubevela-*` Make targets for automation |
 

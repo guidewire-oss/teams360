@@ -1,6 +1,10 @@
 // Gateway Trait Definition — Service + Ingress
 // Adapted from fern-platform patterns for KubeVela OAM
 // Usage: vela def apply kubevela/components/gateway.cue
+//
+// NOTE: This trait is designed for local k3d development using Traefik Ingress.
+// For production deployments, model your own gateway/ingress definition based
+// on your cluster's ingress controller (e.g., Nginx, Kong, ALB, etc.).
 
 "gateway": {
 	alias: ""
