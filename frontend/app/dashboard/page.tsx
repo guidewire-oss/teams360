@@ -58,6 +58,7 @@ export default function DashboardPage() {
   const [distribution, setDistribution] = useState<ResponseDistribution[]>([]);
   const [individualResponses, setIndividualResponses] = useState<IndividualResponse[]>([]);
   const [trends, setTrends] = useState<TrendData[]>([]);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
@@ -193,6 +194,7 @@ export default function DashboardPage() {
         // Backend: { periods: [...], dimensions: [{ dimensionId, scores: [...] }] }
         // Frontend: [{ period, mission: 2.5, value: 3.0, ... }]
         if (data.periods && Array.isArray(data.periods) && data.dimensions) {
+          setAvailablePeriods(data.periods);
           const transformed = data.periods.map((period: string, idx: number) => {
             const row: TrendData = { period };
             (data.dimensions || []).forEach((dim: { dimensionId: string; scores: number[] }) => {
