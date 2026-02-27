@@ -18,8 +18,18 @@ export interface SubmitHealthCheckRequest {
   userId: string;
   date: string; // YYYY-MM-DD format
   assessmentPeriod?: string;
+  surveyType?: 'individual' | 'post_workshop';
   responses: HealthCheckResponse[];
   completed: boolean;
+}
+
+export interface TeamSubmissionStatus {
+  teamId: string;
+  assessmentPeriod: string;
+  totalMembers: number;
+  submittedMembers: number;
+  allSubmitted: boolean;
+  postWorkshopExists: boolean;
 }
 
 export interface HealthDimensionsResponse {
@@ -125,6 +135,29 @@ export async function getTeamHealthChecks(
  */
 export function formatDateForAPI(date: Date = new Date()): string {
   return date.toISOString().split('T')[0];
+}
+
+/**
+ * Fetches team submission status for post-workshop survey enablement
+ *
+ * @param teamId Team ID
+ * @param assessmentPeriod Assessment period string
+ * @returns Team submission status
+ */
+export async function getTeamSubmissionStatus(
+  teamId: string,
+  assessmentPeriod: string
+): Promise<TeamSubmissionStatus> {
+  const params = new URLSearchParams({ assessmentPeriod });
+  const response = await fetch(
+    `${API_BASE_URL}/api/v1/teams/${teamId}/submission-status?${params.toString()}`,
+    {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    }
+  );
+
+  return handleResponse<TeamSubmissionStatus>(response);
 }
 
 /**

@@ -20,6 +20,12 @@ func NewHealthCheckRepository(db *sql.DB) healthcheck.Repository {
 
 // Save persists a health check session and its responses (atomic operation)
 func (r *HealthCheckRepository) Save(ctx context.Context, session *healthcheck.HealthCheckSession) error {
+	// Default survey type to "individual" if empty
+	surveyType := session.SurveyType
+	if surveyType == "" {
+		surveyType = healthcheck.SurveyTypeIndividual
+	}
+
 	// Begin transaction for atomic save
 	tx, err := r.db.BeginTx(ctx, nil)
 	if err != nil {
@@ -30,16 +36,17 @@ func (r *HealthCheckRepository) Save(ctx context.Context, session *healthcheck.H
 	// Insert or update session
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO health_check_sessions (
-			id, team_id, user_id, date, assessment_period, completed, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+			id, team_id, user_id, date, assessment_period, survey_type, completed, updated_at
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
 		ON CONFLICT (id) DO UPDATE SET
 			team_id = EXCLUDED.team_id,
 			user_id = EXCLUDED.user_id,
 			date = EXCLUDED.date,
 			assessment_period = EXCLUDED.assessment_period,
+			survey_type = EXCLUDED.survey_type,
 			completed = EXCLUDED.completed,
 			updated_at = CURRENT_TIMESTAMP
-	`, session.ID, session.TeamID, session.UserID, session.Date, session.AssessmentPeriod, session.Completed)
+	`, session.ID, session.TeamID, session.UserID, session.Date, session.AssessmentPeriod, surveyType, session.Completed)
 
 	if err != nil {
 		return fmt.Errorf("failed to save session: %w", err)
@@ -75,7 +82,7 @@ func (r *HealthCheckRepository) Save(ctx context.Context, session *healthcheck.H
 // FindByID retrieves a session by ID
 func (r *HealthCheckRepository) FindByID(ctx context.Context, id string) (*healthcheck.HealthCheckSession, error) {
 	sessions, err := r.scanSessions(ctx, `
-		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.completed,
+		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.survey_type, s.completed,
 		       r.dimension_id, r.score, r.trend, r.comment
 		FROM health_check_sessions s
 		LEFT JOIN health_check_responses r ON s.id = r.session_id
@@ -97,7 +104,7 @@ func (r *HealthCheckRepository) FindByID(ctx context.Context, id string) (*healt
 // FindByTeamID retrieves all sessions for a team
 func (r *HealthCheckRepository) FindByTeamID(ctx context.Context, teamID string) ([]*healthcheck.HealthCheckSession, error) {
 	return r.scanSessions(ctx, `
-		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.completed,
+		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.survey_type, s.completed,
 		       r.dimension_id, r.score, r.trend, r.comment
 		FROM health_check_sessions s
 		LEFT JOIN health_check_responses r ON s.id = r.session_id
@@ -109,7 +116,7 @@ func (r *HealthCheckRepository) FindByTeamID(ctx context.Context, teamID string)
 // FindByUserID retrieves all sessions for a user
 func (r *HealthCheckRepository) FindByUserID(ctx context.Context, userID string) ([]*healthcheck.HealthCheckSession, error) {
 	return r.scanSessions(ctx, `
-		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.completed,
+		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.survey_type, s.completed,
 		       r.dimension_id, r.score, r.trend, r.comment
 		FROM health_check_sessions s
 		LEFT JOIN health_check_responses r ON s.id = r.session_id
@@ -121,7 +128,7 @@ func (r *HealthCheckRepository) FindByUserID(ctx context.Context, userID string)
 // FindByAssessmentPeriod retrieves all sessions for an assessment period
 func (r *HealthCheckRepository) FindByAssessmentPeriod(ctx context.Context, period string) ([]*healthcheck.HealthCheckSession, error) {
 	return r.scanSessions(ctx, `
-		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.completed,
+		SELECT s.id, s.team_id, s.user_id, s.date, s.assessment_period, s.survey_type, s.completed,
 		       r.dimension_id, r.score, r.trend, r.comment
 		FROM health_check_sessions s
 		LEFT JOIN health_check_responses r ON s.id = r.session_id
@@ -130,46 +137,66 @@ func (r *HealthCheckRepository) FindByAssessmentPeriod(ctx context.Context, peri
 	`, period)
 }
 
-// FindTeamHealthByManager retrieves aggregated health data for teams under a manager
+// FindTeamHealthByManager retrieves aggregated health data for teams under a manager.
+// Prefers post-workshop sessions when available for a team+period, otherwise falls back to individual sessions.
 func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]healthcheck.TeamHealthSummary, error) {
 	var query string
 	var rows *sql.Rows
 	var err error
 
-	// Use a window function to calculate overall health across all dimensions for each team
+	// Use effective_sessions CTE to prefer post_workshop data when available
 	if assessmentPeriod != "" {
 		query = `
-			WITH team_overall AS (
+			WITH post_workshop_teams AS (
+				SELECT DISTINCT s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.survey_type = 'post_workshop'
+					AND s.completed = true AND s.assessment_period = $2
+			),
+			effective_sessions AS (
+				SELECT s.id, s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.completed = true AND s.assessment_period = $2
+					AND (
+						s.survey_type = 'post_workshop'
+						OR (s.survey_type = 'individual'
+							AND s.team_id NOT IN (SELECT pw.team_id FROM post_workshop_teams pw))
+					)
+			),
+			team_overall AS (
 				SELECT
 					t.id AS team_id,
 					t.name AS team_name,
-					COUNT(DISTINCT s.id) AS submission_count,
-					AVG(r.score) AS overall_health
+					COUNT(DISTINCT es.id) AS submission_count,
+					AVG(r.score) AS overall_health,
+					CASE WHEN EXISTS (
+						SELECT 1 FROM post_workshop_teams pw WHERE pw.team_id = t.id
+					) THEN 'submitted' ELSE 'pending' END AS post_workshop_status
 				FROM teams t
 				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN health_check_sessions s ON t.id = s.team_id
-				LEFT JOIN health_check_responses r ON s.id = r.session_id
-				WHERE ts.user_id = $1 AND s.assessment_period = $2
+				INNER JOIN effective_sessions es ON t.id = es.team_id
+				LEFT JOIN health_check_responses r ON es.id = r.session_id
+				WHERE ts.user_id = $1
 				GROUP BY t.id, t.name
 			),
 			team_dimensions AS (
 				SELECT
-					t.id AS team_id,
+					es.team_id,
 					r.dimension_id,
 					AVG(r.score) AS avg_score,
 					COUNT(r.dimension_id) AS response_count
-				FROM teams t
-				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN health_check_sessions s ON t.id = s.team_id
-				LEFT JOIN health_check_responses r ON s.id = r.session_id
-				WHERE ts.user_id = $1 AND s.assessment_period = $2
-				GROUP BY t.id, r.dimension_id
+				FROM effective_sessions es
+				INNER JOIN health_check_responses r ON es.id = r.session_id
+				GROUP BY es.team_id, r.dimension_id
 			)
 			SELECT
 				o.team_id,
 				o.team_name,
 				o.submission_count,
 				o.overall_health,
+				o.post_workshop_status,
 				d.dimension_id,
 				d.avg_score,
 				d.response_count
@@ -180,37 +207,56 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 		rows, err = r.db.QueryContext(ctx, query, managerID, assessmentPeriod)
 	} else {
 		query = `
-			WITH team_overall AS (
+			WITH post_workshop_teams AS (
+				SELECT DISTINCT s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.survey_type = 'post_workshop'
+					AND s.completed = true
+			),
+			effective_sessions AS (
+				SELECT s.id, s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.completed = true
+					AND (
+						s.survey_type = 'post_workshop'
+						OR (s.survey_type = 'individual'
+							AND s.team_id NOT IN (SELECT pw.team_id FROM post_workshop_teams pw))
+					)
+			),
+			team_overall AS (
 				SELECT
 					t.id AS team_id,
 					t.name AS team_name,
-					COUNT(DISTINCT s.id) AS submission_count,
-					AVG(r.score) AS overall_health
+					COUNT(DISTINCT es.id) AS submission_count,
+					AVG(r.score) AS overall_health,
+					CASE WHEN EXISTS (
+						SELECT 1 FROM post_workshop_teams pw WHERE pw.team_id = t.id
+					) THEN 'submitted' ELSE 'pending' END AS post_workshop_status
 				FROM teams t
 				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN health_check_sessions s ON t.id = s.team_id
-				LEFT JOIN health_check_responses r ON s.id = r.session_id
+				INNER JOIN effective_sessions es ON t.id = es.team_id
+				LEFT JOIN health_check_responses r ON es.id = r.session_id
 				WHERE ts.user_id = $1
 				GROUP BY t.id, t.name
 			),
 			team_dimensions AS (
 				SELECT
-					t.id AS team_id,
+					es.team_id,
 					r.dimension_id,
 					AVG(r.score) AS avg_score,
 					COUNT(r.dimension_id) AS response_count
-				FROM teams t
-				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN health_check_sessions s ON t.id = s.team_id
-				LEFT JOIN health_check_responses r ON s.id = r.session_id
-				WHERE ts.user_id = $1
-				GROUP BY t.id, r.dimension_id
+				FROM effective_sessions es
+				INNER JOIN health_check_responses r ON es.id = r.session_id
+				GROUP BY es.team_id, r.dimension_id
 			)
 			SELECT
 				o.team_id,
 				o.team_name,
 				o.submission_count,
 				o.overall_health,
+				o.post_workshop_status,
 				d.dimension_id,
 				d.avg_score,
 				d.response_count
@@ -233,6 +279,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 		var teamID, teamName string
 		var submissionCount int
 		var overallHealth sql.NullFloat64
+		var postWorkshopStatus string
 		var dimensionID sql.NullString
 		var avgScore sql.NullFloat64
 		var responseCount sql.NullInt64
@@ -242,6 +289,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 			&teamName,
 			&submissionCount,
 			&overallHealth,
+			&postWorkshopStatus,
 			&dimensionID,
 			&avgScore,
 			&responseCount,
@@ -258,11 +306,12 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 				health = overallHealth.Float64
 			}
 			team = &healthcheck.TeamHealthSummary{
-				TeamID:          teamID,
-				TeamName:        teamName,
-				SubmissionCount: submissionCount,
-				OverallHealth:   health,
-				Dimensions:      []healthcheck.DimensionSummary{},
+				TeamID:             teamID,
+				TeamName:           teamName,
+				SubmissionCount:    submissionCount,
+				OverallHealth:      health,
+				Dimensions:         []healthcheck.DimensionSummary{},
+				PostWorkshopStatus: postWorkshopStatus,
 			}
 			teamsMap[teamID] = team
 			teamOrder = append(teamOrder, teamID)
@@ -291,7 +340,8 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 	return teams, nil
 }
 
-// FindAggregatedDimensionsByManager retrieves aggregated dimension data across all teams under a manager
+// FindAggregatedDimensionsByManager retrieves aggregated dimension data across all teams under a manager.
+// Prefers post-workshop sessions when available for a team+period, otherwise falls back to individual sessions.
 func (r *HealthCheckRepository) FindAggregatedDimensionsByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]healthcheck.DimensionSummary, error) {
 	var query string
 	var rows *sql.Rows
@@ -299,31 +349,60 @@ func (r *HealthCheckRepository) FindAggregatedDimensionsByManager(ctx context.Co
 
 	if assessmentPeriod != "" {
 		query = `
+			WITH post_workshop_teams AS (
+				SELECT DISTINCT s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.survey_type = 'post_workshop'
+					AND s.completed = true AND s.assessment_period = $2
+			),
+			effective_sessions AS (
+				SELECT s.id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.completed = true AND s.assessment_period = $2
+					AND (
+						s.survey_type = 'post_workshop'
+						OR (s.survey_type = 'individual'
+							AND s.team_id NOT IN (SELECT pw.team_id FROM post_workshop_teams pw))
+					)
+			)
 			SELECT
 				r.dimension_id,
 				AVG(r.score) AS avg_score,
 				COUNT(r.dimension_id) AS response_count
-			FROM teams t
-			INNER JOIN team_supervisors ts ON t.id = ts.team_id
-			INNER JOIN health_check_sessions s ON t.id = s.team_id
-			INNER JOIN health_check_responses r ON s.id = r.session_id
-			WHERE ts.user_id = $1 AND s.assessment_period = $2
+			FROM effective_sessions es
+			INNER JOIN health_check_responses r ON es.id = r.session_id
 			GROUP BY r.dimension_id
 			ORDER BY r.dimension_id
 		`
 		rows, err = r.db.QueryContext(ctx, query, managerID, assessmentPeriod)
 	} else {
-		// When no assessment period is specified, show all data across all periods
 		query = `
+			WITH post_workshop_teams AS (
+				SELECT DISTINCT s.team_id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.survey_type = 'post_workshop'
+					AND s.completed = true
+			),
+			effective_sessions AS (
+				SELECT s.id
+				FROM health_check_sessions s
+				INNER JOIN team_supervisors ts ON s.team_id = ts.team_id
+				WHERE ts.user_id = $1 AND s.completed = true
+					AND (
+						s.survey_type = 'post_workshop'
+						OR (s.survey_type = 'individual'
+							AND s.team_id NOT IN (SELECT pw.team_id FROM post_workshop_teams pw))
+					)
+			)
 			SELECT
 				r.dimension_id,
 				AVG(r.score) AS avg_score,
 				COUNT(r.dimension_id) AS response_count
-			FROM teams t
-			INNER JOIN team_supervisors ts ON t.id = ts.team_id
-			INNER JOIN health_check_sessions s ON t.id = s.team_id
-			INNER JOIN health_check_responses r ON s.id = r.session_id
-			WHERE ts.user_id = $1
+			FROM effective_sessions es
+			INNER JOIN health_check_responses r ON es.id = r.session_id
 			GROUP BY r.dimension_id
 			ORDER BY r.dimension_id
 		`
@@ -363,6 +442,45 @@ func (r *HealthCheckRepository) FindAggregatedDimensionsByManager(ctx context.Co
 	return dimensions, nil
 }
 
+// GetTeamSubmissionStatus returns submission status for a team in a given assessment period
+func (r *HealthCheckRepository) GetTeamSubmissionStatus(ctx context.Context, teamID string, assessmentPeriod string) (*healthcheck.TeamSubmissionStatus, error) {
+	query := `
+		SELECT
+			COUNT(DISTINCT tm.user_id) AS total_members,
+			COUNT(DISTINCT CASE WHEN hcs.completed = true THEN hcs.user_id END) AS submitted_members,
+			EXISTS(
+				SELECT 1 FROM health_check_sessions
+				WHERE team_id = $1 AND assessment_period = $2
+					AND survey_type = 'post_workshop' AND completed = true
+			) AS post_workshop_exists
+		FROM team_members tm
+		LEFT JOIN health_check_sessions hcs ON tm.user_id = hcs.user_id AND tm.team_id = hcs.team_id
+			AND hcs.assessment_period = $2 AND hcs.survey_type = 'individual'
+		WHERE tm.team_id = $1
+	`
+
+	var totalMembers, submittedMembers int
+	var postWorkshopExists bool
+
+	err := r.db.QueryRowContext(ctx, query, teamID, assessmentPeriod).Scan(
+		&totalMembers, &submittedMembers, &postWorkshopExists,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query team submission status: %w", err)
+	}
+
+	allSubmitted := totalMembers > 0 && submittedMembers >= totalMembers
+
+	return &healthcheck.TeamSubmissionStatus{
+		TeamID:             teamID,
+		AssessmentPeriod:   assessmentPeriod,
+		TotalMembers:       totalMembers,
+		SubmittedMembers:   submittedMembers,
+		AllSubmitted:       allSubmitted,
+		PostWorkshopExists: postWorkshopExists,
+	}, nil
+}
+
 // Delete removes a session and its responses (cascade handled by DB)
 func (r *HealthCheckRepository) Delete(ctx context.Context, id string) error {
 	result, err := r.db.ExecContext(ctx, "DELETE FROM health_check_sessions WHERE id = $1", id)
@@ -400,6 +518,7 @@ func (r *HealthCheckRepository) scanSessions(ctx context.Context, query string, 
 			userID           string
 			date             string
 			assessmentPeriod sql.NullString
+			surveyType       sql.NullString
 			completed        bool
 			dimensionID      sql.NullString
 			score            sql.NullInt64
@@ -408,7 +527,7 @@ func (r *HealthCheckRepository) scanSessions(ctx context.Context, query string, 
 		)
 
 		err := rows.Scan(
-			&sessionID, &teamID, &userID, &date, &assessmentPeriod, &completed,
+			&sessionID, &teamID, &userID, &date, &assessmentPeriod, &surveyType, &completed,
 			&dimensionID, &score, &trend, &comment,
 		)
 		if err != nil {
@@ -418,12 +537,17 @@ func (r *HealthCheckRepository) scanSessions(ctx context.Context, query string, 
 		// Create or get session
 		session, exists := sessionsMap[sessionID]
 		if !exists {
+			st := healthcheck.SurveyTypeIndividual
+			if surveyType.Valid && surveyType.String != "" {
+				st = surveyType.String
+			}
 			session = &healthcheck.HealthCheckSession{
 				ID:               sessionID,
 				TeamID:           teamID,
 				UserID:           userID,
 				Date:             date,
 				AssessmentPeriod: assessmentPeriod.String,
+				SurveyType:       st,
 				Completed:        completed,
 				Responses:        []healthcheck.HealthCheckResponse{},
 			}

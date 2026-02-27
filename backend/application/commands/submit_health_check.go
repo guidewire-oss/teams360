@@ -15,6 +15,7 @@ type SubmitHealthCheckCommand struct {
 	UserID           string
 	Date             string
 	AssessmentPeriod string
+	SurveyType       string
 	Responses        []HealthCheckResponseCommand
 	Completed        bool
 }
@@ -51,6 +52,12 @@ func (h *SubmitHealthCheckHandler) Handle(cmd SubmitHealthCheckCommand) (*health
 		return nil, fmt.Errorf("validation failed: %w", err)
 	}
 
+	// Default survey type
+	surveyType := cmd.SurveyType
+	if surveyType == "" {
+		surveyType = healthcheck.SurveyTypeIndividual
+	}
+
 	// Convert command to domain model
 	session := &healthcheck.HealthCheckSession{
 		ID:               cmd.ID,
@@ -58,6 +65,7 @@ func (h *SubmitHealthCheckHandler) Handle(cmd SubmitHealthCheckCommand) (*health
 		UserID:           cmd.UserID,
 		Date:             cmd.Date,
 		AssessmentPeriod: cmd.AssessmentPeriod,
+		SurveyType:       surveyType,
 		Responses:        make([]healthcheck.HealthCheckResponse, len(cmd.Responses)),
 		Completed:        cmd.Completed,
 	}
@@ -91,6 +99,10 @@ func (h *SubmitHealthCheckHandler) validate(cmd SubmitHealthCheckCommand) error 
 
 	if cmd.Date == "" {
 		return fmt.Errorf("date is required")
+	}
+
+	if cmd.SurveyType != "" && cmd.SurveyType != healthcheck.SurveyTypeIndividual && cmd.SurveyType != healthcheck.SurveyTypePostWorkshop {
+		return fmt.Errorf("surveyType must be 'individual' or 'post_workshop'")
 	}
 
 	if len(cmd.Responses) == 0 {
