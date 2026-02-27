@@ -4,14 +4,17 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
 import { setAuthData, LoginResponse } from '@/lib/auth';
-import { Lock, User, AlertCircle, Users, ChevronRight } from 'lucide-react';
+import { getSSOConfig, startSSOFlow } from '@/lib/sso';
+import { Lock, User, AlertCircle, Users, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [ssoLoading, setSSOLoading] = useState(false);
   const config = getOrgConfig();
+  const ssoConfig = getSSOConfig();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -58,6 +61,18 @@ export default function LoginPage() {
     }
   };
 
+
+  const handleSSOLogin = async () => {
+    if (!ssoConfig) return;
+    setSSOLoading(true);
+    setError('');
+    try {
+      await startSSOFlow(ssoConfig);
+    } catch {
+      setError('Failed to start SSO login. Please try again.');
+      setSSOLoading(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
@@ -127,6 +142,24 @@ export default function LoginPage() {
                   Sign In
                 </button>
               </form>
+
+              {ssoConfig && (
+                <>
+                  <div className="flex items-center gap-3 mt-6">
+                    <div className="flex-1 h-px bg-gray-200" />
+                    <span className="text-sm text-gray-400">or</span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <button
+                    onClick={handleSSOLogin}
+                    disabled={ssoLoading}
+                    className="w-full mt-4 flex items-center justify-center gap-2 border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    <LogIn className="w-5 h-5" />
+                    {ssoLoading ? 'Redirecting…' : 'Sign in with SSO'}
+                  </button>
+                </>
+              )}
             </div>
 
             {/* Demo Credentials Info */}
