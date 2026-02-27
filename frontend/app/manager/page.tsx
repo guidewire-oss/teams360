@@ -6,7 +6,7 @@ import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriods } from '@/lib/api/health-checks';
-import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock, ClipboardList } from 'lucide-react';
+import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Types matching backend API response
@@ -155,6 +155,8 @@ export default function ManagerPage() {
   const [trendsLoading, setTrendsLoading] = useState(false);
   const [brandingName, setBrandingName] = useState<string>('');
   const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
+  const [trendsView, setTrendsView] = useState<'overview' | 'dimensions'>('dimensions');
+  const [selectedTrendTeam, setSelectedTrendTeam] = useState<string>(''); // '' = all teams averaged
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -254,10 +256,16 @@ export default function ManagerPage() {
     }
   };
 
-  const fetchTrendsData = async (managerId: string) => {
+  const fetchTrendsData = async (managerId: string, teamId?: string) => {
     setTrendsLoading(true);
     try {
-      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/managers/${managerId}/dashboard/trends`);
+      // When a specific team is selected, use the team-level endpoint (same as Team Lead dashboard).
+      // Otherwise fall back to the manager-level aggregated endpoint.
+      const url = teamId
+        ? `${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/trends`
+        : `${API_BASE_URL}/api/v1/managers/${managerId}/dashboard/trends`;
+
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const data = await response.json();
         // Transform backend format to frontend format
@@ -284,14 +292,14 @@ export default function ManagerPage() {
     }
   };
 
-  // Fetch radar/trends data when tab changes
+  // Fetch radar/trends data when tab or team filter changes
   useEffect(() => {
     if (user && activeTab === 'radar') {
       fetchRadarData(user.id, selectedPeriod);
     } else if (user && activeTab === 'trends') {
-      fetchTrendsData(user.id);
+      fetchTrendsData(user.id, selectedTrendTeam || undefined);
     }
-  }, [user, activeTab, selectedPeriod]);
+  }, [user, activeTab, selectedPeriod, selectedTrendTeam]);
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -319,6 +327,26 @@ export default function ManagerPage() {
   const formatHealthScore = (score: number) => {
     return score.toFixed(1);
   };
+
+  const getAvgBadgeStyle = (avg: number): { backgroundColor: string; color: string } =>
+    avg >= 2.5
+      ? { backgroundColor: '#D1FAE5', color: '#065F46' }
+      : avg >= 1.5
+      ? { backgroundColor: '#FEF3C7', color: '#92400E' }
+      : { backgroundColor: '#FEE2E2', color: '#991B1B' };
+
+  const dimSparklines = HEALTH_DIMENSIONS.map((dim) => {
+    const data = trendsData.map((t) => ({
+      period: t.period as string,
+      value: (t[dim.id] as number) || 0,
+    }));
+    const validData = data.filter((p) => p.value > 0);
+    const latest = validData.length > 0 ? validData[validData.length - 1].value : 0;
+    const prev = validData.length > 1 ? validData[validData.length - 2].value : latest;
+    const direction: 'up' | 'down' | 'stable' =
+      latest > prev + 0.1 ? 'up' : latest < prev - 0.1 ? 'down' : 'stable';
+    return { dim, data, latest, direction };
+  }).filter((d) => d.data.some((p) => p.value > 0));
 
   if (!user) return null;
 
@@ -382,7 +410,7 @@ export default function ManagerPage() {
               data-testid="period-filter"
               value={selectedPeriod}
               onChange={(e) => handlePeriodChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
             >
               <option value="">All Periods</option>
               {assessmentPeriodOptions.map((period) => (
@@ -533,33 +561,217 @@ export default function ManagerPage() {
         {/* Trends Tab */}
         {!loading && !error && activeTab === 'trends' && (
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6">Health Trends Over Time</h3>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Health Trends Over Time</h3>
+                {trendsView === 'dimensions' && trendsData.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    One card per dimension — score vs. time
+                    {selectedTrendTeam === ''
+                      ? ' · averaged across all teams'
+                      : ''}
+                  </p>
+                )}
+              </div>
+              {trendsData.length > 0 && !trendsLoading && (
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setTrendsView('dimensions')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      trendsView === 'dimensions'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    By Dimension
+                  </button>
+                  <button
+                    onClick={() => setTrendsView('overview')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      trendsView === 'overview'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <LineChartIcon className="w-4 h-4" />
+                    Overview
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Team filter pills */}
+            {dashboardData && dashboardData.teams.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-gray-500 mr-1">Filter by team:</span>
+                  <button
+                    onClick={() => setSelectedTrendTeam('')}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                      selectedTrendTeam === ''
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                    }`}
+                  >
+                    All Teams
+                  </button>
+                  {dashboardData.teams.map((team) => (
+                    <button
+                      key={team.teamId}
+                      onClick={() => setSelectedTrendTeam(team.teamId)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                        selectedTrendTeam === team.teamId
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                      }`}
+                    >
+                      {team.teamName}
+                    </button>
+                  ))}
+                </div>
+                {selectedTrendTeam !== '' && (
+                  <p className="text-xs text-indigo-500 mt-2 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    Showing trends for <strong>{dashboardData.teams.find(t => t.teamId === selectedTrendTeam)?.teamName}</strong> only
+                  </p>
+                )}
+              </div>
+            )}
+
             {trendsLoading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
               </div>
             ) : trendsData.length > 0 ? (
-              <div data-testid="vp-trends-chart">
-                <ResponsiveContainer width="100%" height={500}>
-                  <LineChart data={trendsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis domain={[0, 3]} />
-                    <Tooltip />
-                    <Legend />
-                    {HEALTH_DIMENSIONS.map((dim, idx) => (
-                      <Line
-                        key={dim.id}
-                        type="monotone"
-                        dataKey={dim.id}
-                        name={dim.name}
-                        stroke={`hsl(${idx * 32}, 70%, 50%)`}
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <>
+                {trendsView === 'dimensions' ? (
+                  /* Small multiples — one sparkline card per dimension */
+                  <div data-testid="vp-trends-chart" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {dimSparklines.map(({ dim, data, latest, direction }) => {
+                      const lineColor =
+                        latest >= 2.5 ? '#10B981' : latest >= 1.5 ? '#F59E0B' : '#EF4444';
+                      return (
+                        <div
+                          key={dim.id}
+                          className="border rounded-xl p-3 flex flex-col gap-1.5 hover:shadow-md transition-shadow"
+                        >
+                          {/* Dimension name + score badge */}
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs font-semibold text-gray-700 leading-tight">
+                              {dim.name}
+                            </h4>
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                              style={getAvgBadgeStyle(latest)}
+                            >
+                              {latest > 0 ? latest.toFixed(1) : '—'}
+                            </span>
+                          </div>
+
+                          {/* Trend direction */}
+                          <div className="flex items-center gap-1 text-xs">
+                            {direction === 'up' && (
+                              <TrendingUp className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                            )}
+                            {direction === 'down' && (
+                              <TrendingDown className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                            )}
+                            {direction === 'stable' && (
+                              <Minus className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            )}
+                            <span
+                              className={
+                                direction === 'up'
+                                  ? 'text-green-600'
+                                  : direction === 'down'
+                                  ? 'text-red-600'
+                                  : 'text-gray-400'
+                              }
+                            >
+                              {direction === 'up'
+                                ? 'Improving'
+                                : direction === 'down'
+                                ? 'Declining'
+                                : 'Stable'}
+                            </span>
+                          </div>
+
+                          {/* Sparkline */}
+                          {data.length > 1 ? (
+                            <ResponsiveContainer width="100%" height={52}>
+                              <LineChart
+                                data={data}
+                                margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
+                              >
+                                <XAxis dataKey="period" hide />
+                                <YAxis domain={[1, 3]} hide />
+                                <Line
+                                  type="monotone"
+                                  dataKey="value"
+                                  stroke={lineColor}
+                                  strokeWidth={2}
+                                  dot={{ r: 2, fill: lineColor }}
+                                  activeDot={{ r: 3 }}
+                                />
+                                <Tooltip
+                                  contentStyle={{
+                                    fontSize: '11px',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#1f2937',
+                                    border: '1px solid #374151',
+                                    color: '#f9fafb',
+                                  }}
+                                  labelStyle={{ color: '#e5e7eb', fontWeight: 600, marginBottom: '2px' }}
+                                  itemStyle={{ color: '#d1fae5' }}
+                                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                                  formatter={(v: number) => [v.toFixed(2), 'Score']}
+                                  labelFormatter={(period) => period}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="h-[52px] flex items-center justify-center text-xs text-gray-300">
+                              Single period
+                            </div>
+                          )}
+
+                          {/* Latest period label */}
+                          {data.length > 0 && (
+                            <p className="text-xs text-gray-400 truncate text-right">
+                              {data[data.length - 1].period}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Overview — original 11-line chart */
+                  <div data-testid="vp-trends-chart">
+                    <ResponsiveContainer width="100%" height={500}>
+                      <LineChart data={trendsData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="period" />
+                        <YAxis domain={[0, 3]} />
+                        <Tooltip />
+                        <Legend />
+                        {HEALTH_DIMENSIONS.map((dim, idx) => (
+                          <Line
+                            key={dim.id}
+                            type="monotone"
+                            dataKey={dim.id}
+                            name={dim.name}
+                            stroke={`hsl(${idx * 32}, 70%, 50%)`}
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-gray-500 text-center py-12">No trend data available</p>
             )}
@@ -850,7 +1062,7 @@ export default function ManagerPage() {
                   const selected = Array.from(e.target.selectedOptions, option => option.value);
                   setSelectedTeamsForComparison(selected);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
                 size={Math.min(dashboardData.teams.length, 5)}
               >
                 {dashboardData.teams.map((team) => (
