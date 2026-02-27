@@ -39,8 +39,9 @@ var _ = Describe("Authentication API Integration Tests", func() {
 
 		// Create user repository and JWT service, then setup auth routes
 		userRepo := postgres.NewUserRepository(db)
+		orgRepo := postgres.NewOrganizationRepository(db)
 		jwtService = services.NewJWTService()
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 	})
 
 	AfterEach(func() {
