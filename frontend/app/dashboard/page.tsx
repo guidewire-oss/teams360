@@ -64,6 +64,8 @@ export default function DashboardPage() {
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
   const [responseView, setResponseView] = useState<'matrix' | 'cards'>('matrix');
   const [collapsedCards, setCollapsedCards] = useState<Set<number>>(new Set());
+  const [distributionView, setDistributionView] = useState<'chart' | 'breakdown'>('breakdown');
+  const [trendsView, setTrendsView] = useState<'overview' | 'dimensions'>('dimensions');
   const [tooltip, setTooltip] = useState<{
     x: number;
     y: number;
@@ -286,6 +288,36 @@ export default function DashboardPage() {
         (matrixDimAvgs.filter((a) => a > 0).length || 1)
       : 0;
 
+  // Breakdown view: percentage bars sorted worst-first
+  const breakdownData = [...distribution]
+    .map((d) => {
+      const total = d.red + d.yellow + d.green;
+      const healthScore = total > 0 ? (d.green * 3 + d.yellow * 2 + d.red * 1) / total : 0;
+      return {
+        ...d,
+        total,
+        greenPct: total > 0 ? (d.green / total) * 100 : 0,
+        yellowPct: total > 0 ? (d.yellow / total) * 100 : 0,
+        redPct: total > 0 ? (d.red / total) * 100 : 0,
+        healthScore,
+      };
+    })
+    .sort((a, b) => a.healthScore - b.healthScore); // worst first → most actionable at top
+
+  // Small multiples: one sparkline card per dimension
+  const dimSparklines = HEALTH_DIMENSIONS.map((dim) => {
+    const data = trends.map((t) => ({
+      period: t.period as string,
+      value: (t[dim.id] as number) || 0,
+    }));
+    const validData = data.filter((p) => p.value > 0);
+    const latest = validData.length > 0 ? validData[validData.length - 1].value : 0;
+    const prev = validData.length > 1 ? validData[validData.length - 2].value : latest;
+    const direction: 'up' | 'down' | 'stable' =
+      latest > prev + 0.1 ? 'up' : latest < prev - 0.1 ? 'down' : 'stable';
+    return { dim, data, latest, direction };
+  }).filter((d) => d.data.some((p) => p.value > 0));
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -389,7 +421,7 @@ export default function DashboardPage() {
               data-testid="period-filter"
               value={selectedPeriod}
               onChange={(e) => handlePeriodChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
             >
               <option value="">All Periods</option>
               {assessmentPeriodOptions.map((period) => (
@@ -494,22 +526,130 @@ export default function DashboardPage() {
                 {/* Distribution Tab */}
                 {activeTab === 'distribution' && (
                   <div data-testid="distribution-chart-section">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Response Distribution</h2>
-                    {distribution.length > 0 ? (
-                      <div data-testid="distribution-chart" style={{ width: '100%', height: 500 }}>
-                      <ResponsiveContainer width="100%" height={500}>
-                        <BarChart data={distribution}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="dimension" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="red" fill="#EF4444" name="Red (Poor)" />
-                          <Bar dataKey="yellow" fill="#F59E0B" name="Yellow (Medium)" />
-                          <Bar dataKey="green" fill="#10B981" name="Green (Good)" />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900">Response Distribution</h2>
+                        {distributionView === 'breakdown' && distribution.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5">Sorted by health score — most attention needed first</p>
+                        )}
                       </div>
+                      {distribution.length > 0 && (
+                        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                          <button
+                            onClick={() => setDistributionView('breakdown')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              distributionView === 'breakdown'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            <List className="w-4 h-4" />
+                            By Dimension
+                          </button>
+                          <button
+                            onClick={() => setDistributionView('chart')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              distributionView === 'chart'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            <BarChart3 className="w-4 h-4" />
+                            Chart
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {distribution.length > 0 ? (
+                      <>
+                        {distributionView === 'breakdown' ? (
+                          /* By Dimension: horizontal stacked percentage bars */
+                          <div className="space-y-2.5">
+                            {breakdownData.map((d) => (
+                              <div key={d.dimension} className="flex items-center gap-3">
+                                <span
+                                  className="text-sm text-gray-700 w-36 flex-shrink-0 text-right truncate font-medium"
+                                  title={d.dimension}
+                                >
+                                  {d.dimension}
+                                </span>
+                                <div className="flex-1 flex h-7 rounded-md overflow-hidden text-xs font-semibold min-w-0">
+                                  {d.greenPct > 0 && (
+                                    <div
+                                      className="flex items-center justify-center text-white"
+                                      style={{ width: `${d.greenPct}%`, backgroundColor: '#10B981' }}
+                                      title={`Green: ${d.green} (${d.greenPct.toFixed(0)}%)`}
+                                    >
+                                      {d.greenPct >= 10 ? `${d.greenPct.toFixed(0)}%` : ''}
+                                    </div>
+                                  )}
+                                  {d.yellowPct > 0 && (
+                                    <div
+                                      className="flex items-center justify-center text-white"
+                                      style={{ width: `${d.yellowPct}%`, backgroundColor: '#F59E0B' }}
+                                      title={`Yellow: ${d.yellow} (${d.yellowPct.toFixed(0)}%)`}
+                                    >
+                                      {d.yellowPct >= 10 ? `${d.yellowPct.toFixed(0)}%` : ''}
+                                    </div>
+                                  )}
+                                  {d.redPct > 0 && (
+                                    <div
+                                      className="flex items-center justify-center text-white"
+                                      style={{ width: `${d.redPct}%`, backgroundColor: '#EF4444' }}
+                                      title={`Red: ${d.red} (${d.redPct.toFixed(0)}%)`}
+                                    >
+                                      {d.redPct >= 10 ? `${d.redPct.toFixed(0)}%` : ''}
+                                    </div>
+                                  )}
+                                </div>
+                                <span
+                                  className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold w-12 text-center flex-shrink-0"
+                                  style={getAvgBadgeStyle(d.healthScore)}
+                                >
+                                  {d.healthScore.toFixed(1)}
+                                </span>
+                                <span className="text-xs text-gray-400 w-14 text-right flex-shrink-0">
+                                  {d.total} resp.
+                                </span>
+                              </div>
+                            ))}
+                            {/* Legend */}
+                            <div className="flex items-center gap-5 mt-5 pt-4 border-t border-gray-100 text-xs text-gray-500">
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: '#10B981' }} />
+                                Green (Good)
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: '#F59E0B' }} />
+                                Yellow (Medium)
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="w-3 h-3 rounded-sm inline-block" style={{ backgroundColor: '#EF4444' }} />
+                                Red (Poor)
+                              </div>
+                              <span className="ml-auto text-gray-400">Score = weighted average (3·green + 2·yellow + 1·red)</span>
+                            </div>
+                          </div>
+                        ) : (
+                          /* Chart view — original grouped bar chart */
+                          <div data-testid="distribution-chart" style={{ width: '100%', height: 500 }}>
+                          <ResponsiveContainer width="100%" height={500}>
+                            <BarChart data={distribution}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="dimension" />
+                              <YAxis />
+                              <Tooltip />
+                              <Legend />
+                              <Bar dataKey="red" fill="#EF4444" name="Red (Poor)" />
+                              <Bar dataKey="yellow" fill="#F59E0B" name="Yellow (Medium)" />
+                              <Bar dataKey="green" fill="#10B981" name="Green (Good)" />
+                            </BarChart>
+                          </ResponsiveContainer>
+                          </div>
+                        )}
+                      </>
+
                     ) : (
                       <p className="text-gray-500 text-center py-12">No distribution data available</p>
                     )}
@@ -875,29 +1015,175 @@ export default function DashboardPage() {
                 {/* Trends Tab */}
                 {activeTab === 'trends' && (
                   <div data-testid="trends-chart-section">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Health Trends Over Time</h2>
-                    {trends.length > 0 ? (
-                      <div data-testid="trends-chart" style={{ width: '100%', height: 500 }}>
-                      <ResponsiveContainer width="100%" height={500}>
-                        <LineChart data={trends}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="period" />
-                          <YAxis domain={[0, 3]} />
-                          <Tooltip />
-                          <Legend />
-                          {HEALTH_DIMENSIONS.map((dim, idx) => (
-                            <Line
-                              key={dim.id}
-                              type="monotone"
-                              dataKey={dim.id}
-                              name={dim.name}
-                              stroke={`hsl(${idx * 30}, 70%, 50%)`}
-                              strokeWidth={2}
-                            />
-                          ))}
-                        </LineChart>
-                      </ResponsiveContainer>
+                    <div className="flex justify-between items-center mb-6">
+                      <div>
+                        <h2 className="text-xl font-semibold text-gray-900">Health Trends Over Time</h2>
+                        {trendsView === 'dimensions' && trends.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5">One card per dimension — score vs. time</p>
+                        )}
                       </div>
+                      {trends.length > 0 && (
+                        <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                          <button
+                            onClick={() => setTrendsView('dimensions')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              trendsView === 'dimensions'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            <LayoutGrid className="w-4 h-4" />
+                            By Dimension
+                          </button>
+                          <button
+                            onClick={() => setTrendsView('overview')}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                              trendsView === 'overview'
+                                ? 'bg-white text-indigo-600 shadow-sm'
+                                : 'text-gray-600 hover:text-gray-900'
+                            }`}
+                          >
+                            <LineChartIcon className="w-4 h-4" />
+                            Overview
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {trends.length > 0 ? (
+                      <>
+                        {trendsView === 'dimensions' ? (
+                          /* Small multiples — one sparkline card per dimension */
+                          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {dimSparklines.map(({ dim, data, latest, direction }) => {
+                              const lineColor =
+                                latest >= 2.5 ? '#10B981' : latest >= 1.5 ? '#F59E0B' : '#EF4444';
+                              return (
+                                <div
+                                  key={dim.id}
+                                  className="border rounded-xl p-3 flex flex-col gap-1.5 hover:shadow-md transition-shadow"
+                                >
+                                  {/* Dimension name + score badge */}
+                                  <div className="flex items-start justify-between gap-2">
+                                    <h4 className="text-xs font-semibold text-gray-700 leading-tight">
+                                      {dim.name}
+                                    </h4>
+                                    <span
+                                      className="inline-block px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                                      style={getAvgBadgeStyle(latest)}
+                                    >
+                                      {latest > 0 ? latest.toFixed(1) : '—'}
+                                    </span>
+                                  </div>
+
+                                  {/* Trend direction */}
+                                  <div className="flex items-center gap-1 text-xs">
+                                    {direction === 'up' && (
+                                      <TrendingUp className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                                    )}
+                                    {direction === 'down' && (
+                                      <TrendingDown className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                                    )}
+                                    {direction === 'stable' && (
+                                      <Minus className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                                    )}
+                                    <span
+                                      className={
+                                        direction === 'up'
+                                          ? 'text-green-600'
+                                          : direction === 'down'
+                                          ? 'text-red-600'
+                                          : 'text-gray-400'
+                                      }
+                                    >
+                                      {direction === 'up'
+                                        ? 'Improving'
+                                        : direction === 'down'
+                                        ? 'Declining'
+                                        : 'Stable'}
+                                    </span>
+                                  </div>
+
+                                  {/* Sparkline */}
+                                  {data.length > 1 ? (
+                                    <ResponsiveContainer width="100%" height={52}>
+                                      <LineChart
+                                        data={data}
+                                        margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
+                                      >
+                                        <XAxis dataKey="period" hide />
+                                        <YAxis domain={[1, 3]} hide />
+                                        <Line
+                                          type="monotone"
+                                          dataKey="value"
+                                          stroke={lineColor}
+                                          strokeWidth={2}
+                                          dot={{ r: 2, fill: lineColor }}
+                                          activeDot={{ r: 3 }}
+                                        />
+                                        <Tooltip
+                                          contentStyle={{
+                                            fontSize: '11px',
+                                            padding: '6px 10px',
+                                            borderRadius: '6px',
+                                            backgroundColor: '#1f2937',
+                                            border: '1px solid #374151',
+                                            color: '#f9fafb',
+                                          }}
+                                          labelStyle={{
+                                            color: '#e5e7eb',
+                                            fontWeight: 600,
+                                            marginBottom: '2px',
+                                          }}
+                                          itemStyle={{ color: '#d1fae5' }}
+                                          cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                                          formatter={(v: number) => [v.toFixed(2), 'Score']}
+                                          labelFormatter={(period) => period}
+                                        />
+                                      </LineChart>
+                                    </ResponsiveContainer>
+                                  ) : (
+                                    <div className="h-[52px] flex items-center justify-center text-xs text-gray-300">
+                                      Single period
+                                    </div>
+                                  )}
+
+                                  {/* Latest period label */}
+                                  {data.length > 0 && (
+                                    <p className="text-xs text-gray-400 truncate text-right">
+                                      {data[data.length - 1].period}
+                                    </p>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          /* Overview — original 11-line chart */
+                          <div data-testid="trends-chart" style={{ width: '100%', height: 500 }}>
+                          <ResponsiveContainer width="100%" height={500}>
+                            <LineChart data={trends}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="period" />
+                              <YAxis domain={[0, 3]} />
+                              <Tooltip />
+                              <Legend />
+                              {HEALTH_DIMENSIONS.map((dim, idx) => (
+                                <Line
+                                  key={dim.id}
+                                  type="monotone"
+                                  dataKey={dim.id}
+                                  name={dim.name}
+                                  stroke={`hsl(${idx * 30}, 70%, 50%)`}
+                                  strokeWidth={2}
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                          </div>
+                        )}
+                      </>
+
                     ) : (
                       <p className="text-gray-500 text-center py-12">No trend data available</p>
                     )}
