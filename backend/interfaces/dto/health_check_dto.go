@@ -7,6 +7,7 @@ type SubmitHealthCheckRequest struct {
 	UserID           string                       `json:"userId" binding:"required"`
 	Date             string                       `json:"date" binding:"required"`
 	AssessmentPeriod string                       `json:"assessmentPeriod,omitempty"`
+	SurveyType       string                       `json:"surveyType,omitempty"`
 	Responses        []HealthCheckResponseRequest `json:"responses" binding:"required,min=1,dive"`
 	Completed        bool                         `json:"completed"`
 }
@@ -26,9 +27,20 @@ type HealthCheckSessionResponse struct {
 	UserID           string                        `json:"userId"`
 	Date             string                        `json:"date"`
 	AssessmentPeriod string                        `json:"assessmentPeriod,omitempty"`
+	SurveyType       string                        `json:"surveyType,omitempty"`
 	Responses        []HealthCheckResponseResponse `json:"responses"`
 	Completed        bool                          `json:"completed"`
 	CreatedAt        string                        `json:"createdAt,omitempty"`
+}
+
+// TeamSubmissionStatusResponse represents the submission status for post-workshop surveys
+type TeamSubmissionStatusResponse struct {
+	TeamID             string `json:"teamId"`
+	AssessmentPeriod   string `json:"assessmentPeriod"`
+	TotalMembers       int    `json:"totalMembers"`
+	SubmittedMembers   int    `json:"submittedMembers"`
+	AllSubmitted       bool   `json:"allSubmitted"`
+	PostWorkshopExists bool   `json:"postWorkshopExists"`
 }
 
 // HealthCheckResponseResponse represents a dimension response in the response

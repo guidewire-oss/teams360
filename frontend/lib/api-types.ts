@@ -92,6 +92,7 @@ export interface TeamHealthSummary {
   overallHealth: number;
   submissionCount: number;
   dimensions: DimensionSummary[];
+  postWorkshopStatus?: 'submitted' | 'pending';
 }
 
 export interface DimensionSummary {
@@ -179,5 +180,15 @@ export interface SessionSummary {
   userId: string;
   date: string;
   assessmentPeriod: string;
+  surveyType?: 'individual' | 'post_workshop';
   completed: boolean;
+}
+
+export interface TeamSubmissionStatus {
+  teamId: string;
+  assessmentPeriod: string;
+  totalMembers: number;
+  submittedMembers: number;
+  allSubmitted: boolean;
+  postWorkshopExists: boolean;
 }

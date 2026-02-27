@@ -17,4 +17,7 @@ func SetupHealthCheckRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repo
 	router.GET("/api/v1/health-checks/:id", handler.GetHealthCheckByID)
 	// Using /health-checks/team/:id to avoid conflict with /teams/:id
 	router.GET("/api/v1/health-checks/team/:id", handler.GetTeamHealthChecks)
+
+	// Team submission status for post-workshop surveys
+	router.GET("/api/v1/teams/:teamId/submission-status", handler.GetTeamSubmissionStatus)
 }
