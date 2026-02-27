@@ -57,6 +57,7 @@ export default function DashboardPage() {
   const [distribution, setDistribution] = useState<ResponseDistribution[]>([]);
   const [individualResponses, setIndividualResponses] = useState<IndividualResponse[]>([]);
   const [trends, setTrends] = useState<TrendData[]>([]);
+  const [availablePeriods, setAvailablePeriods] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
@@ -176,6 +177,7 @@ export default function DashboardPage() {
         // Backend: { periods: [...], dimensions: [{ dimensionId, scores: [...] }] }
         // Frontend: [{ period, mission: 2.5, value: 3.0, ... }]
         if (data.periods && Array.isArray(data.periods) && data.dimensions) {
+          setAvailablePeriods(data.periods);
           const transformed = data.periods.map((period: string, idx: number) => {
             const row: TrendData = { period };
             (data.dimensions || []).forEach((dim: { dimensionId: string; scores: number[] }) => {
@@ -329,10 +331,9 @@ export default function DashboardPage() {
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="">All Periods</option>
-              <option value="2024 - 2nd Half">2024 - 2nd Half</option>
-              <option value="2024 - 1st Half">2024 - 1st Half</option>
-              <option value="2023 - 2nd Half">2023 - 2nd Half</option>
-              <option value="2023 - 1st Half">2023 - 1st Half</option>
+              {availablePeriods.map((period) => (
+                <option key={period} value={period}>{period}</option>
+              ))}
             </select>
           </div>
         </div>
