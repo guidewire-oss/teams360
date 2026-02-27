@@ -60,11 +60,12 @@ func (h *ManagerHandler) GetManagerTeamsHealth(c *gin.Context) {
 		}
 
 		teams[i] = dto.TeamHealthSummary{
-			TeamID:          summary.TeamID,
-			TeamName:        summary.TeamName,
-			SubmissionCount: summary.SubmissionCount,
-			OverallHealth:   summary.OverallHealth,
-			Dimensions:      dimensions,
+			TeamID:             summary.TeamID,
+			TeamName:           summary.TeamName,
+			SubmissionCount:    summary.SubmissionCount,
+			OverallHealth:      summary.OverallHealth,
+			Dimensions:         dimensions,
+			PostWorkshopStatus: summary.PostWorkshopStatus,
 		}
 	}
 
