@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
-import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon } from 'lucide-react';
+import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 // Types matching backend API response
@@ -20,6 +20,7 @@ interface TeamHealthSummary {
   overallHealth: number;
   submissionCount: number;
   dimensions: DimensionSummary[];
+  postWorkshopStatus?: string;
 }
 
 interface ManagerDashboardResponse {
@@ -433,12 +434,31 @@ export default function ManagerPage() {
               >
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h3
-                      data-testid="team-name"
-                      className="text-xl font-semibold text-gray-900 mb-2"
-                    >
-                      {team.teamName}
-                    </h3>
+                    <div className="flex items-center gap-3 mb-2">
+                      <h3
+                        data-testid="team-name"
+                        className="text-xl font-semibold text-gray-900"
+                      >
+                        {team.teamName}
+                      </h3>
+                      {team.postWorkshopStatus === 'submitted' ? (
+                        <span
+                          data-testid="workshop-status-badge"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800"
+                        >
+                          <CheckCircle className="w-3 h-3" />
+                          Workshop Complete
+                        </span>
+                      ) : team.postWorkshopStatus === 'pending' ? (
+                        <span
+                          data-testid="workshop-status-badge"
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800"
+                        >
+                          <Clock className="w-3 h-3" />
+                          Pending Workshop
+                        </span>
+                      ) : null}
+                    </div>
                     <div className="flex items-center gap-4 text-sm text-gray-600">
                       <span data-testid="submission-count">
                         <strong>{team.submissionCount}</strong>{' '}

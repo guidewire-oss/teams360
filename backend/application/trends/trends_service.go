@@ -91,7 +91,8 @@ func (s *Service) GetTrendsForTeam(ctx context.Context, teamID string) (*TrendRe
 	}, nil
 }
 
-// GetTrendsForManager returns aggregated trend data across all teams supervised by a manager
+// GetTrendsForManager returns aggregated trend data across all teams supervised by a manager.
+// Prefers post-workshop sessions when available for a team+period, otherwise falls back to individual sessions.
 func (s *Service) GetTrendsForManager(ctx context.Context, managerID string) (*TrendResult, error) {
 	// Get distinct assessment periods for supervised teams
 	periodsQuery := `
@@ -119,21 +120,44 @@ func (s *Service) GetTrendsForManager(ctx context.Context, managerID string) (*T
 	}
 
 	// Get aggregated average scores per dimension per period across all teams
+	// Uses effective_sessions CTE to prefer post-workshop data when available
 	trendsQuery := `
+		WITH post_workshop_teams AS (
+			SELECT DISTINCT hcs.team_id, hcs.assessment_period
+			FROM health_check_sessions hcs
+			INNER JOIN teams t ON hcs.team_id = t.id
+			INNER JOIN team_supervisors ts ON t.id = ts.team_id
+			WHERE ts.user_id = $1 AND hcs.survey_type = 'post_workshop'
+				AND hcs.completed = true
+				AND hcs.assessment_period IS NOT NULL
+				AND hcs.assessment_period != ''
+		),
+		effective_sessions AS (
+			SELECT hcs.id, hcs.assessment_period
+			FROM health_check_sessions hcs
+			INNER JOIN teams t ON hcs.team_id = t.id
+			INNER JOIN team_supervisors ts ON t.id = ts.team_id
+			WHERE ts.user_id = $1
+				AND hcs.completed = true
+				AND hcs.assessment_period IS NOT NULL
+				AND hcs.assessment_period != ''
+				AND (
+					hcs.survey_type = 'post_workshop'
+					OR (hcs.survey_type = 'individual'
+						AND NOT EXISTS (
+							SELECT 1 FROM post_workshop_teams pw
+							WHERE pw.team_id = hcs.team_id AND pw.assessment_period = hcs.assessment_period
+						))
+				)
+		)
 		SELECT
 			hcr.dimension_id,
-			hcs.assessment_period,
+			es.assessment_period,
 			AVG(hcr.score) as avg_score
 		FROM health_check_responses hcr
-		INNER JOIN health_check_sessions hcs ON hcr.session_id = hcs.id
-		INNER JOIN teams t ON hcs.team_id = t.id
-		INNER JOIN team_supervisors ts ON t.id = ts.team_id
-		WHERE ts.user_id = $1
-			AND hcs.completed = true
-			AND hcs.assessment_period IS NOT NULL
-			AND hcs.assessment_period != ''
-		GROUP BY hcr.dimension_id, hcs.assessment_period
-		ORDER BY hcr.dimension_id, hcs.assessment_period
+		INNER JOIN effective_sessions es ON hcr.session_id = es.id
+		GROUP BY hcr.dimension_id, es.assessment_period
+		ORDER BY hcr.dimension_id, es.assessment_period
 	`
 
 	dimensions, err := s.fetchTrendData(ctx, trendsQuery, managerID, periods)

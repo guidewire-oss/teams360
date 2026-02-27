@@ -72,6 +72,7 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 		UserID:           req.UserID,
 		Date:             req.Date,
 		AssessmentPeriod: req.AssessmentPeriod,
+		SurveyType:       req.SurveyType,
 		Responses:        make([]commands.HealthCheckResponseCommand, len(req.Responses)),
 		Completed:        req.Completed,
 	}
@@ -261,6 +262,45 @@ func (h *HealthCheckHandler) GetTeamHealthChecks(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
+// GetTeamSubmissionStatus handles GET /api/v1/teams/:teamId/submission-status
+func (h *HealthCheckHandler) GetTeamSubmissionStatus(c *gin.Context) {
+	ctx := c.Request.Context()
+	teamID := c.Param("teamId")
+	assessmentPeriod := c.Query("assessmentPeriod")
+
+	if teamID == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error: "Team ID is required",
+		})
+		return
+	}
+
+	if assessmentPeriod == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+			Error: "assessmentPeriod query parameter is required",
+		})
+		return
+	}
+
+	status, err := h.repository.GetTeamSubmissionStatus(ctx, teamID, assessmentPeriod)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to get submission status",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, dto.TeamSubmissionStatusResponse{
+		TeamID:             status.TeamID,
+		AssessmentPeriod:   status.AssessmentPeriod,
+		TotalMembers:       status.TotalMembers,
+		SubmittedMembers:   status.SubmittedMembers,
+		AllSubmitted:       status.AllSubmitted,
+		PostWorkshopExists: status.PostWorkshopExists,
+	})
+}
+
 // Helper function to convert domain model to DTO
 func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthCheckSessionResponse {
 	response := dto.HealthCheckSessionResponse{
@@ -269,6 +309,7 @@ func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthChec
 		UserID:           session.UserID,
 		Date:             session.Date,
 		AssessmentPeriod: session.AssessmentPeriod,
+		SurveyType:       session.SurveyType,
 		Responses:        make([]dto.HealthCheckResponseResponse, len(session.Responses)),
 		Completed:        session.Completed,
 	}

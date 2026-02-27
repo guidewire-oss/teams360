@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
+import { getTeamSubmissionStatus, TeamSubmissionStatus } from '@/lib/api/health-checks';
+import { getAssessmentPeriod } from '@/lib/assessment-period';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 type TabType = 'radar' | 'distribution' | 'responses' | 'trends';
@@ -55,6 +57,7 @@ export default function DashboardPage() {
   const [trends, setTrends] = useState<TrendData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -69,6 +72,11 @@ export default function DashboardPage() {
       const firstTeamId = currentUser.teamIds[0];
       setTeamId(firstTeamId);
       fetchDashboardData(firstTeamId, '');
+      // Fetch submission status for post-workshop button
+      const currentPeriod = getAssessmentPeriod();
+      getTeamSubmissionStatus(firstTeamId, currentPeriod)
+        .then(setSubmissionStatus)
+        .catch((err) => console.error('Failed to fetch submission status:', err));
     } else {
       setLoading(false);
     }
@@ -235,6 +243,36 @@ export default function DashboardPage() {
                 <ClipboardList className="w-4 h-4" />
                 Take Survey
               </button>
+
+              {/* Post-Workshop Survey Button */}
+              {submissionStatus?.postWorkshopExists ? (
+                <span
+                  data-testid="post-workshop-submitted-badge"
+                  className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-lg border border-green-200"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  Workshop Submitted
+                </span>
+              ) : (
+                <button
+                  onClick={() => router.push('/survey?type=post_workshop')}
+                  disabled={!submissionStatus?.allSubmitted}
+                  data-testid="post-workshop-survey-button"
+                  title={
+                    !submissionStatus?.allSubmitted
+                      ? `All team members must submit first (${submissionStatus?.submittedMembers ?? 0}/${submissionStatus?.totalMembers ?? 0})`
+                      : 'Record your team\'s workshop consensus'
+                  }
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                    submissionStatus?.allSubmitted
+                      ? 'bg-amber-500 text-white hover:bg-amber-600'
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                  }`}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Post-Workshop Survey
+                </button>
+              )}
 
               <div className="relative">
                 <button
