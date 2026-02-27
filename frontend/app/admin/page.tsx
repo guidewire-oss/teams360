@@ -338,6 +338,7 @@ export default function AdminPage() {
     setUserFormError(null);
     setEditingUser(userToEdit);
     setShowNewUserForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle user form submit
