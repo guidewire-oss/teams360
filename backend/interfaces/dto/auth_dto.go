@@ -33,6 +33,7 @@ type UserDTO struct {
 	FullName       string   `json:"fullName"`
 	HierarchyLevel string   `json:"hierarchyLevel"`
 	TeamIds        []string `json:"teamIds"`
+	CanTakeSurvey  bool     `json:"canTakeSurvey"`
 }
 
 // ForgotPasswordRequest represents a forgot password request
