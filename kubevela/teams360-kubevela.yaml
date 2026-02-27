@@ -10,7 +10,6 @@
 #
 # Placeholders (substituted by CI/CD pipeline at deploy time):
 #   DEPLOY_NAMESPACE — target Kubernetes namespace
-#   REPO_OWNER       — GitHub repository owner (lowercase)
 #   IMAGE_TAG        — semver tag (e.g., 0.2.0)
 
 apiVersion: core.oam.dev/v1beta1
@@ -38,7 +37,7 @@ spec:
     - name: backend
       type: webservice
       properties:
-        image: ghcr.io/REPO_OWNER/teams360-api:IMAGE_TAG
+        image: ghcr.io/guidewire-oss/teams360-api:IMAGE_TAG
         imagePullPolicy: Always
         port: 8080
         livenessProbe:
@@ -72,7 +71,7 @@ spec:
     - name: frontend
       type: webservice
       properties:
-        image: ghcr.io/REPO_OWNER/teams360-frontend:IMAGE_TAG
+        image: ghcr.io/guidewire-oss/teams360-frontend:IMAGE_TAG
         imagePullPolicy: Always
         port: 3000
         env:
