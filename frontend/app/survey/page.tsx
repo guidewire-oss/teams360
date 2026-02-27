@@ -310,7 +310,7 @@ function SurveyPageContent() {
                 <div className="mt-2 flex flex-col gap-1">
                   {isTeamLead && (
                     <button
-                      onClick={() => router.push('/manager')}
+                      onClick={() => router.push('/dashboard')}
                       className={`flex items-center gap-1 text-sm ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'} hover:text-white transition-colors`}
                     >
                       <BarChart3 className="w-4 h-4" />
