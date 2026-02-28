@@ -90,7 +90,7 @@ spec:
       - name: wait-for-infrastructure
         type: suspend
         properties:
-          duration: "45s"
+          duration: "90s"
         dependsOn:
           - deploy-database
 
