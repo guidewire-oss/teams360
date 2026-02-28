@@ -1,12 +1,12 @@
 # Team360 KubeVela Application Manifest
-# Deploys: CNPG PostgreSQL + Go backend + Next.js frontend
+# Deploys: CNPG PostgreSQL + unified app (Go API serving static frontend)
 # Usage: kubectl apply -f kubevela/teams360-kubevela.yaml
 #
 # Prerequisites:
 #   - KubeVela operator installed (vela-system namespace)
 #   - CNPG operator installed (cnpg-system namespace)
 #   - CUE definitions applied (vela def apply kubevela/components/*.cue)
-#   - Container images available in ghcr.io
+#   - Container image available in ghcr.io
 #
 # Placeholders (substituted by CI/CD pipeline at deploy time):
 #   DEPLOY_NAMESPACE — target Kubernetes namespace
@@ -32,12 +32,12 @@ spec:
         owner: teams360
 
     # -------------------------------------------------------------------------
-    # Go/Gin backend API
+    # Unified app: Go API + static frontend on port 8080
     # -------------------------------------------------------------------------
-    - name: backend
+    - name: app
       type: webservice
       properties:
-        image: ghcr.io/guidewire-oss/teams360-api:IMAGE_TAG
+        image: ghcr.io/guidewire-oss/teams360:IMAGE_TAG
         imagePullPolicy: Always
         port: 8080
         livenessProbe:
@@ -65,25 +65,6 @@ spec:
               - 8080
             type: ClusterIP
 
-    # -------------------------------------------------------------------------
-    # Next.js frontend
-    # -------------------------------------------------------------------------
-    - name: frontend
-      type: webservice
-      properties:
-        image: ghcr.io/guidewire-oss/teams360-frontend:IMAGE_TAG
-        imagePullPolicy: Always
-        port: 3000
-        env:
-          - name: BACKEND_URL
-            value: "http://backend:8080"
-      traits:
-        - type: expose
-          properties:
-            port:
-              - 3000
-            type: ClusterIP
-
   # ---------------------------------------------------------------------------
   # Policies
   # ---------------------------------------------------------------------------
@@ -92,10 +73,7 @@ spec:
       type: override
       properties:
         components:
-          - name: backend
-            properties:
-              replicas: 1
-          - name: frontend
+          - name: app
             properties:
               replicas: 1
 
@@ -116,16 +94,9 @@ spec:
         dependsOn:
           - deploy-database
 
-      - name: deploy-backend
+      - name: deploy-app
         type: apply-component
         properties:
-          component: backend
+          component: app
         dependsOn:
           - wait-for-infrastructure
-
-      - name: deploy-frontend
-        type: apply-component
-        properties:
-          component: frontend
-        dependsOn:
-          - deploy-backend
