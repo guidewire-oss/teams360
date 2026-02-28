@@ -12,6 +12,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const [authorized, setAuthorized] = useState(false);
 
   useEffect(() => {
+    setAuthorized(false);
     const user = getCurrentUser();
     const isPublicPath = PUBLIC_PATHS.includes(pathname);
 
