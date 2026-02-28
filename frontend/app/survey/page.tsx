@@ -355,7 +355,7 @@ function SurveyPageContent() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 1
                     ? 'border-red-500 bg-red-50'
-                    : 'border-gray-200 hover:border-red-300 hover:bg-red-50'
+                    : 'border-gray-300 hover:border-red-300 hover:bg-red-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500" />
@@ -370,7 +370,7 @@ function SurveyPageContent() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 2
                     ? 'border-yellow-500 bg-yellow-50'
-                    : 'border-gray-200 hover:border-yellow-300 hover:bg-yellow-50'
+                    : 'border-gray-300 hover:border-yellow-300 hover:bg-yellow-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-yellow-500" />
@@ -385,7 +385,7 @@ function SurveyPageContent() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 3
                     ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                    : 'border-gray-300 hover:border-green-300 hover:bg-green-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500" />
@@ -405,7 +405,7 @@ function SurveyPageContent() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'improving'
                         ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 hover:border-green-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50'
                     }`}
                   >
                     <TrendingUp className="w-5 h-5" />
@@ -418,7 +418,7 @@ function SurveyPageContent() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'stable'
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-blue-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
                     }`}
                   >
                     <Minus className="w-5 h-5" />
@@ -431,7 +431,7 @@ function SurveyPageContent() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'declining'
                         ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 hover:border-red-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50'
                     }`}
                   >
                     <TrendingDown className="w-5 h-5" />
@@ -447,7 +447,7 @@ function SurveyPageContent() {
                     value={currentResponse?.comment || ''}
                     onChange={(e) => handleCommentChange(e.target.value)}
                     data-dimension={dimension.id}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-400"
                     rows={3}
                     placeholder="Add any additional context..."
                   />
