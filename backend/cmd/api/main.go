@@ -203,7 +203,8 @@ func main() {
 		if err != nil {
 			log.WithError(err).Fatal("failed to resolve web directory path")
 		}
-		absWebDir += string(filepath.Separator)
+		// Keep absWebDir without trailing separator; use absWebDirPrefix for checks
+		absWebDirPrefix := absWebDir + string(filepath.Separator)
 
 		router.NoRoute(func(c *gin.Context) {
 			urlPath := c.Request.URL.Path
@@ -221,7 +222,7 @@ func main() {
 
 			// Resolve and validate path stays within webDir (prevent path traversal)
 			filePath := filepath.Join(absWebDir, filepath.Clean("/"+urlPath))
-			if !strings.HasPrefix(filePath, absWebDir) {
+			if filePath != absWebDir && !strings.HasPrefix(filePath, absWebDirPrefix) {
 				c.JSON(400, gin.H{"error": "invalid path"})
 				return
 			}
@@ -234,7 +235,7 @@ func main() {
 
 			// Try with .html extension (Next.js static export: /login -> login.html)
 			htmlPath := filePath + ".html"
-			if !strings.HasPrefix(htmlPath, absWebDir) {
+			if !strings.HasPrefix(htmlPath, absWebDirPrefix) {
 				c.JSON(400, gin.H{"error": "invalid path"})
 				return
 			}
