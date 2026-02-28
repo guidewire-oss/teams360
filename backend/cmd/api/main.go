@@ -242,6 +242,12 @@ func main() {
 				return
 			}
 
+			// Static asset paths (/_next/static/) should 404, not get SPA fallback
+			if strings.HasPrefix(urlPath, "/_next/") {
+				c.Status(404)
+				return
+			}
+
 			// SPA fallback: serve index.html
 			c.File(filepath.Join(absWebDir, "index.html"))
 		})
