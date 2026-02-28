@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"database/sql"
+	"mime"
 	"os"
 	"os/signal"
+	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/XSAM/otelsql"
@@ -179,6 +182,53 @@ func main() {
 	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
 	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
 	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
+
+	// Static file serving for frontend SPA
+	webDir := os.Getenv("WEB_DIR")
+	if webDir == "" {
+		webDir = "./web"
+	}
+
+	if info, err := os.Stat(webDir); err == nil && info.IsDir() {
+		log.WithField("dir", webDir).Info("serving static frontend files")
+
+		// Register a mime type for .js files (some alpine images miss it)
+		mime.AddExtensionType(".js", "application/javascript")
+		mime.AddExtensionType(".css", "text/css")
+		mime.AddExtensionType(".svg", "image/svg+xml")
+
+		router.NoRoute(func(c *gin.Context) {
+			urlPath := c.Request.URL.Path
+
+			// API routes get JSON 404
+			if strings.HasPrefix(urlPath, "/api/") {
+				c.JSON(404, gin.H{"error": "not found"})
+				return
+			}
+
+			// Cache immutable Next.js static assets
+			if strings.HasPrefix(urlPath, "/_next/static/") {
+				c.Header("Cache-Control", "public, max-age=31536000, immutable")
+			}
+
+			// Try exact file
+			filePath := filepath.Join(webDir, filepath.Clean(urlPath))
+			if info, statErr := os.Stat(filePath); statErr == nil && !info.IsDir() {
+				c.File(filePath)
+				return
+			}
+
+			// Try with .html extension (Next.js static export: /login -> login.html)
+			htmlPath := filePath + ".html"
+			if info, statErr := os.Stat(htmlPath); statErr == nil && !info.IsDir() {
+				c.File(htmlPath)
+				return
+			}
+
+			// SPA fallback: serve index.html
+			c.File(filepath.Join(webDir, "index.html"))
+		})
+	}
 
 	// Get port from environment or use default
 	port := os.Getenv("PORT")

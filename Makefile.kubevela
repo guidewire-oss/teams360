@@ -101,14 +101,12 @@ kubevela-check-install-cnpg: ## [KubeVela] Install CNPG operator if not present
 
 .PHONY: kubevela-build-and-load-images
 
-kubevela-build-and-load-images: ## [KubeVela] Build Docker images and import into k3d
-	@echo "$(CYAN)Building backend image...$(RESET)"
-	@docker build -f backend/Dockerfile -t teams360-api:latest backend/
-	@echo "$(CYAN)Building frontend image...$(RESET)"
-	@docker build -f frontend/Dockerfile -t teams360-frontend:latest frontend/
-	@echo "$(CYAN)Importing images into k3d cluster...$(RESET)"
-	@k3d image import teams360-api:latest teams360-frontend:latest -c $(KUBEVELA_CLUSTER)
-	@echo "$(GREEN)Images built and loaded!$(RESET)"
+kubevela-build-and-load-images: ## [KubeVela] Build unified Docker image and import into k3d
+	@echo "$(CYAN)Building unified image (Go API + static frontend)...$(RESET)"
+	@docker build -t teams360:latest .
+	@echo "$(CYAN)Importing image into k3d cluster...$(RESET)"
+	@k3d image import teams360:latest -c $(KUBEVELA_CLUSTER)
+	@echo "$(GREEN)Image built and loaded!$(RESET)"
 
 # =============================================================================
 # Deploy / Delete
@@ -180,9 +178,9 @@ kubevela-deploy-all: ## [KubeVela] Full pipeline: cluster -> prereqs -> build ->
 	@echo "Monitor with: make kubevela-status"
 	@echo ""
 	@echo "$(BOLD)Access:$(RESET)"
-	@echo "  Frontend:  http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/"
-	@echo "  API:       http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/api/v1/health-dimensions"
-	@echo "  Login:     demo / demo"
+	@echo "  App:   http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/"
+	@echo "  API:   http://$(KUBEVELA_DOMAIN):$(KUBEVELA_LB_PORT)/api/v1/health-dimensions"
+	@echo "  Login: demo / demo"
 
 kubevela-deploy-quick: ## [KubeVela] Quick rebuild + redeploy (assumes cluster + prereqs exist)
 	@echo "$(BOLD)$(CYAN)Quick Redeploy$(RESET)"

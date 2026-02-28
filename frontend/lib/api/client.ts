@@ -5,7 +5,7 @@
  * for all API client modules.
  */
 
-// Use relative URLs to go through Next.js proxy (configured in next.config.ts)
+// Use relative URLs — same origin in production (Go serves both API and frontend)
 export const API_BASE_URL = '';
 
 /**
