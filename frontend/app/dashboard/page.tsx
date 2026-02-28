@@ -256,18 +256,9 @@ export default function DashboardPage() {
               ) : (
                 <button
                   onClick={() => router.push('/survey?type=post_workshop')}
-                  disabled={!submissionStatus?.allSubmitted}
                   data-testid="post-workshop-survey-button"
-                  title={
-                    !submissionStatus?.allSubmitted
-                      ? `All team members must submit first (${submissionStatus?.submittedMembers ?? 0}/${submissionStatus?.totalMembers ?? 0})`
-                      : 'Record your team\'s workshop consensus'
-                  }
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                    submissionStatus?.allSubmitted
-                      ? 'bg-amber-500 text-white hover:bg-amber-600'
-                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
+                  title="Record your team's workshop consensus"
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-amber-500 text-white hover:bg-amber-600"
                 >
                   <ClipboardList className="w-4 h-4" />
                   Post-Workshop Survey
