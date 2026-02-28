@@ -322,7 +322,7 @@ export default function DashboardPage() {
               data-testid="period-filter"
               value={selectedPeriod}
               onChange={(e) => handlePeriodChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="">All Periods</option>
               <option value="2024 - 2nd Half">2024 - 2nd Half</option>
