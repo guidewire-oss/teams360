@@ -235,7 +235,7 @@ func main() {
 
 			// Try with .html extension (Next.js static export: /login -> login.html)
 			htmlPath := filePath + ".html"
-			if !strings.HasPrefix(htmlPath, absWebDirPrefix) {
+			if filePath != absWebDir && !strings.HasPrefix(htmlPath, absWebDirPrefix) {
 				c.JSON(400, gin.H{"error": "invalid path"})
 				return
 			}
