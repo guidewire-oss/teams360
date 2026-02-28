@@ -41,12 +41,12 @@ type TeamHealthSummary struct {
 
 // TeamSubmissionStatus represents the submission status of a team for an assessment period
 type TeamSubmissionStatus struct {
-	TeamID           string `json:"teamId"`
-	AssessmentPeriod string `json:"assessmentPeriod"`
-	TotalMembers     int    `json:"totalMembers"`
-	SubmittedMembers int    `json:"submittedMembers"`
-	AllSubmitted     bool   `json:"allSubmitted"`
-	PostWorkshopExists bool `json:"postWorkshopExists"`
+	TeamID             string `json:"teamId"`
+	AssessmentPeriod   string `json:"assessmentPeriod"`
+	TotalMembers       int    `json:"totalMembers"`
+	SubmittedMembers   int    `json:"submittedMembers"`
+	AllSubmitted       bool   `json:"allSubmitted"`
+	PostWorkshopExists bool   `json:"postWorkshopExists"`
 }
 
 // DimensionSummary represents aggregated dimension health
