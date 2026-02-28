@@ -6,6 +6,6 @@ export async function generateStaticParams() {
   return [{ teamId: '_' }];
 }
 
-export default function TeamPage({ params }: { params: Promise<{ teamId: string }> }) {
-  return <TeamResultsClient params={params} />;
+export default function TeamPage() {
+  return <TeamResultsClient />;
 }
