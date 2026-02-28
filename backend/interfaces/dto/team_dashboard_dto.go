@@ -36,6 +36,7 @@ type IndividualUserResponse struct {
 	UserID     string                    `json:"userId"`
 	UserName   string                    `json:"userName"`
 	Date       string                    `json:"date"`
+	SurveyType string                    `json:"surveyType"`
 	Dimensions []IndividualDimensionResp `json:"dimensions"`
 }
 

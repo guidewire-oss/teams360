@@ -246,6 +246,7 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 				hcs.user_id,
 				u.full_name as user_name,
 				hcs.date,
+				hcs.survey_type,
 				json_agg(
 					json_build_object(
 						'dimensionId', hcr.dimension_id,
@@ -260,13 +261,14 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 			WHERE hcs.team_id = $1
 				AND hcs.completed = true
 				AND ($2 = '' OR hcs.assessment_period = $2)
-			GROUP BY hcs.id, hcs.user_id, u.full_name, hcs.date
+			GROUP BY hcs.id, hcs.user_id, u.full_name, hcs.date, hcs.survey_type
 		)
 		SELECT
 			session_id,
 			user_id,
 			user_name,
 			date,
+			survey_type,
 			dimensions
 		FROM session_responses
 		ORDER BY date DESC
@@ -292,6 +294,7 @@ func (h *TeamDashboardHandler) GetIndividualResponses(c *gin.Context) {
 			&resp.UserID,
 			&resp.UserName,
 			&resp.Date,
+			&resp.SurveyType,
 			&dimensionsJSON,
 		)
 		if err != nil {

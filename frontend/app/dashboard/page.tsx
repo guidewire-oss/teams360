@@ -29,6 +29,7 @@ interface IndividualResponse {
   userName: string;
   sessionId: string;
   date: string;
+  surveyType?: string;
   responses: {
     dimensionId: string;
     dimensionName: string;
@@ -143,12 +144,14 @@ export default function DashboardPage() {
             userId: string;
             userName: string;
             date: string;
+            surveyType?: string;
             dimensions: { dimensionId: string; score: number; trend: string; comment: string }[];
           }) => ({
             sessionId: r.sessionId,
             userId: r.userId,
             userName: r.userName,
             date: r.date,
+            surveyType: r.surveyType || 'individual',
             responses: (r.dimensions || []).map((d) => {
               const dimInfo = HEALTH_DIMENSIONS.find(hd => hd.id === d.dimensionId);
               return {
@@ -455,12 +458,21 @@ export default function DashboardPage() {
                         {individualResponses.map((response, idx) => (
                           <div key={idx} className="border rounded-lg p-4" data-testid="response-card">
                             <div className="flex justify-between items-start mb-4">
-                              <div>
+                              <div className="flex items-center gap-3">
                                 <h3 className="font-semibold text-gray-900">{response.userName}</h3>
-                                <p className="text-sm text-gray-500">
-                                  {new Date(response.date).toLocaleDateString()}
-                                </p>
+                                {response.surveyType === 'post_workshop' ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                    Post-Workshop
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    Individual
+                                  </span>
+                                )}
                               </div>
+                              <p className="text-sm text-gray-500">
+                                {new Date(response.date).toLocaleDateString()}
+                              </p>
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                               {response.responses.map((resp, respIdx) => (
