@@ -197,6 +197,13 @@ func main() {
 		mime.AddExtensionType(".css", "text/css")
 		mime.AddExtensionType(".svg", "image/svg+xml")
 
+		// Resolve webDir to an absolute path for safe prefix checking
+		absWebDir, err := filepath.Abs(webDir)
+		if err != nil {
+			log.WithError(err).Fatal("failed to resolve web directory path")
+		}
+		absWebDir += string(filepath.Separator)
+
 		router.NoRoute(func(c *gin.Context) {
 			urlPath := c.Request.URL.Path
 
@@ -211,8 +218,14 @@ func main() {
 				c.Header("Cache-Control", "public, max-age=31536000, immutable")
 			}
 
+			// Resolve and validate path stays within webDir (prevent path traversal)
+			filePath := filepath.Join(absWebDir, filepath.Clean("/"+urlPath))
+			if !strings.HasPrefix(filePath, absWebDir) {
+				c.JSON(400, gin.H{"error": "invalid path"})
+				return
+			}
+
 			// Try exact file
-			filePath := filepath.Join(webDir, filepath.Clean(urlPath))
 			if info, statErr := os.Stat(filePath); statErr == nil && !info.IsDir() {
 				c.File(filePath)
 				return
@@ -220,13 +233,17 @@ func main() {
 
 			// Try with .html extension (Next.js static export: /login -> login.html)
 			htmlPath := filePath + ".html"
+			if !strings.HasPrefix(htmlPath, absWebDir) {
+				c.JSON(400, gin.H{"error": "invalid path"})
+				return
+			}
 			if info, statErr := os.Stat(htmlPath); statErr == nil && !info.IsDir() {
 				c.File(htmlPath)
 				return
 			}
 
 			// SPA fallback: serve index.html
-			c.File(filepath.Join(webDir, "index.html"))
+			c.File(filepath.Join(absWebDir, "index.html"))
 		})
 	}
 
