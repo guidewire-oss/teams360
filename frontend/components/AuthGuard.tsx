@@ -33,6 +33,8 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           router.replace('/dashboard');
         } else if (hierarchyLevelId === 'level-5') {
           router.replace('/home');
+        } else {
+          router.replace('/home');
         }
         return;
       }

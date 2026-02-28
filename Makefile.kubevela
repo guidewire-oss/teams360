@@ -69,7 +69,11 @@ kubevela-check-install-kubevela: ## [KubeVela] Install KubeVela CLI + operator i
 	@echo "$(CYAN)Checking KubeVela installation...$(RESET)"
 	@if ! command -v vela >/dev/null 2>&1; then \
 		echo "$(CYAN)Installing KubeVela CLI...$(RESET)"; \
-		curl -fsSl https://kubevela.io/script/install.sh | bash; \
+		INSTALL_SCRIPT=$$(mktemp); \
+		curl -fsSl https://kubevela.io/script/install.sh -o "$$INSTALL_SCRIPT"; \
+		echo "Downloaded install script to $$INSTALL_SCRIPT — review before running if needed"; \
+		bash "$$INSTALL_SCRIPT"; \
+		rm -f "$$INSTALL_SCRIPT"; \
 	else \
 		echo "$(GREEN)KubeVela CLI already installed: $$(vela version --short 2>/dev/null || vela version)$(RESET)"; \
 	fi
