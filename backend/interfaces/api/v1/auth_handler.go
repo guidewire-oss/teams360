@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 	"time"
 
@@ -95,28 +96,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	// Fetch user's team memberships using repository
-	teamIds, err := h.userRepo.FindTeamIDsForUser(c.Request.Context(), usr.ID)
-	if err != nil {
-		// Log error but don't fail - user might not be in any teams yet
-		teamIds = []string{}
-	}
-
-	// Also fetch teams where user is the team lead
-	leadTeamIds, err := h.userRepo.FindTeamsWhereUserIsLead(c.Request.Context(), usr.ID)
-	if err == nil {
-		// Merge team IDs, avoiding duplicates
-		teamIdSet := make(map[string]bool)
-		for _, id := range teamIds {
-			teamIdSet[id] = true
-		}
-		for _, id := range leadTeamIds {
-			if !teamIdSet[id] {
-				teamIds = append(teamIds, id)
-				teamIdSet[id] = true
-			}
-		}
-	}
+	teamIds := collectTeamIDs(ctx, h.userRepo, usr.ID)
 
 	// Generate JWT tokens
 	tokenPair, err := h.jwtService.GenerateTokenPair(
@@ -241,25 +221,7 @@ func (h *AuthHandler) Refresh(c *gin.Context) {
 		return
 	}
 
-	// Get team IDs
-	teamIds, err := h.userRepo.FindTeamIDsForUser(ctx, usr.ID)
-	if err != nil {
-		teamIds = []string{}
-	}
-
-	// Get teams where user is lead
-	leadTeamIds, err := h.userRepo.FindTeamsWhereUserIsLead(ctx, usr.ID)
-	if err == nil {
-		teamIdSet := make(map[string]bool)
-		for _, id := range teamIds {
-			teamIdSet[id] = true
-		}
-		for _, id := range leadTeamIds {
-			if !teamIdSet[id] {
-				teamIds = append(teamIds, id)
-			}
-		}
-	}
+	teamIds := collectTeamIDs(ctx, h.userRepo, usr.ID)
 
 	// Generate new access token
 	newAccessToken, err := h.jwtService.RefreshAccessToken(
@@ -348,6 +310,30 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 	// For stateless JWT, logout is handled client-side by removing tokens
 	// In a production system, you would add the token to a blacklist
 	dto.RespondSuccess(c, http.StatusOK, gin.H{"message": "Logged out successfully"})
+}
+
+// collectTeamIDs returns a deduplicated list of all team IDs for a user —
+// combining direct memberships and teams where the user is the lead.
+// It never returns nil; an error fetching either list is treated as empty.
+func collectTeamIDs(ctx context.Context, repo user.Repository, userID string) []string {
+	teamIds, err := repo.FindTeamIDsForUser(ctx, userID)
+	if err != nil || teamIds == nil {
+		teamIds = []string{}
+	}
+	leadTeamIds, err := repo.FindTeamsWhereUserIsLead(ctx, userID)
+	if err != nil {
+		return teamIds
+	}
+	seen := make(map[string]bool, len(teamIds))
+	for _, id := range teamIds {
+		seen[id] = true
+	}
+	for _, id := range leadTeamIds {
+		if !seen[id] {
+			teamIds = append(teamIds, id)
+		}
+	}
+	return teamIds
 }
 
 // maskUsername masks username for privacy (shows first 2 and last char)

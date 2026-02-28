@@ -13,6 +13,7 @@ function CallbackHandler() {
   useEffect(() => {
     const code = searchParams.get('code');
     const errorParam = searchParams.get('error');
+    const stateParam = searchParams.get('state');
 
     if (errorParam) {
       setError('SSO login was cancelled or failed. Please try again.');
@@ -20,6 +21,15 @@ function CallbackHandler() {
     }
     if (!code) {
       setError('Invalid callback: no authorization code received.');
+      return;
+    }
+
+    // Verify the state nonce before anything else to prevent CSRF / session
+    // mix-up attacks.  The value must match what was stored when the flow began.
+    const storedState = sessionStorage.getItem('oauth_state');
+    sessionStorage.removeItem('oauth_state');
+    if (!storedState || stateParam !== storedState) {
+      setError('Invalid login session. Please start the login process again.');
       return;
     }
 

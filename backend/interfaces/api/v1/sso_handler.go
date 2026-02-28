@@ -89,22 +89,7 @@ func (h *SSOHandler) Callback(c *gin.Context) {
 		return
 	}
 
-	// Collect team memberships (same logic as regular login)
-	teamIds, _ := h.userRepo.FindTeamIDsForUser(ctx, usr.ID)
-	if teamIds == nil {
-		teamIds = []string{}
-	}
-	if leadTeamIds, err := h.userRepo.FindTeamsWhereUserIsLead(ctx, usr.ID); err == nil {
-		seen := make(map[string]bool, len(teamIds))
-		for _, id := range teamIds {
-			seen[id] = true
-		}
-		for _, id := range leadTeamIds {
-			if !seen[id] {
-				teamIds = append(teamIds, id)
-			}
-		}
-	}
+	teamIds := collectTeamIDs(ctx, h.userRepo, usr.ID)
 
 	// Issue our own JWT tokens
 	tokenPair, err := h.jwtService.GenerateTokenPair(ctx, usr.ID, usr.Username, usr.Email, usr.HierarchyLevelID, teamIds)

@@ -34,7 +34,10 @@ export function getSSOConfig(): OAuthConfig | null {
 export async function startSSOFlow(config: OAuthConfig): Promise<void> {
   const verifier = generateCodeVerifier();
   const challenge = await generateCodeChallenge(verifier);
+  const state = generateState();
+
   sessionStorage.setItem('pkce_verifier', verifier);
+  sessionStorage.setItem('oauth_state', state);
 
   const params = new URLSearchParams({
     response_type: 'code',
@@ -43,12 +46,19 @@ export async function startSSOFlow(config: OAuthConfig): Promise<void> {
     scope: config.scopes,
     code_challenge: challenge,
     code_challenge_method: 'S256',
+    state,
   });
 
   window.location.href = `${config.authorizeUrl}?${params.toString()}`;
 }
 
-// ── PKCE helpers ──────────────────────────────────────────────────────────────
+// ── PKCE + state helpers ───────────────────────────────────────────────────────
+
+function generateState(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  return base64urlEncode(bytes);
+}
 
 function generateCodeVerifier(): string {
   const bytes = new Uint8Array(32);
