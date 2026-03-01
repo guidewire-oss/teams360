@@ -330,6 +330,7 @@ func collectTeamIDs(ctx context.Context, repo user.Repository, userID string) []
 	}
 	for _, id := range leadTeamIds {
 		if !seen[id] {
+			seen[id] = true
 			teamIds = append(teamIds, id)
 		}
 	}
