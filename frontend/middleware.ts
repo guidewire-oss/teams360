@@ -4,7 +4,7 @@ import type { NextRequest } from 'next/server';
 export function middleware(request: NextRequest) {
   const userCookie = request.cookies.get('user');
   const isLoginPage = request.nextUrl.pathname === '/login';
-  const isPublicPath = request.nextUrl.pathname === '/' || isLoginPage;
+  const isPublicPath = request.nextUrl.pathname === '/' || isLoginPage || request.nextUrl.pathname === '/auth/callback';
   const isSurveyPage = request.nextUrl.pathname === '/survey';
 
   if (!userCookie && !isPublicPath) {

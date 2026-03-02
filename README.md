@@ -412,7 +412,10 @@ make db-test-setup   # Setup test database
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/login` - User login
+- `POST /api/v1/auth/login` - Username/password login
+- `POST /api/v1/auth/refresh` - Refresh access token
+- `POST /api/v1/auth/logout` - Logout
+- `POST /api/v1/auth/sso/callback` - Exchange OAuth authorization code for JWT tokens (SSO)
 
 ### Health Checks
 - `POST /api/v1/health-checks` - Submit health check
@@ -459,14 +462,57 @@ make db-test-setup   # Setup test database
 
 **Frontend** (`frontend/.env.local`):
 ```env
+# Backend port (must match PORT set for the backend)
 NEXT_PUBLIC_API_URL=http://localhost:8080
+
+# SSO / OIDC (optional — omit these to disable SSO and use username/password only)
+NEXT_PUBLIC_OAUTH_CLIENT_ID=your-client-id
+NEXT_PUBLIC_OAUTH_AUTHORIZE_URL=https://your-provider.com/oauth/authorize
+NEXT_PUBLIC_OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+NEXT_PUBLIC_OAUTH_SCOPES=openid email profile   # optional, this is the default
 ```
 
-**Backend**:
+**Backend** (`backend/.env`):
 ```env
 PORT=8080
 DATABASE_URL=postgres://postgres:postgres@localhost:5432/teams360?sslmode=disable
 GIN_MODE=debug  # or "release" for production
+
+# SSO / OIDC (optional — must be set if frontend SSO vars are set)
+OAUTH_CLIENT_ID=your-client-id
+OAUTH_TOKEN_URL=https://your-provider.com/oauth/token
+OAUTH_REDIRECT_URI=http://localhost:3000/auth/callback
+```
+
+### Configuring SSO (OIDC / OAuth 2.0)
+
+Team360 supports single sign-on via any OIDC-compliant provider (Keycloak, Okta, Auth0, Google, Azure AD, etc.) using the **Authorization Code + PKCE** flow. Username/password login continues to work alongside SSO.
+
+#### How it works
+
+1. Register Team360 as a **Single Page Application (public client)** in your provider — no client secret is needed.
+2. Add `http://localhost:3000/auth/callback` (or your production URL) as an allowed redirect URI.
+3. Set the environment variables listed above in both `frontend/.env.local` and `backend/.env`.
+4. Restart both servers. A **Sign in with SSO** button will appear on the login page.
+
+When a user signs in via SSO, Team360 extracts their `email` from the provider's ID token and looks up the matching user in the database. The user must already exist — Team360 does not auto-create accounts from SSO logins.
+
+#### Provider setup quick reference
+
+| Setting | Value |
+|---------|-------|
+| Application type | Single Page App (SPA) / Public client |
+| Client secret | Not required (PKCE flow) |
+| Allowed redirect URI | `http://localhost:3000/auth/callback` |
+| Required scopes | `openid email profile` |
+| Token claim needed | `email` (in ID token or access token) |
+
+#### Loading env vars before starting
+
+```bash
+# Source backend vars (exports them so child processes inherit them)
+set -a && source backend/.env && set +a
+make run
 ```
 
 ## Troubleshooting
