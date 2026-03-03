@@ -1,5 +1,6 @@
 import Cookies from 'js-cookie';
 import type { User as DomainUser } from '@/lib/types';
+import { API_BASE_URL } from '@/lib/api/client';
 
 /**
  * User type returned from API login
@@ -89,7 +90,7 @@ export const refreshAccessToken = async (): Promise<string | null> => {
   if (!refreshToken) return null;
 
   try {
-    const response = await fetch('/api/v1/auth/refresh', {
+    const response = await fetch(`${API_BASE_URL}/api/v1/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -192,7 +193,7 @@ export const getCurrentUser = (): AuthUser | null => {
  */
 export const logout = async () => {
   try {
-    await fetch('/api/v1/auth/logout', { method: 'POST' });
+    await fetch(`${API_BASE_URL}/api/v1/auth/logout`, { method: 'POST' });
   } catch {
     // Ignore errors - clear local data regardless
   }

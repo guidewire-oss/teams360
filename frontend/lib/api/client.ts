@@ -5,8 +5,9 @@
  * for all API client modules.
  */
 
-// Use relative URLs — same origin in production (Go serves both API and frontend)
-export const API_BASE_URL = '';
+// In production (unified container), API is same origin so base URL is empty.
+// In local dev, NEXT_PUBLIC_API_URL points to the Go backend (e.g. http://localhost:8080).
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
 /**
  * Standard API error response format

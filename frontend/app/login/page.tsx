@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
 import { setAuthData, LoginResponse } from '@/lib/auth';
 import { getSSOConfig, startSSOFlow } from '@/lib/sso';
+import { API_BASE_URL } from '@/lib/api/client';
 import { Lock, User, AlertCircle, Users, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
@@ -22,7 +23,7 @@ export default function LoginPage() {
 
     try {
       // Call backend authentication API via Next.js proxy
-      const response = await fetch('/api/v1/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/api/v1/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
