@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
 import { setAuthData, LoginResponse } from '@/lib/auth';
-import { getSSOConfig, startSSOFlow } from '@/lib/sso';
+import { fetchSSOConfig, startSSOFlow, OAuthConfig } from '@/lib/sso';
 import { API_BASE_URL } from '@/lib/api/client';
 import { Lock, User, AlertCircle, Users, LogIn } from 'lucide-react';
 
@@ -14,8 +14,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [ssoLoading, setSSOLoading] = useState(false);
+  const [ssoConfig, setSsoConfig] = useState<OAuthConfig | null>(null);
   const config = getOrgConfig();
-  const ssoConfig = getSSOConfig();
+
+  useEffect(() => {
+    fetchSSOConfig().then(setSsoConfig);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

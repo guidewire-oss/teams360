@@ -3,6 +3,8 @@
  * Uses the Web Crypto API (built into all modern browsers and the Next.js runtime).
  */
 
+import { API_BASE_URL } from '@/lib/api/client';
+
 export interface OAuthConfig {
   clientId: string;
   authorizeUrl: string;
@@ -11,19 +13,19 @@ export interface OAuthConfig {
 }
 
 /**
- * Reads the SSO provider config from NEXT_PUBLIC_ environment variables.
- * Returns null if NEXT_PUBLIC_OAUTH_CLIENT_ID is not set (SSO disabled).
+ * Fetches SSO config from the backend's runtime config endpoint.
+ * Returns null when SSO is not configured (OAUTH_CLIENT_ID not set on backend).
  */
-export function getSSOConfig(): OAuthConfig | null {
-  const clientId = process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID;
-  if (!clientId) return null;
-
-  return {
-    clientId,
-    authorizeUrl: process.env.NEXT_PUBLIC_OAUTH_AUTHORIZE_URL ?? '',
-    redirectUri: process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI ?? '',
-    scopes: process.env.NEXT_PUBLIC_OAUTH_SCOPES ?? 'openid email profile',
-  };
+export async function fetchSSOConfig(): Promise<OAuthConfig | null> {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/config`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (!data.sso) return null;
+    return data.sso as OAuthConfig;
+  } catch {
+    return null;
+  }
 }
 
 /**
