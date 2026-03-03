@@ -513,3 +513,9 @@ _start-frontend-otel:
 
 _start-backend-otel:
 	@cd backend && OTEL_ENABLED=true DATABASE_URL="$(DATABASE_URL)" go run cmd/api/main.go
+
+# =============================================================================
+# KubeVela + CNPG Deployment (optional include)
+# =============================================================================
+
+-include Makefile.kubevela

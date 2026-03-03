@@ -1,0 +1,102 @@
+# Team360 KubeVela Application Manifest
+# Deploys: CNPG PostgreSQL + unified app (Go API serving static frontend)
+# Usage: kubectl apply -f kubevela/teams360-kubevela.yaml
+#
+# Prerequisites:
+#   - KubeVela operator installed (vela-system namespace)
+#   - CNPG operator installed (cnpg-system namespace)
+#   - CUE definitions applied (vela def apply kubevela/components/*.cue)
+#   - Container image available in ghcr.io
+#
+# Placeholders (substituted by CI/CD pipeline at deploy time):
+#   DEPLOY_NAMESPACE — target Kubernetes namespace
+#   IMAGE_TAG        — semver tag (e.g., 0.2.0)
+
+apiVersion: core.oam.dev/v1beta1
+kind: Application
+metadata:
+  name: teams360
+  namespace: DEPLOY_NAMESPACE
+spec:
+  components:
+    # -------------------------------------------------------------------------
+    # PostgreSQL via CloudNativePG operator
+    # -------------------------------------------------------------------------
+    - name: postgres
+      type: cloud-native-postgres
+      properties:
+        name: postgres
+        instances: 1
+        storageSize: "0.5Gi"
+        database: teams360
+        owner: teams360
+
+    # -------------------------------------------------------------------------
+    # Unified app: Go API + static frontend on port 8080
+    # -------------------------------------------------------------------------
+    - name: app
+      type: webservice
+      properties:
+        image: ghcr.io/guidewire-oss/teams360:IMAGE_TAG
+        imagePullPolicy: Always
+        port: 8080
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 15
+          periodSeconds: 30
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 10
+      traits:
+        - type: service-binding
+          properties:
+            envMappings:
+              DATABASE_URL:
+                secret: postgres-app
+                key: uri
+        - type: expose
+          properties:
+            port:
+              - 8080
+            type: ClusterIP
+
+  # ---------------------------------------------------------------------------
+  # Policies
+  # ---------------------------------------------------------------------------
+  policies:
+    - name: override-dev
+      type: override
+      properties:
+        components:
+          - name: app
+            properties:
+              replicas: 1
+
+  # ---------------------------------------------------------------------------
+  # Workflow — ordered deployment with CNPG readiness wait
+  # ---------------------------------------------------------------------------
+  workflow:
+    steps:
+      - name: deploy-database
+        type: apply-component
+        properties:
+          component: postgres
+
+      - name: wait-for-infrastructure
+        type: suspend
+        properties:
+          duration: "45s"
+        dependsOn:
+          - deploy-database
+
+      - name: deploy-app
+        type: apply-component
+        properties:
+          component: app
+        dependsOn:
+          - wait-for-infrastructure

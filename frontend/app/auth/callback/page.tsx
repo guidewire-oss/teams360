@@ -1,16 +1,20 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { setAuthData, LoginResponse } from '@/lib/auth';
+import { API_BASE_URL } from '@/lib/api/client';
 import { Loader2, AlertCircle } from 'lucide-react';
 
 function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [error, setError] = useState('');
+  const handled = useRef(false);
 
   useEffect(() => {
+    if (handled.current) return;
+    handled.current = true;
     const code = searchParams.get('code');
     const errorParam = searchParams.get('error');
     const stateParam = searchParams.get('state');
@@ -42,7 +46,7 @@ function CallbackHandler() {
   
     (async () => {
       try {
-        const res = await fetch('/api/v1/auth/sso/callback', {
+        const res = await fetch(`${API_BASE_URL}/api/v1/auth/sso/callback`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ code, code_verifier: codeVerifier }),

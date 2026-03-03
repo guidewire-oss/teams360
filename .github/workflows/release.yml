@@ -1,4 +1,4 @@
-# Release Workflow - Build and push Docker images to GHCR
+# Release Workflow - Build and push unified Docker image to GHCR
 # Security: Uses GITHUB_TOKEN (no external secrets), signs images with Sigstore
 name: Release
 
@@ -27,11 +27,11 @@ env:
 
 jobs:
   # =============================================================================
-  # Build and Push Backend Image
+  # Build and Push Unified Image (Go API + static frontend)
   # =============================================================================
 
-  build-backend:
-    name: Build Backend Image
+  build:
+    name: Build Image
     runs-on: ubuntu-latest
     outputs:
       digest: ${{ steps.build.outputs.digest }}
@@ -57,7 +57,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.IMAGE_PREFIX }}/teams360-api
+          images: ${{ env.IMAGE_PREFIX }}/teams360
           tags: |
             # Tag with version (v1.0.0 -> 1.0.0)
             type=semver,pattern={{version}}
@@ -74,8 +74,8 @@ jobs:
         id: build
         uses: docker/build-push-action@v5
         with:
-          context: ./backend
-          file: ./backend/Dockerfile
+          context: .
+          file: ./Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
@@ -104,84 +104,13 @@ jobs:
           cosign sign --yes ${images}
 
   # =============================================================================
-  # Build and Push Frontend Image
-  # =============================================================================
-
-  build-frontend:
-    name: Build Frontend Image
-    runs-on: ubuntu-latest
-    outputs:
-      digest: ${{ steps.build.outputs.digest }}
-      image: ${{ steps.meta.outputs.tags }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up QEMU (for multi-arch builds)
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.IMAGE_PREFIX }}/teams360-frontend
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=sha,prefix=sha-
-
-      - name: Build and push
-        id: build
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          file: ./frontend/Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            VERSION=${{ github.ref_name }}
-            COMMIT=${{ github.sha }}
-          provenance: true
-          sbom: true
-
-      - name: Sign image with Sigstore
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign the published image
-        env:
-          DIGEST: ${{ steps.build.outputs.digest }}
-          TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          images=""
-          for tag in ${TAGS}; do
-            images+="${tag}@${DIGEST} "
-          done
-          cosign sign --yes ${images}
-
-  # =============================================================================
   # Create GitHub Release
   # =============================================================================
 
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
-    needs: [build-backend, build-frontend]
+    needs: [build]
     permissions:
       contents: write
     steps:
@@ -193,24 +122,20 @@ jobs:
         with:
           generate_release_notes: true
           body: |
-            ## Docker Images
+            ## Docker Image
 
-            Pull the images from GitHub Container Registry:
+            Pull the unified image from GitHub Container Registry:
 
             ```bash
-            # Backend API
-            docker pull ${{ env.IMAGE_PREFIX }}/teams360-api:${{ github.ref_name }}
-
-            # Frontend
-            docker pull ${{ env.IMAGE_PREFIX }}/teams360-frontend:${{ github.ref_name }}
+            docker pull ${{ env.IMAGE_PREFIX }}/teams360:${{ github.ref_name }}
             ```
 
-            ## Verify Image Signatures
+            ## Verify Image Signature
 
             Images are signed with Sigstore. Verify with:
 
             ```bash
-            cosign verify ${{ env.IMAGE_PREFIX }}/teams360-api:${{ github.ref_name }} \
+            cosign verify ${{ env.IMAGE_PREFIX }}/teams360:${{ github.ref_name }} \
               --certificate-identity-regexp="https://github.com/${{ github.repository }}" \
               --certificate-oidc-issuer="https://token.actions.githubusercontent.com"
             ```
@@ -218,5 +143,7 @@ jobs:
             ## Quick Start
 
             ```bash
-            docker compose up -d
+            docker run -p 8080:8080 \
+              -e DATABASE_URL="postgres://user:pass@host:5432/teams360?sslmode=disable" \
+              ${{ env.IMAGE_PREFIX }}/teams360:${{ github.ref_name }}
             ```

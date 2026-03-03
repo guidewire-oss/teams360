@@ -1,90 +1,103 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { getSSOConfig } from '../sso';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { fetchSSOConfig } from '../sso';
 
-// Save and restore process.env around each test so env mutations don't leak.
-const originalEnv = process.env;
+// Mock the API client module so API_BASE_URL is always ''
+vi.mock('@/lib/api/client', () => ({ API_BASE_URL: '' }));
 
 beforeEach(() => {
-  process.env = { ...originalEnv };
+  vi.restoreAllMocks();
 });
 
-afterEach(() => {
-  process.env = originalEnv;
-});
+// ── 1. SSO disabled — backend returns { sso: null } ─────────────────────────
 
-// ── 1. No SSO env vars — getSSOConfig returns null ───────────────────────────
+describe('fetchSSOConfig — SSO disabled', () => {
+  it('returns null when the backend returns { sso: null }', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sso: null }),
+    });
 
-describe('getSSOConfig — no SSO environment variables', () => {
-  beforeEach(() => {
-    delete process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID;
-    delete process.env.NEXT_PUBLIC_OAUTH_AUTHORIZE_URL;
-    delete process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI;
-    delete process.env.NEXT_PUBLIC_OAUTH_SCOPES;
-  });
+    const config = await fetchSSOConfig();
 
-  it('returns null when NEXT_PUBLIC_OAUTH_CLIENT_ID is not set', () => {
-    expect(getSSOConfig()).toBeNull();
+    expect(config).toBeNull();
+    expect(fetch).toHaveBeenCalledWith('/api/v1/config');
   });
 });
 
-// ── 2 & 3. SSO env vars present — getSSOConfig returns config ────────────────
+// ── 2. SSO enabled — backend returns config ──────────────────────────────────
 
-describe('getSSOConfig — SSO environment variables are set', () => {
-  beforeEach(() => {
-    process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID = 'test-client-id';
-    process.env.NEXT_PUBLIC_OAUTH_AUTHORIZE_URL = 'https://auth.example.com/authorize';
-    process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI = 'http://localhost:3000/auth/callback';
-  });
+describe('fetchSSOConfig — SSO enabled', () => {
+  const ssoPayload = {
+    clientId: 'test-client-id',
+    authorizeUrl: 'https://auth.example.com/authorize',
+    redirectUri: 'http://localhost:3000/auth/callback',
+    scopes: 'openid email profile',
+  };
 
-  it('returns a config object with the configured values', () => {
-    const config = getSSOConfig();
+  it('returns the SSO config from the backend', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sso: ssoPayload }),
+    });
+
+    const config = await fetchSSOConfig();
 
     expect(config).not.toBeNull();
     expect(config?.clientId).toBe('test-client-id');
     expect(config?.authorizeUrl).toBe('https://auth.example.com/authorize');
     expect(config?.redirectUri).toBe('http://localhost:3000/auth/callback');
-  });
-
-  it('uses "openid email profile" as the default scope when NEXT_PUBLIC_OAUTH_SCOPES is not set', () => {
-    delete process.env.NEXT_PUBLIC_OAUTH_SCOPES;
-
-    const config = getSSOConfig();
-
     expect(config?.scopes).toBe('openid email profile');
-  });
-
-  it('uses the configured scopes when NEXT_PUBLIC_OAUTH_SCOPES is set', () => {
-    process.env.NEXT_PUBLIC_OAUTH_SCOPES = 'openid email';
-
-    const config = getSSOConfig();
-
-    expect(config?.scopes).toBe('openid email');
-  });
-
-  it('returns null when NEXT_PUBLIC_OAUTH_CLIENT_ID is removed after being set', () => {
-    delete process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID;
-
-    expect(getSSOConfig()).toBeNull();
   });
 });
 
-// ── Login page SSO button visibility ─────────────────────────────────────────
-// These tests verify the contract getSSOConfig provides to the login page:
-// null  → no SSO button should be shown
-// non-null → SSO button should be shown
+// ── 3. Network error — returns null gracefully ───────────────────────────────
 
-describe('getSSOConfig — login page contract', () => {
-  it('returns null (hide SSO button) when client ID is absent', () => {
-    delete process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID;
+describe('fetchSSOConfig — error handling', () => {
+  it('returns null on network error', async () => {
+    global.fetch = vi.fn().mockRejectedValue(new Error('Network error'));
 
-    expect(getSSOConfig()).toBeNull();
+    const config = await fetchSSOConfig();
+
+    expect(config).toBeNull();
   });
 
-  it('returns config (show SSO button) when client ID is present', () => {
-    process.env.NEXT_PUBLIC_OAUTH_CLIENT_ID = 'my-app';
-    process.env.NEXT_PUBLIC_OAUTH_AUTHORIZE_URL = 'https://idp.example.com/auth';
-    process.env.NEXT_PUBLIC_OAUTH_REDIRECT_URI = 'http://localhost:3000/auth/callback';
+  it('returns null when backend responds with non-OK status', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+    });
 
-    expect(getSSOConfig()).not.toBeNull();
+    const config = await fetchSSOConfig();
+
+    expect(config).toBeNull();
+  });
+});
+
+// ── 4. Login page contract ───────────────────────────────────────────────────
+
+describe('fetchSSOConfig — login page contract', () => {
+  it('returns null (hide SSO button) when SSO is not configured', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ sso: null }),
+    });
+
+    expect(await fetchSSOConfig()).toBeNull();
+  });
+
+  it('returns config (show SSO button) when SSO is configured', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({
+        sso: {
+          clientId: 'my-app',
+          authorizeUrl: 'https://idp.example.com/auth',
+          redirectUri: 'http://localhost:3000/auth/callback',
+          scopes: 'openid email profile',
+        },
+      }),
+    });
+
+    expect(await fetchSSOConfig()).not.toBeNull();
   });
 });
