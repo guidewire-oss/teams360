@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
@@ -91,7 +91,7 @@ export default function DashboardPage() {
       const periodQuery = assessmentPeriod ? `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}` : '';
 
       // Fetch health summary for radar chart
-      const healthRes = await fetch(`/api/v1/teams/${teamId}/dashboard/health-summary${periodQuery}`);
+      const healthRes = await authenticatedFetch(`/api/v1/teams/${teamId}/dashboard/health-summary${periodQuery}`);
       if (healthRes.ok) {
         const data = await healthRes.json();
         // Transform backend format to frontend format
@@ -111,7 +111,7 @@ export default function DashboardPage() {
       }
 
       // Fetch response distribution
-      const distRes = await fetch(`/api/v1/teams/${teamId}/dashboard/response-distribution${periodQuery}`);
+      const distRes = await authenticatedFetch(`/api/v1/teams/${teamId}/dashboard/response-distribution${periodQuery}`);
       if (distRes.ok) {
         const data = await distRes.json();
         // Transform backend format to frontend format
@@ -132,7 +132,7 @@ export default function DashboardPage() {
       }
 
       // Fetch individual responses
-      const respRes = await fetch(`/api/v1/teams/${teamId}/dashboard/individual-responses${periodQuery}`);
+      const respRes = await authenticatedFetch(`/api/v1/teams/${teamId}/dashboard/individual-responses${periodQuery}`);
       if (respRes.ok) {
         const data = await respRes.json();
         // Transform backend format to frontend format
@@ -168,7 +168,7 @@ export default function DashboardPage() {
       }
 
       // Fetch trends (trends don't filter by period - they show all periods)
-      const trendsRes = await fetch(`/api/v1/teams/${teamId}/dashboard/trends`);
+      const trendsRes = await authenticatedFetch(`/api/v1/teams/${teamId}/dashboard/trends`);
       if (trendsRes.ok) {
         const data = await trendsRes.json();
         // Transform backend format to frontend format

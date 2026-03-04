@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { getCurrentAssessmentPeriod } from '@/lib/assessment-period';
@@ -54,7 +54,7 @@ export default function MemberHomePage() {
     try {
       setLoading(true);
       console.log('[MemberHome] Fetching survey history for user:', userId);
-      const response = await fetch(`/api/v1/users/${userId}/survey-history`);
+      const response = await authenticatedFetch(`/api/v1/users/${userId}/survey-history`);
       console.log('[MemberHome] Response status:', response.status, response.ok);
       if (response.ok) {
         const data = await response.json();

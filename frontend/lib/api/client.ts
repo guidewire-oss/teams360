@@ -94,6 +94,14 @@ export async function apiRequest(
     'Content-Type': 'application/json',
   };
 
+  // Auto-attach JWT token from localStorage if available
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      (defaultHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
+    }
+  }
+
   return fetch(url, {
     ...options,
     headers: {

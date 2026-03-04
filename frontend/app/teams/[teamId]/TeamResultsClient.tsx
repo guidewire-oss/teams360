@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { AlertCircle, Calendar, Users, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 
 // Types matching backend API response
@@ -46,7 +47,7 @@ export default function TeamResultsPage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/v1/teams/${teamId}`);
+      const response = await authenticatedFetch(`/api/v1/teams/${teamId}`);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch team results: ${response.statusText}`);
