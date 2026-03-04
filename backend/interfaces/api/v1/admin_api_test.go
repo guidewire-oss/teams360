@@ -2,12 +2,14 @@ package v1_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -18,7 +20,11 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var testDB *sql.DB
+var (
+	testDB         *sql.DB
+	testJWTService *services.JWTService
+	adminToken     string
+)
 
 // setupTestDB creates a test database connection and runs migrations
 func setupTestDB(t *testing.T) *sql.DB {
@@ -74,12 +80,22 @@ func setupRouter(db *sql.DB) *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
+	// Create JWT service and generate admin token for tests
+	if testJWTService == nil {
+		testJWTService = services.NewJWTService()
+		tokenPair, err := testJWTService.GenerateTokenPair(context.Background(), "admin", "admin", "admin@test.com", "level-admin", nil)
+		if err != nil {
+			panic("failed to generate test admin token: " + err.Error())
+		}
+		adminToken = tokenPair.AccessToken
+	}
+
 	// Create repositories
 	orgRepo := postgres.NewOrganizationRepository(db)
 	userRepo := postgres.NewUserRepository(db)
 	teamRepo := postgres.NewTeamRepository(db)
 
-	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, testJWTService)
 	return router
 }
 
@@ -89,6 +105,7 @@ func TestListHierarchyLevels(t *testing.T) {
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/hierarchy-levels", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -135,6 +152,7 @@ func TestCreateHierarchyLevel(t *testing.T) {
 	body, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest("POST", "/api/v1/admin/hierarchy-levels", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -166,6 +184,7 @@ func TestListUsers(t *testing.T) {
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -207,6 +226,7 @@ func TestCreateUser(t *testing.T) {
 	body, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest("POST", "/api/v1/admin/users", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -234,6 +254,7 @@ func TestListTeams(t *testing.T) {
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -270,6 +291,7 @@ func TestGetDimensions(t *testing.T) {
 
 	// Make GET request
 	req := httptest.NewRequest("GET", "/api/v1/admin/settings/dimensions", nil)
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -314,6 +336,7 @@ func TestUpdateDimension(t *testing.T) {
 	body, _ := json.Marshal(reqBody)
 	req := httptest.NewRequest("PUT", "/api/v1/admin/settings/dimensions/mission", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+adminToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

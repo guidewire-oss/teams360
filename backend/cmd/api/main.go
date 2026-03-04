@@ -173,15 +173,15 @@ func main() {
 	})
 
 	// Setup API routes with repository injection
-	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
 	v1.SetupAuthRoutes(router, userRepo, jwtService)
 	v1.SetupSSORoutes(router, userRepo, jwtService)
-	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
-	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
+	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService)
+	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	v1.SetupTeamDashboardRoutes(router, db)             // Still uses db (complex dashboard queries)
 	v1.SetupUserRoutes(router, db)                      // Still uses db (complex user queries)
 	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
-	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
 	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 
 	// Static file serving for frontend SPA

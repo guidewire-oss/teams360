@@ -5,9 +5,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 )
 
 // TeamHandler handles team-related endpoints
@@ -168,11 +170,24 @@ func (h *TeamHandler) ListTeams(c *gin.Context) {
 }
 
 // SetupTeamRoutes registers team-related routes
-func SetupTeamRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, teamRepo team.Repository) {
+// All team routes require JWT authentication
+// Team-specific routes require team membership or manager+ privileges
+func SetupTeamRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, teamRepo team.Repository, jwtService *services.JWTService) {
 	handler := NewTeamHandler(healthCheckRepo, teamRepo)
 
-	// Team routes
-	router.GET("/api/v1/teams", handler.ListTeams)
-	router.GET("/api/v1/teams/:teamId/sessions", handler.GetTeamSessions)
-	router.GET("/api/v1/teams/:teamId/info", handler.GetTeamInfo)
+	// Team routes - require authentication
+	teams := router.Group("/api/v1/teams")
+	teams.Use(middleware.JWTAuthMiddleware(jwtService))
+	{
+		// List all teams (authenticated users only, filtering by access done in handler)
+		teams.GET("", handler.ListTeams)
+
+		// Team-specific routes require team membership or manager+ privileges
+		teamSpecific := teams.Group("/:teamId")
+		teamSpecific.Use(middleware.TeamMembershipMiddleware("teamId"))
+		{
+			teamSpecific.GET("/sessions", handler.GetTeamSessions)
+			teamSpecific.GET("/info", handler.GetTeamInfo)
+		}
+	}
 }

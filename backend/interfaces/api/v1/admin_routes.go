@@ -1,17 +1,23 @@
 package v1
 
 import (
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // SetupAdminRoutes configures admin routes with repository dependency injection
-func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository) {
+// All admin routes require JWT authentication and admin privileges (level-1)
+func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository, jwtService *services.JWTService) {
 	handler := NewAdminHandler(orgRepo, userRepo, teamRepo)
 
 	admin := router.Group("/api/v1/admin")
+	// Apply JWT authentication and admin-only authorization to all admin routes
+	admin.Use(middleware.JWTAuthMiddleware(jwtService))
+	admin.Use(middleware.AdminOnlyMiddleware())
 	{
 		// Hierarchy Levels CRUD
 		hierarchyLevels := admin.Group("/hierarchy-levels")

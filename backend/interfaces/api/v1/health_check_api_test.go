@@ -2,6 +2,7 @@ package v1_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -18,15 +19,18 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 )
 
 var _ = Describe("Health Check API", func() {
 	var (
-		db     *sql.DB
-		router *gin.Engine
-		err    error
+		db         *sql.DB
+		router     *gin.Engine
+		err        error
+		jwtService *services.JWTService
+		userToken  string
 	)
 
 	BeforeEach(func() {
@@ -60,11 +64,17 @@ var _ = Describe("Health Check API", func() {
 		err = migrationEngine.Up()
 		Expect(err).NotTo(HaveOccurred())
 
+		// Initialize JWT service and generate test token
+		jwtService = services.NewJWTService()
+		tokenPair, tokenErr := jwtService.GenerateTokenPair(context.Background(), "user123", "user123", "user123@test.com", "level-5", []string{"team1"})
+		Expect(tokenErr).NotTo(HaveOccurred())
+		userToken = tokenPair.AccessToken
+
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
 	})
 
 	AfterEach(func() {
@@ -111,6 +121,7 @@ var _ = Describe("Health Check API", func() {
 				// When: Submitting via POST
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -272,6 +283,7 @@ var _ = Describe("Health Check API", func() {
 			It("should return all 11 active dimensions", func() {
 				// When: Getting dimensions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-dimensions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -299,6 +311,7 @@ var _ = Describe("Health Check API", func() {
 			It("should include mission dimension", func() {
 				// When: Getting dimensions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-dimensions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -338,6 +351,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -347,6 +361,7 @@ var _ = Describe("Health Check API", func() {
 
 				// When: Getting by ID
 				req = httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/"+sessionId, nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w = httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -369,6 +384,7 @@ var _ = Describe("Health Check API", func() {
 			It("should return 404 Not Found", func() {
 				// When: Getting non-existent session
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/non-existent-id", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -402,6 +418,7 @@ var _ = Describe("Health Check API", func() {
 
 				// When: Getting team sessions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/team1/health-checks", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -452,6 +469,7 @@ var _ = Describe("Health Check API", func() {
 
 				// When: Filtering by period
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/team1/health-checks?assessmentPeriod=2024+-+1st+Half", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
