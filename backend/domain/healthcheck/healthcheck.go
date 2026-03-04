@@ -2,6 +2,12 @@ package healthcheck
 
 import "context"
 
+// Survey type constants
+const (
+	SurveyTypeIndividual   = "individual"
+	SurveyTypePostWorkshop = "post_workshop"
+)
+
 // HealthCheckResponse represents a single dimension response
 type HealthCheckResponse struct {
 	DimensionID string `json:"dimensionId"`
@@ -18,17 +24,29 @@ type HealthCheckSession struct {
 	UserID           string                `json:"userId"`
 	Date             string                `json:"date"`
 	AssessmentPeriod string                `json:"assessmentPeriod,omitempty"`
+	SurveyType       string                `json:"surveyType,omitempty"`
 	Responses        []HealthCheckResponse `json:"responses"`
 	Completed        bool                  `json:"completed"`
 }
 
 // TeamHealthSummary represents aggregated health data for a team
 type TeamHealthSummary struct {
-	TeamID          string             `json:"teamId"`
-	TeamName        string             `json:"teamName"`
-	SubmissionCount int                `json:"submissionCount"`
-	OverallHealth   float64            `json:"overallHealth"`
-	Dimensions      []DimensionSummary `json:"dimensions"`
+	TeamID             string             `json:"teamId"`
+	TeamName           string             `json:"teamName"`
+	SubmissionCount    int                `json:"submissionCount"`
+	OverallHealth      float64            `json:"overallHealth"`
+	Dimensions         []DimensionSummary `json:"dimensions"`
+	PostWorkshopStatus string             `json:"postWorkshopStatus,omitempty"`
+}
+
+// TeamSubmissionStatus represents the submission status of a team for an assessment period
+type TeamSubmissionStatus struct {
+	TeamID             string `json:"teamId"`
+	AssessmentPeriod   string `json:"assessmentPeriod"`
+	TotalMembers       int    `json:"totalMembers"`
+	SubmittedMembers   int    `json:"submittedMembers"`
+	AllSubmitted       bool   `json:"allSubmitted"`
+	PostWorkshopExists bool   `json:"postWorkshopExists"`
 }
 
 // DimensionSummary represents aggregated dimension health
@@ -50,4 +68,7 @@ type Repository interface {
 	// Advanced queries for manager dashboard
 	FindTeamHealthByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]TeamHealthSummary, error)
 	FindAggregatedDimensionsByManager(ctx context.Context, managerID string, assessmentPeriod string) ([]DimensionSummary, error)
+
+	// Team submission status for post-workshop survey
+	GetTeamSubmissionStatus(ctx context.Context, teamID string, assessmentPeriod string) (*TeamSubmissionStatus, error)
 }

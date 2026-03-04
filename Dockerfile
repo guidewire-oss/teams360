@@ -15,6 +15,7 @@ RUN npm ci
 
 COPY frontend/ .
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV STATIC_EXPORT=true
 RUN npm run build
 
 # -----------------------------------------------------------------------------

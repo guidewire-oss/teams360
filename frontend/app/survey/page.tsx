@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
@@ -11,7 +11,25 @@ import { getTeamInfoCached, TeamInfo, TeamsAPIError } from '@/lib/api/teams';
 import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
 
 export default function SurveyPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-12 max-w-md w-full text-center">
+          <Loader2 className="w-16 h-16 text-indigo-600 mx-auto mb-6 animate-spin" />
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Loading...</h1>
+        </div>
+      </div>
+    }>
+      <SurveyPageContent />
+    </Suspense>
+  );
+}
+
+function SurveyPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const surveyType = searchParams.get('type') === 'post_workshop' ? 'post_workshop' : 'individual';
+  const isPostWorkshop = surveyType === 'post_workshop';
   const [user, setUser] = useState<any>(null);
   const [team, setTeam] = useState<TeamInfo | null>(null);
   const [teamLoading, setTeamLoading] = useState(true);
@@ -164,6 +182,7 @@ export default function SurveyPage() {
         userId: user.id,
         date: formatDateForAPI(submissionDate),
         assessmentPeriod,
+        surveyType: isPostWorkshop ? 'post_workshop' : 'individual',
         responses: responses.map(r => ({
           dimensionId: r.dimensionId,
           score: r.score,
@@ -173,12 +192,12 @@ export default function SurveyPage() {
         completed: true
       });
 
-      // Store session ID and redirect to home page
+      // Store session ID and redirect
       setSessionId(session.id);
       setSubmitted(true);
 
-      // Automatically redirect to home page after successful submission
-      router.push('/home');
+      // Post-workshop redirects to dashboard, individual to home
+      router.push(isPostWorkshop ? '/dashboard' : '/home');
     } catch (err) {
       console.error('Failed to submit health check:', err);
 
@@ -273,24 +292,29 @@ export default function SurveyPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
       <div className="container mx-auto p-4 max-w-4xl">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="bg-indigo-600 p-6 text-white">
+          <div className={`${isPostWorkshop ? 'bg-amber-600' : 'bg-indigo-600'} p-6 text-white`}>
+            {isPostWorkshop && (
+              <div className="mb-3 px-3 py-2 bg-amber-700/50 rounded-lg text-sm">
+                Record your team&apos;s consensus from the workshop discussion
+              </div>
+            )}
             <div className="flex justify-between items-center mb-4">
               <div>
-                <h1 className="text-2xl font-bold">Squad Health Check</h1>
-                <p className="text-indigo-200">Team: {team?.name || 'Unknown Team'}</p>
-                <p className="text-indigo-100 text-sm mt-1">
+                <h1 className="text-2xl font-bold">{isPostWorkshop ? 'Post-Workshop Survey' : 'Squad Health Check'}</h1>
+                <p className={isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}>Team: {team?.name || 'Unknown Team'}</p>
+                <p className={`${isPostWorkshop ? 'text-amber-100' : 'text-indigo-100'} text-sm mt-1`}>
                   Period: {surveyPeriod}
                   {team?.cadence && ` • ${team.cadence.charAt(0).toUpperCase() + team.cadence.slice(1)} Check`}
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-sm text-indigo-200">Logged in as</p>
+                <p className={`text-sm ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}`}>Logged in as</p>
                 <p className="font-semibold">{user.name}</p>
                 <div className="mt-2 flex flex-col gap-1">
                   {isTeamLead && (
                     <button
                       onClick={() => router.push('/manager')}
-                      className="flex items-center gap-1 text-sm text-indigo-200 hover:text-white transition-colors"
+                      className={`flex items-center gap-1 text-sm ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'} hover:text-white transition-colors`}
                     >
                       <BarChart3 className="w-4 h-4" />
                       View Team Dashboard
@@ -298,7 +322,7 @@ export default function SurveyPage() {
                   )}
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-1 text-sm text-indigo-200 hover:text-white transition-colors"
+                    className={`flex items-center gap-1 text-sm ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'} hover:text-white transition-colors`}
                   >
                     <LogOut className="w-4 h-4" />
                     Logout
@@ -306,13 +330,13 @@ export default function SurveyPage() {
                 </div>
               </div>
             </div>
-            <div className="w-full bg-indigo-800 rounded-full h-2">
+            <div className={`w-full ${isPostWorkshop ? 'bg-amber-800' : 'bg-indigo-800'} rounded-full h-2`}>
               <div
                 className="bg-white h-2 rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <p className="text-sm mt-2 text-indigo-200">
+            <p className={`text-sm mt-2 ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}`}>
               Question {currentQuestionNumber} of {totalQuestions}
             </p>
           </div>
@@ -331,7 +355,7 @@ export default function SurveyPage() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 1
                     ? 'border-red-500 bg-red-50'
-                    : 'border-gray-200 hover:border-red-300 hover:bg-red-50'
+                    : 'border-gray-300 hover:border-red-300 hover:bg-red-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-red-500" />
@@ -346,7 +370,7 @@ export default function SurveyPage() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 2
                     ? 'border-yellow-500 bg-yellow-50'
-                    : 'border-gray-200 hover:border-yellow-300 hover:bg-yellow-50'
+                    : 'border-gray-300 hover:border-yellow-300 hover:bg-yellow-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-yellow-500" />
@@ -361,7 +385,7 @@ export default function SurveyPage() {
                 className={`p-6 rounded-xl border-2 transition-all ${
                   currentResponse?.score === 3
                     ? 'border-green-500 bg-green-50'
-                    : 'border-gray-200 hover:border-green-300 hover:bg-green-50'
+                    : 'border-gray-300 hover:border-green-300 hover:bg-green-50'
                 }`}
               >
                 <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-green-500" />
@@ -381,7 +405,7 @@ export default function SurveyPage() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'improving'
                         ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-200 hover:border-green-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50'
                     }`}
                   >
                     <TrendingUp className="w-5 h-5" />
@@ -394,7 +418,7 @@ export default function SurveyPage() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'stable'
                         ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-200 hover:border-blue-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
                     }`}
                   >
                     <Minus className="w-5 h-5" />
@@ -407,7 +431,7 @@ export default function SurveyPage() {
                     className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
                       currentResponse?.trend === 'declining'
                         ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-200 hover:border-red-300'
+                        : 'border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50'
                     }`}
                   >
                     <TrendingDown className="w-5 h-5" />
@@ -423,7 +447,7 @@ export default function SurveyPage() {
                     value={currentResponse?.comment || ''}
                     onChange={(e) => handleCommentChange(e.target.value)}
                     data-dimension={dimension.id}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-400"
                     rows={3}
                     placeholder="Add any additional context..."
                   />

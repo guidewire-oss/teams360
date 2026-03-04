@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { AlertCircle, Calendar, Users, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 
@@ -28,25 +28,12 @@ interface TeamResultsResponse {
   totalSessions: number;
 }
 
-interface TeamPageProps {
-  params: Promise<{
-    teamId: string;
-  }>;
-}
-
-export default function TeamResultsPage({ params }: TeamPageProps) {
+export default function TeamResultsPage() {
   const router = useRouter();
+  const { teamId } = useParams<{ teamId: string }>();
   const [teamData, setTeamData] = useState<TeamResultsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [teamId, setTeamId] = useState<string | null>(null);
-
-  // Unwrap params promise in useEffect
-  useEffect(() => {
-    params.then(({ teamId }) => {
-      setTeamId(teamId);
-    });
-  }, [params]);
 
   useEffect(() => {
     if (teamId) {
