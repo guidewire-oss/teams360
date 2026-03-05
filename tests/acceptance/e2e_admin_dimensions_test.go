@@ -53,14 +53,22 @@ var _ = Describe("E2E: Admin Dimension Management", func() {
 	navigateToSettings := func() {
 		By("Navigating to Settings tab")
 		settingsTab := page.Locator("[data-testid='settings-tab']")
+
+		// Wait for the tab to be visible (page may still be rendering after login redirect)
+		Eventually(func() bool {
+			visible, _ := settingsTab.IsVisible()
+			return visible
+		}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
+
 		err := settingsTab.Click()
 		Expect(err).NotTo(HaveOccurred())
+		time.Sleep(500 * time.Millisecond)
 
-		// Wait for settings content to load
+		// Wait for settings content to load (DimensionConfig fetches data from API)
 		Eventually(func() bool {
 			visible, _ := page.Locator("[data-testid='dimensions-settings']").IsVisible()
 			return visible
-		}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
+		}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
 	}
 
 	Context("when admin views dimensions", func() {
