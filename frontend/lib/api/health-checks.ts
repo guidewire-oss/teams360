@@ -16,7 +16,7 @@ export interface SubmitHealthCheckRequest {
   id?: string;
   teamId: string;
   userId: string;
-  date: string; // YYYY-MM-DD format
+  date: string; // RFC3339 format (e.g., 2024-01-15T10:30:00Z)
   assessmentPeriod?: string;
   surveyType?: 'individual' | 'post_workshop';
   responses: HealthCheckResponse[];
@@ -113,10 +113,10 @@ export async function getTeamHealthChecks(
 }
 
 /**
- * Helper function to format date as ISO 8601 / RFC3339
+ * Helper function to format date as RFC3339 (without milliseconds)
  */
 export function formatDateForAPI(date: Date = new Date()): string {
-  return date.toISOString();
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 /**

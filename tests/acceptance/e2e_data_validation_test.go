@@ -3,7 +3,6 @@ package acceptance_test
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -225,15 +224,7 @@ var _ = Describe("E2E: Data Validation", func() {
 					Equal(http.StatusCreated),
 					Equal(http.StatusConflict),
 					Equal(http.StatusOK),
-					Equal(http.StatusBadRequest), // May fail for other reasons, but not format
-				))
-
-				// If it's a bad request, it shouldn't be due to format
-				if resp.StatusCode == http.StatusBadRequest {
-					respBody, _ := io.ReadAll(resp.Body)
-					Expect(string(respBody)).NotTo(ContainSubstring("format"),
-						"Valid format should not trigger format error")
-				}
+				), "Valid assessment period format should not be rejected")
 			})
 
 			It("should accept valid assessment period format - 2nd Half", func() {
@@ -262,13 +253,7 @@ var _ = Describe("E2E: Data Validation", func() {
 					Equal(http.StatusCreated),
 					Equal(http.StatusConflict),
 					Equal(http.StatusOK),
-					Equal(http.StatusBadRequest),
-				))
-
-				if resp.StatusCode == http.StatusBadRequest {
-					respBody, _ := io.ReadAll(resp.Body)
-					Expect(string(respBody)).NotTo(ContainSubstring("format"))
-				}
+				), "Valid assessment period format should not be rejected")
 			})
 		})
 	})
@@ -391,6 +376,7 @@ var _ = Describe("E2E: Data Validation", func() {
 		Context("when submitting health check with XSS attempts", func() {
 			It("should sanitize script tags in comments", func() {
 				uniqueID := fmt.Sprintf("test-xss-%d", time.Now().UnixNano())
+				xssPayload := "<script>alert('xss')</script>"
 				body := map[string]interface{}{
 					"id":     uniqueID,
 					"teamId": "team-phoenix",
@@ -401,7 +387,7 @@ var _ = Describe("E2E: Data Validation", func() {
 							"dimensionId": "mission",
 							"score":       3,
 							"trend":       "stable",
-							"comment":     "<script>alert('xss')</script>",
+							"comment":     xssPayload,
 						},
 					},
 				}
@@ -411,14 +397,26 @@ var _ = Describe("E2E: Data Validation", func() {
 				Expect(err).NotTo(HaveOccurred())
 				defer resp.Body.Close()
 
-				// Should either sanitize and accept, or reject
-				// If accepted, we'd need to verify the stored comment is sanitized
+				// Should either sanitize and accept, or reject outright
 				Expect(resp.StatusCode).To(SatisfyAny(
 					Equal(http.StatusCreated),
 					Equal(http.StatusOK),
 					Equal(http.StatusConflict),
-					Equal(http.StatusBadRequest), // Rejecting XSS is also acceptable
+					Equal(http.StatusBadRequest),
 				))
+
+				// If accepted, verify the stored comment doesn't contain raw script tags
+				if resp.StatusCode == http.StatusCreated || resp.StatusCode == http.StatusOK {
+					var responseBody map[string]interface{}
+					json.NewDecoder(resp.Body).Decode(&responseBody)
+					responses, ok := responseBody["responses"].([]interface{})
+					if ok && len(responses) > 0 {
+						firstResp := responses[0].(map[string]interface{})
+						comment, _ := firstResp["comment"].(string)
+						Expect(comment).NotTo(ContainSubstring("<script>"),
+							"Stored comment should not contain raw script tags")
+					}
+				}
 			})
 		})
 	})

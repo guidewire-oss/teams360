@@ -1,6 +1,7 @@
 package acceptance_test
 
 import (
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -11,10 +12,14 @@ import (
 var _ = Describe("E2E: Admin Supervisor Chain Management", Label("e2e", "admin", "supervisor-chain"), func() {
 	var page playwright.Page
 
-	const testTeamID = "sc_test_team"
-	const testTeamName = "SC Test Team"
+	var testTeamID string
+	var testTeamName string
 
 	BeforeEach(func() {
+		// Generate unique IDs per parallel process to avoid test collisions
+		testTeamID = fmt.Sprintf("sc_test_%d", GinkgoParallelProcess())
+		testTeamName = fmt.Sprintf("SC Test %d", GinkgoParallelProcess())
+
 		var err error
 		page, err = browser.NewPage()
 		Expect(err).NotTo(HaveOccurred())
@@ -226,23 +231,23 @@ var _ = Describe("E2E: Admin Supervisor Chain Management", Label("e2e", "admin",
 			Expect(err).NotTo(HaveOccurred())
 			Expect(count).To(Equal(2))
 
-			// Verify manager1 at position 0
-			var mgrExists bool
+			// Verify manager1 and director1 exist with correct positions
+			var mgrPosition int
 			err = db.QueryRow(
-				"SELECT EXISTS(SELECT 1 FROM team_supervisors WHERE team_id = $1 AND user_id = 'manager1' AND hierarchy_level_id = 'level-3')",
+				"SELECT position FROM team_supervisors WHERE team_id = $1 AND user_id = 'manager1' AND hierarchy_level_id = 'level-3'",
 				testTeamID,
-			).Scan(&mgrExists)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(mgrExists).To(BeTrue())
+			).Scan(&mgrPosition)
+			Expect(err).NotTo(HaveOccurred(), "Manager supervisor row should exist")
 
-			// Verify director1 at position 1
-			var dirExists bool
+			var dirPosition int
 			err = db.QueryRow(
-				"SELECT EXISTS(SELECT 1 FROM team_supervisors WHERE team_id = $1 AND user_id = 'director1' AND hierarchy_level_id = 'level-2')",
+				"SELECT position FROM team_supervisors WHERE team_id = $1 AND user_id = 'director1' AND hierarchy_level_id = 'level-2'",
 				testTeamID,
-			).Scan(&dirExists)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(dirExists).To(BeTrue())
+			).Scan(&dirPosition)
+			Expect(err).NotTo(HaveOccurred(), "Director supervisor row should exist")
+
+			Expect(mgrPosition).To(BeNumerically("<", dirPosition),
+				"Manager (added first) should have lower position than Director (added second)")
 		})
 	})
 

@@ -179,7 +179,7 @@ func SetupTeamRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository,
 	teams := router.Group("/api/v1/teams")
 	teams.Use(middleware.JWTAuthMiddleware(jwtService))
 	{
-		// List all teams (authenticated users only, filtering by access done in handler)
+		// List all teams (authenticated users only)
 		teams.GET("", handler.ListTeams)
 
 		// Team-specific routes require team membership or manager+ privileges

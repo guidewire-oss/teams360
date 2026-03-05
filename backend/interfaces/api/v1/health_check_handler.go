@@ -66,7 +66,7 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 
 	// Validate date is not in the future
 	if req.Date != "" {
-		parsedDate, err := time.Parse(time.RFC3339, req.Date)
+		parsedDate, err := time.Parse(time.RFC3339Nano, req.Date)
 		if err != nil {
 			telemetry.SetSpanError(span, err)
 			log.WithError(err).Warn("invalid date format in health check submission")

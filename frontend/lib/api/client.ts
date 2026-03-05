@@ -90,19 +90,14 @@ export async function apiRequest(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  // Lazy import to avoid circular dependency (auth.ts imports from client.ts)
+  const { authenticatedFetch } = await import('@/lib/auth');
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
 
-  // Auto-attach JWT token from localStorage if available
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      (defaultHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    }
-  }
-
-  return fetch(url, {
+  return authenticatedFetch(url, {
     ...options,
     headers: {
       ...defaultHeaders,

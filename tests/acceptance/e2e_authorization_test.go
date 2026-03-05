@@ -306,7 +306,8 @@ var _ = Describe("E2E: Authorization Security", func() {
 // Helper function to login and get JWT token
 func loginAndGetToken(username, password string) (string, error) {
 	body := fmt.Sprintf(`{"username":"%s","password":"%s"}`, username, password)
-	resp, err := http.Post(
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Post(
 		backendURL+"/api/v1/auth/login",
 		"application/json",
 		strings.NewReader(body),

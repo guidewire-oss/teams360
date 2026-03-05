@@ -71,11 +71,12 @@ export default function SupervisorChainModal({
     }
   };
 
-  // Filter to supervisor-level users (not team members or admins)
+  // Filter to supervisor-eligible levels: exclude survey-takers (team members/leads)
+  // and system admin (position 0). This avoids hardcoding level IDs.
   const getSupervisorLevels = () => {
-    return levels.filter(
-      (l) => l.id !== 'level-5' && l.id !== 'level-admin' && l.id !== 'level-4'
-    );
+    return levels
+      .filter((l) => !l.permissions.canTakeSurvey && l.position > 0)
+      .sort((a, b) => a.position - b.position);
   };
 
   const getUsersForLevel = (levelId: string) => {
