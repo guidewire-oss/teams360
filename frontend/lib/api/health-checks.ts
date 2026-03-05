@@ -129,11 +129,17 @@ export function formatDateForAPI(date: Date = new Date()): string {
 export async function getTeamSubmissionStatus(
   teamId: string,
   assessmentPeriod: string
-): Promise<TeamSubmissionStatus> {
+): Promise<TeamSubmissionStatus | null> {
   const params = new URLSearchParams({ assessmentPeriod });
   const response = await apiRequest(
     `${API_BASE_URL}/api/v1/teams/${teamId}/submission-status?${params.toString()}`
   );
+
+  // Return null when the endpoint is unavailable (e.g. backend not yet upgraded)
+  // so the dashboard degrades gracefully rather than throwing a console error.
+  if (response.status === 404 || response.status === 503) {
+    return null;
+  }
 
   return handleResponse<TeamSubmissionStatus>(response);
 }
