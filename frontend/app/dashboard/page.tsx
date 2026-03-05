@@ -235,46 +235,7 @@ export default function DashboardPage() {
     router.push('/login');
   };
 
-  if (!user) return null;
-
-  const config = getOrgConfig();
-  const userLevel = getHierarchyLevel(user.hierarchyLevelId || '');
-
-  // Get score color
-  const getScoreColor = (score: number) => {
-    if (score === 3) return 'text-green-600';
-    if (score === 2) return 'text-yellow-600';
-    return 'text-red-600';
-  };
-
-  const getScoreLabel = (score: number) => {
-    if (score === 3) return 'Green';
-    if (score === 2) return 'Yellow';
-    return 'Red';
-  };
-
-  // Inline styles used for dynamic colors to avoid Tailwind JIT purging dynamic class strings
-  const getScoreDotColor = (score: number): string =>
-    score === 3 ? '#10B981' : score === 2 ? '#F59E0B' : '#EF4444';
-
-  const getAvgBadgeStyle = (avg: number): { backgroundColor: string; color: string } =>
-    avg >= 2.5
-      ? { backgroundColor: '#D1FAE5', color: '#065F46' }
-      : avg >= 1.5
-      ? { backgroundColor: '#FEF3C7', color: '#92400E' }
-      : { backgroundColor: '#FEE2E2', color: '#991B1B' };
-
-  const getShortDimName = (name: string) => {
-    const map: Record<string, string> = {
-      'Delivering Value': 'D.Value',
-      'Health of Codebase': 'Codebase',
-      'Pawns or Players': 'Autonomy',
-      'Easy to Release': 'Release',
-      'Suitable Process': 'Process',
-    };
-    return map[name] || name;
-  };
-
+  // All useMemo hooks must be called unconditionally — before any early return
   const matrixDims = useMemo(
     () => individualResponses[0]?.responses || [],
     [individualResponses]
@@ -314,7 +275,7 @@ export default function DashboardPage() {
           healthScore,
         };
       })
-      .sort((a, b) => a.healthScore - b.healthScore), // worst first → most actionable at top
+      .sort((a, b) => a.healthScore - b.healthScore),
     [distribution]
   );
 
@@ -334,6 +295,46 @@ export default function DashboardPage() {
     }).filter((d) => d.data.some((p) => p.value > 0)),
     [trends]
   );
+
+  if (!user) return null;
+
+  const config = getOrgConfig();
+  const userLevel = getHierarchyLevel(user.hierarchyLevelId || '');
+
+  // Get score color
+  const getScoreColor = (score: number) => {
+    if (score === 3) return 'text-green-600';
+    if (score === 2) return 'text-yellow-600';
+    return 'text-red-600';
+  };
+
+  const getScoreLabel = (score: number) => {
+    if (score === 3) return 'Green';
+    if (score === 2) return 'Yellow';
+    return 'Red';
+  };
+
+  // Inline styles used for dynamic colors to avoid Tailwind JIT purging dynamic class strings
+  const getScoreDotColor = (score: number): string =>
+    score === 3 ? '#10B981' : score === 2 ? '#F59E0B' : '#EF4444';
+
+  const getAvgBadgeStyle = (avg: number): { backgroundColor: string; color: string } =>
+    avg >= 2.5
+      ? { backgroundColor: '#D1FAE5', color: '#065F46' }
+      : avg >= 1.5
+      ? { backgroundColor: '#FEF3C7', color: '#92400E' }
+      : { backgroundColor: '#FEE2E2', color: '#991B1B' };
+
+  const getShortDimName = (name: string) => {
+    const map: Record<string, string> = {
+      'Delivering Value': 'D.Value',
+      'Health of Codebase': 'Codebase',
+      'Pawns or Players': 'Autonomy',
+      'Easy to Release': 'Release',
+      'Suitable Process': 'Process',
+    };
+    return map[name] || name;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
