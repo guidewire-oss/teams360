@@ -402,11 +402,12 @@ export default function DashboardPage() {
               <>
                 {/* Radar Chart Tab */}
                 {activeTab === 'radar' && (
-                  <div>
+                  <div data-testid="radar-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Team Health Overview</h2>
                     {healthSummary.length > 0 ? (
+                      <div data-testid="radar-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <RadarChart data={healthSummary} data-testid="radar-chart">
+                        <RadarChart data={healthSummary}>
                           <PolarGrid />
                           <PolarAngleAxis dataKey="dimension" />
                           <PolarRadiusAxis domain={[0, 3]} />
@@ -421,6 +422,7 @@ export default function DashboardPage() {
                           <Legend />
                         </RadarChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No health data available</p>
                     )}
@@ -429,11 +431,12 @@ export default function DashboardPage() {
 
                 {/* Distribution Tab */}
                 {activeTab === 'distribution' && (
-                  <div>
+                  <div data-testid="distribution-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Response Distribution</h2>
                     {distribution.length > 0 ? (
+                      <div data-testid="distribution-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <BarChart data={distribution} data-testid="distribution-chart">
+                        <BarChart data={distribution}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="dimension" />
                           <YAxis />
@@ -444,6 +447,7 @@ export default function DashboardPage() {
                           <Bar dataKey="green" fill="#10B981" name="Green (Good)" />
                         </BarChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No distribution data available</p>
                     )}
@@ -452,7 +456,7 @@ export default function DashboardPage() {
 
                 {/* Individual Responses Tab */}
                 {activeTab === 'responses' && (
-                  <div>
+                  <div data-testid="responses-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Individual Team Responses</h2>
                     {individualResponses.length > 0 ? (
                       <div className="space-y-4">
@@ -508,11 +512,12 @@ export default function DashboardPage() {
 
                 {/* Trends Tab */}
                 {activeTab === 'trends' && (
-                  <div>
+                  <div data-testid="trends-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Health Trends Over Time</h2>
                     {trends.length > 0 ? (
+                      <div data-testid="trends-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <LineChart data={trends} data-testid="trends-chart">
+                        <LineChart data={trends}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="period" />
                           <YAxis domain={[0, 3]} />
@@ -530,6 +535,7 @@ export default function DashboardPage() {
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No trend data available</p>
                     )}
