@@ -35,11 +35,14 @@ export function middleware(request: NextRequest) {
     // Enforce survey page access control
     if (isSurveyPage) {
       const canTakeSurvey = user.canTakeSurvey === true;
-      const isDefaultSurveyLevel = hierarchyLevelId === 'level-4' || hierarchyLevelId === 'level-5';
-      if (!canTakeSurvey && !isDefaultSurveyLevel) {
+      if (!canTakeSurvey) {
         // Redirect based on role
         if (hierarchyLevelId === 'admin' || hierarchyLevelId === 'level-admin') {
           return NextResponse.redirect(new URL('/admin', request.url));
+        } else if (hierarchyLevelId === 'level-4') {
+          return NextResponse.redirect(new URL('/dashboard', request.url));
+        } else if (hierarchyLevelId === 'level-5') {
+          return NextResponse.redirect(new URL('/home', request.url));
         } else {
           // Manager, Director, VP → /manager
           return NextResponse.redirect(new URL('/manager', request.url));

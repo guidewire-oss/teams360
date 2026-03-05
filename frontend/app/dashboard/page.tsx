@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -222,7 +222,7 @@ export default function DashboardPage() {
             }),
           }));
           setIndividualResponses(transformed);
-          setCollapsedCards(new Set());
+          setCollapsedCards(new Set()); // Reset collapsed state when data changes
         }
       } else if (respRes.status >= 500) {
         setError('Unable to load dashboard data. Please refresh the page.');
@@ -333,49 +333,65 @@ export default function DashboardPage() {
     return map[name] || name;
   };
 
-  const matrixDims = individualResponses[0]?.responses || [];
-  const matrixDimAvgs = matrixDims.map((dim) => {
-    const scores = individualResponses.map(
-      (r) => r.responses.find((resp) => resp.dimensionId === dim.dimensionId)?.score ?? 0
-    );
-    const nonZero = scores.filter((s) => s > 0);
-    return nonZero.length > 0 ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
-  });
-  const matrixOverallAvg =
-    matrixDimAvgs.length > 0
+  const matrixDims = useMemo(
+    () => individualResponses[0]?.responses || [],
+    [individualResponses]
+  );
+
+  const matrixDimAvgs = useMemo(
+    () => matrixDims.map((dim) => {
+      const scores = individualResponses.map(
+        (r) => r.responses.find((resp) => resp.dimensionId === dim.dimensionId)?.score ?? 0
+      );
+      const nonZero = scores.filter((s) => s > 0);
+      return nonZero.length > 0 ? nonZero.reduce((a, b) => a + b, 0) / nonZero.length : 0;
+    }),
+    [matrixDims, individualResponses]
+  );
+
+  const matrixOverallAvg = useMemo(
+    () => matrixDimAvgs.length > 0
       ? matrixDimAvgs.filter((a) => a > 0).reduce((a, b) => a + b, 0) /
         (matrixDimAvgs.filter((a) => a > 0).length || 1)
-      : 0;
+      : 0,
+    [matrixDimAvgs]
+  );
 
   // Breakdown view: percentage bars sorted worst-first
-  const breakdownData = [...distribution]
-    .map((d) => {
-      const total = d.red + d.yellow + d.green;
-      const healthScore = total > 0 ? (d.green * 3 + d.yellow * 2 + d.red * 1) / total : 0;
-      return {
-        ...d,
-        total,
-        greenPct: total > 0 ? (d.green / total) * 100 : 0,
-        yellowPct: total > 0 ? (d.yellow / total) * 100 : 0,
-        redPct: total > 0 ? (d.red / total) * 100 : 0,
-        healthScore,
-      };
-    })
-    .sort((a, b) => a.healthScore - b.healthScore); // worst first → most actionable at top
+  const breakdownData = useMemo(
+    () => [...distribution]
+      .map((d) => {
+        const total = d.red + d.yellow + d.green;
+        const healthScore = total > 0 ? (d.green * 3 + d.yellow * 2 + d.red * 1) / total : 0;
+        return {
+          ...d,
+          total,
+          greenPct: total > 0 ? (d.green / total) * 100 : 0,
+          yellowPct: total > 0 ? (d.yellow / total) * 100 : 0,
+          redPct: total > 0 ? (d.red / total) * 100 : 0,
+          healthScore,
+        };
+      })
+      .sort((a, b) => a.healthScore - b.healthScore), // worst first → most actionable at top
+    [distribution]
+  );
 
   // Small multiples: one sparkline card per dimension
-  const dimSparklines = HEALTH_DIMENSIONS.map((dim) => {
-    const data = trends.map((t) => ({
-      period: t.period as string,
-      value: (t[dim.id] as number) || 0,
-    }));
-    const validData = data.filter((p) => p.value > 0);
-    const latest = validData.length > 0 ? validData[validData.length - 1].value : 0;
-    const prev = validData.length > 1 ? validData[validData.length - 2].value : latest;
-    const direction: 'up' | 'down' | 'stable' =
-      latest > prev + 0.1 ? 'up' : latest < prev - 0.1 ? 'down' : 'stable';
-    return { dim, data, latest, direction };
-  }).filter((d) => d.data.some((p) => p.value > 0));
+  const dimSparklines = useMemo(
+    () => HEALTH_DIMENSIONS.map((dim) => {
+      const data = trends.map((t) => ({
+        period: t.period as string,
+        value: (t[dim.id] as number) || 0,
+      }));
+      const validData = data.filter((p) => p.value > 0);
+      const latest = validData.length > 0 ? validData[validData.length - 1].value : 0;
+      const prev = validData.length > 1 ? validData[validData.length - 2].value : latest;
+      const direction: 'up' | 'down' | 'stable' =
+        latest > prev + 0.1 ? 'up' : latest < prev - 0.1 ? 'down' : 'stable';
+      return { dim, data, latest, direction };
+    }).filter((d) => d.data.some((p) => p.value > 0)),
+    [trends]
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">

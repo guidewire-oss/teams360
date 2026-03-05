@@ -35,8 +35,11 @@ function getNextSurveyDate(lastSurveyDate: string, cadence: string): Date {
 
 function formatRelativeDate(date: Date): string {
   const now = new Date();
-  const diffMs = date.getTime() - now.getTime();
-  const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  // Normalize both to start-of-day to compare calendar days, not timestamps
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffMs = dateStart.getTime() - todayStart.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
 
   if (diffDays < 0) return 'Overdue';
   if (diffDays === 0) return 'Today';
