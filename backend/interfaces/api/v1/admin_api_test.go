@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"testing"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
 
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
@@ -20,351 +22,245 @@ import (
 	_ "github.com/lib/pq"
 )
 
-var (
-	testDB         *sql.DB
-	testJWTService *services.JWTService
-	adminToken     string
-)
-
-// setupTestDB creates a test database connection and runs migrations
-func setupTestDB(t *testing.T) *sql.DB {
-	if testDB != nil {
-		// Clean up test data before each test
-		testDB.Exec("DELETE FROM team_members WHERE user_id LIKE 'test-%' OR team_id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM team_supervisors WHERE user_id LIKE 'test-%' OR team_id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM health_check_responses")
-		testDB.Exec("DELETE FROM health_check_sessions WHERE user_id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM teams WHERE id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM users WHERE id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM hierarchy_levels WHERE id LIKE 'test-%'")
-		testDB.Exec("DELETE FROM health_dimensions WHERE id LIKE 'test-%' OR id LIKE 'e2e-%' OR id LIKE 'dim-%'")
-		return testDB
-	}
-
-	databaseURL := "postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
-	db, err := sql.Open("postgres", databaseURL)
-	if err != nil {
-		t.Fatalf("Failed to connect to test database: %v", err)
-	}
-
-	if err := db.Ping(); err != nil {
-		t.Fatalf("Failed to ping test database: %v", err)
-	}
-
-	// Run migrations
-	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
-	if err != nil {
-		t.Fatalf("Failed to create migration driver: %v", err)
-	}
-
-	migrationEngine, err := migrate.NewWithDatabaseInstance(
-		"file://../../../infrastructure/persistence/postgres/migrations",
-		"postgres",
-		driver,
+var _ = Describe("Admin API", func() {
+	var (
+		db         *sql.DB
+		router     *gin.Engine
+		adminToken string
 	)
-	if err != nil {
-		t.Fatalf("Failed to create migration engine: %v", err)
-	}
 
-	// Run migrations (don't drop first time, just apply any new ones)
-	if err := migrationEngine.Up(); err != nil && err != migrate.ErrNoChange {
-		t.Fatalf("Failed to run migrations: %v", err)
-	}
+	BeforeEach(func() {
+		gin.SetMode(gin.TestMode)
 
-	testDB = db
-	return testDB
-}
+		databaseURL := "postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
+		var err error
+		db, err = sql.Open("postgres", databaseURL)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(db.Ping()).To(Succeed())
 
-// setupRouter creates a test router with repository dependency injection
-func setupRouter(db *sql.DB) *gin.Engine {
-	gin.SetMode(gin.TestMode)
-	router := gin.New()
+		// Run migrations
+		driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
+		Expect(err).NotTo(HaveOccurred())
 
-	// Create JWT service and generate admin token for tests
-	if testJWTService == nil {
-		testJWTService = services.NewJWTService()
-		tokenPair, err := testJWTService.GenerateTokenPair(context.Background(), "admin", "admin", "admin@test.com", "level-admin", nil)
-		if err != nil {
-			panic("failed to generate test admin token: " + err.Error())
+		migrationEngine, err := migrate.NewWithDatabaseInstance(
+			"file://../../../infrastructure/persistence/postgres/migrations",
+			"postgres",
+			driver,
+		)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = migrationEngine.Up()
+		if err != nil && err != migrate.ErrNoChange {
+			Fail("Failed to run migrations: " + err.Error())
 		}
+
+		// Clean up test data
+		db.Exec("DELETE FROM team_members WHERE user_id LIKE 'test-%' OR team_id LIKE 'test-%'")
+		db.Exec("DELETE FROM team_supervisors WHERE user_id LIKE 'test-%' OR team_id LIKE 'test-%'")
+		db.Exec("DELETE FROM health_check_responses")
+		db.Exec("DELETE FROM health_check_sessions WHERE user_id LIKE 'test-%'")
+		db.Exec("DELETE FROM teams WHERE id LIKE 'test-%'")
+		db.Exec("DELETE FROM users WHERE id LIKE 'test-%'")
+		db.Exec("DELETE FROM hierarchy_levels WHERE id LIKE 'test-%'")
+		db.Exec("DELETE FROM health_dimensions WHERE id LIKE 'test-%' OR id LIKE 'e2e-%' OR id LIKE 'dim-%'")
+
+		// Create JWT service and generate admin token
+		jwtService := services.NewJWTService()
+		tokenPair, err := jwtService.GenerateTokenPair(context.Background(), "admin", "admin", "admin@test.com", "level-admin", nil)
+		Expect(err).NotTo(HaveOccurred())
 		adminToken = tokenPair.AccessToken
-	}
 
-	// Create repositories
-	orgRepo := postgres.NewOrganizationRepository(db)
-	userRepo := postgres.NewUserRepository(db)
-	teamRepo := postgres.NewTeamRepository(db)
+		// Create repositories and router
+		orgRepo := postgres.NewOrganizationRepository(db)
+		userRepo := postgres.NewUserRepository(db)
+		teamRepo := postgres.NewTeamRepository(db)
 
-	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, testJWTService)
-	return router
-}
+		router = gin.New()
+		v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
+	})
 
-func TestListHierarchyLevels(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
-
-	// Make GET request
-	req := httptest.NewRequest("GET", "/api/v1/admin/hierarchy-levels", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Verify response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response dto.HierarchyLevelsResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	// Should have at least the seeded levels
-	if len(response.Levels) < 5 {
-		t.Errorf("Expected at least 5 hierarchy levels, got %d", len(response.Levels))
-	}
-
-	// Verify order
-	for i := 1; i < len(response.Levels); i++ {
-		if response.Levels[i-1].Position > response.Levels[i].Position {
-			t.Error("Hierarchy levels not ordered by position")
+	AfterEach(func() {
+		db.Exec("DELETE FROM hierarchy_levels WHERE id LIKE 'test-%'")
+		db.Exec("DELETE FROM users WHERE id LIKE 'test-%'")
+		if db != nil {
+			db.Close()
 		}
-	}
-}
+	})
 
-func TestCreateHierarchyLevel(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
+	Describe("GET /api/v1/admin/hierarchy-levels", func() {
+		It("should return all hierarchy levels ordered by position", func() {
+			req := httptest.NewRequest("GET", "/api/v1/admin/hierarchy-levels", nil)
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	// Create request
-	reqBody := dto.CreateHierarchyLevelRequest{
-		ID:   "test-level-1",
-		Name: "Test Level",
-		Permissions: dto.HierarchyPermissionsDTO{
-			CanViewAllTeams:  true,
-			CanEditTeams:     false,
-			CanManageUsers:   false,
-			CanTakeSurvey:    true,
-			CanViewAnalytics: false,
-		},
-	}
+			Expect(w.Code).To(Equal(http.StatusOK))
 
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest("POST", "/api/v1/admin/hierarchy-levels", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			var response dto.HierarchyLevelsResponse
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(response.Levels)).To(BeNumerically(">=", 5))
 
-	// Verify response
-	if w.Code != http.StatusCreated {
-		t.Errorf("Expected status 201, got %d. Body: %s", w.Code, w.Body.String())
-	}
+			// Verify order
+			for i := 1; i < len(response.Levels); i++ {
+				Expect(response.Levels[i].Position).To(BeNumerically(">=", response.Levels[i-1].Position))
+			}
+		})
+	})
 
-	var response dto.HierarchyLevelDTO
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
+	Describe("POST /api/v1/admin/hierarchy-levels", func() {
+		It("should create a new hierarchy level", func() {
+			reqBody := dto.CreateHierarchyLevelRequest{
+				ID:   "test-level-1",
+				Name: "Test Level",
+				Permissions: dto.HierarchyPermissionsDTO{
+					CanViewAllTeams:  true,
+					CanEditTeams:     false,
+					CanManageUsers:   false,
+					CanTakeSurvey:    true,
+					CanViewAnalytics: false,
+				},
+			}
 
-	if response.ID != "test-level-1" {
-		t.Errorf("Expected ID 'test-level-1', got '%s'", response.ID)
-	}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest("POST", "/api/v1/admin/hierarchy-levels", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	if response.Name != "Test Level" {
-		t.Errorf("Expected name 'Test Level', got '%s'", response.Name)
-	}
+			Expect(w.Code).To(Equal(http.StatusCreated))
 
-	// Cleanup
-	db.Exec("DELETE FROM hierarchy_levels WHERE id = 'test-level-1'")
-}
+			var response dto.HierarchyLevelDTO
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.ID).To(Equal("test-level-1"))
+			Expect(response.Name).To(Equal("Test Level"))
+		})
+	})
 
-func TestListUsers(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
+	Describe("GET /api/v1/admin/users", func() {
+		It("should return all users with total count", func() {
+			req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	// Make GET request
-	req := httptest.NewRequest("GET", "/api/v1/admin/users", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusOK))
 
-	// Verify response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
+			var response dto.UsersResponse
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.Users).NotTo(BeEmpty())
+			Expect(response.Total).To(Equal(len(response.Users)))
+		})
+	})
 
-	var response dto.UsersResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
+	Describe("POST /api/v1/admin/users", func() {
+		It("should create a new user", func() {
+			reqBody := dto.CreateUserRequest{
+				ID:             "test-user-1",
+				Username:       "testuser",
+				Email:          "test@example.com",
+				FullName:       "Test User",
+				Password:       "password123",
+				HierarchyLevel: "level-5",
+				ReportsTo:      nil,
+			}
 
-	// Should have seeded demo users
-	if len(response.Users) == 0 {
-		t.Error("Expected at least some users")
-	}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest("POST", "/api/v1/admin/users", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	if response.Total != len(response.Users) {
-		t.Errorf("Total count mismatch: total=%d, users=%d", response.Total, len(response.Users))
-	}
-}
+			Expect(w.Code).To(Equal(http.StatusCreated))
 
-func TestCreateUser(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
+			var response dto.AdminUserDTO
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.Username).To(Equal("testuser"))
+		})
+	})
 
-	// Create request
-	reqBody := dto.CreateUserRequest{
-		ID:             "test-user-1",
-		Username:       "testuser",
-		Email:          "test@example.com",
-		FullName:       "Test User",
-		Password:       "password123",
-		HierarchyLevel: "level-5",
-		ReportsTo:      nil,
-	}
+	Describe("GET /api/v1/admin/teams", func() {
+		It("should return all teams with cadence and total count", func() {
+			req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest("POST", "/api/v1/admin/users", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			Expect(w.Code).To(Equal(http.StatusOK))
 
-	// Verify response
-	if w.Code != http.StatusCreated {
-		t.Errorf("Expected status 201, got %d. Body: %s", w.Code, w.Body.String())
-	}
+			var response dto.TeamsResponse
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.Teams).NotTo(BeEmpty())
+			Expect(response.Total).To(Equal(len(response.Teams)))
 
-	var response dto.AdminUserDTO
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
+			for _, team := range response.Teams {
+				Expect(team.Cadence).NotTo(BeEmpty())
+			}
+		})
+	})
 
-	if response.Username != "testuser" {
-		t.Errorf("Expected username 'testuser', got '%s'", response.Username)
-	}
+	Describe("GET /api/v1/admin/settings/dimensions", func() {
+		It("should return all 11 health dimensions", func() {
+			req := httptest.NewRequest("GET", "/api/v1/admin/settings/dimensions", nil)
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	// Cleanup
-	db.Exec("DELETE FROM users WHERE id = 'test-user-1'")
-}
+			Expect(w.Code).To(Equal(http.StatusOK))
 
-func TestListTeams(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
+			var response dto.DimensionsResponse
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.Dimensions).To(HaveLen(11))
 
-	// Make GET request
-	req := httptest.NewRequest("GET", "/api/v1/admin/teams", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
+			for _, dim := range response.Dimensions {
+				Expect(dim.ID).NotTo(BeEmpty())
+				Expect(dim.Name).NotTo(BeEmpty())
+				Expect(dim.Weight).To(BeNumerically(">", 0))
+			}
+		})
+	})
 
-	// Verify response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Response: %s", w.Code, w.Body.String())
-	}
+	Describe("PUT /api/v1/admin/settings/dimensions/:id", func() {
+		It("should update dimension weight and active status", func() {
+			isActive := false
+			weight := 2.5
+			reqBody := dto.UpdateDimensionRequest{
+				IsActive: &isActive,
+				Weight:   &weight,
+			}
 
-	var response dto.TeamsResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
+			body, _ := json.Marshal(reqBody)
+			req := httptest.NewRequest("PUT", "/api/v1/admin/settings/dimensions/mission", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
 
-	// Should have seeded demo teams
-	if len(response.Teams) == 0 {
-		t.Error("Expected at least some teams")
-	}
+			Expect(w.Code).To(Equal(http.StatusOK))
 
-	if response.Total != len(response.Teams) {
-		t.Errorf("Total count mismatch: total=%d, teams=%d", response.Total, len(response.Teams))
-	}
+			var response dto.HealthDimensionDTO
+			err := json.Unmarshal(w.Body.Bytes(), &response)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.IsActive).To(BeFalse())
+			Expect(response.Weight).To(Equal(2.5))
 
-	// Verify team has cadence
-	for _, team := range response.Teams {
-		if team.Cadence == "" {
-			t.Errorf("Team %s has empty cadence", team.ID)
-		}
-	}
-}
-
-func TestGetDimensions(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
-
-	// Make GET request
-	req := httptest.NewRequest("GET", "/api/v1/admin/settings/dimensions", nil)
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Verify response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d", w.Code)
-	}
-
-	var response dto.DimensionsResponse
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	// Should have 11 seeded dimensions
-	if len(response.Dimensions) != 11 {
-		t.Errorf("Expected 11 dimensions, got %d", len(response.Dimensions))
-	}
-
-	// Verify dimensions have required fields
-	for _, dim := range response.Dimensions {
-		if dim.ID == "" || dim.Name == "" {
-			t.Error("Dimension missing required fields")
-		}
-		if dim.Weight <= 0 {
-			t.Errorf("Dimension %s has invalid weight: %f", dim.ID, dim.Weight)
-		}
-	}
-}
-
-func TestUpdateDimension(t *testing.T) {
-	db := setupTestDB(t)
-	router := setupRouter(db)
-
-	// Update request
-	isActive := false
-	weight := 2.5
-	reqBody := dto.UpdateDimensionRequest{
-		IsActive: &isActive,
-		Weight:   &weight,
-	}
-
-	body, _ := json.Marshal(reqBody)
-	req := httptest.NewRequest("PUT", "/api/v1/admin/settings/dimensions/mission", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+adminToken)
-	w := httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-
-	// Verify response
-	if w.Code != http.StatusOK {
-		t.Errorf("Expected status 200, got %d. Body: %s", w.Code, w.Body.String())
-	}
-
-	var response dto.HealthDimensionDTO
-	if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
-		t.Fatalf("Failed to parse response: %v", err)
-	}
-
-	if response.IsActive != false {
-		t.Errorf("Expected IsActive to be false, got %v", response.IsActive)
-	}
-
-	if response.Weight != 2.5 {
-		t.Errorf("Expected weight 2.5, got %f", response.Weight)
-	}
-
-	// Restore original values
-	isActive = true
-	weight = 1.0
-	reqBody = dto.UpdateDimensionRequest{IsActive: &isActive, Weight: &weight}
-	body, _ = json.Marshal(reqBody)
-	req = httptest.NewRequest("PUT", "/api/v1/admin/settings/dimensions/mission", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	w = httptest.NewRecorder()
-	router.ServeHTTP(w, req)
-}
+			// Restore original values
+			isActive = true
+			weight = 1.0
+			reqBody = dto.UpdateDimensionRequest{IsActive: &isActive, Weight: &weight}
+			body, _ = json.Marshal(reqBody)
+			req = httptest.NewRequest("PUT", "/api/v1/admin/settings/dimensions/mission", bytes.NewBuffer(body))
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Authorization", "Bearer "+adminToken)
+			w = httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+		})
+	})
+})

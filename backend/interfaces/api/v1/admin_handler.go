@@ -20,7 +20,7 @@ func NewAdminHandler(orgRepo organization.Repository, userRepo user.Repository, 
 	return &AdminHandler{
 		HierarchyHandler: NewHierarchyAdminHandler(orgRepo),
 		UserHandler:      NewUserAdminHandler(userRepo),
-		TeamHandler:      NewTeamAdminHandler(teamRepo),
+		TeamHandler:      NewTeamAdminHandler(teamRepo, userRepo, orgRepo),
 		SettingsHandler:  NewSettingsAdminHandler(orgRepo),
 	}
 }
@@ -87,6 +87,14 @@ func (h *AdminHandler) UpdateTeam(c *gin.Context) {
 
 func (h *AdminHandler) DeleteTeam(c *gin.Context) {
 	h.TeamHandler.DeleteTeam(c)
+}
+
+func (h *AdminHandler) GetTeamSupervisors(c *gin.Context) {
+	h.TeamHandler.GetSupervisorChain(c)
+}
+
+func (h *AdminHandler) UpdateTeamSupervisors(c *gin.Context) {
+	h.TeamHandler.UpdateSupervisorChain(c)
 }
 
 // ============================================================================
