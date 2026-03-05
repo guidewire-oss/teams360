@@ -212,11 +212,12 @@ func ManagerOrAboveMiddleware() gin.HandlerFunc {
 		}
 
 		level := hierarchyLevel.(string)
-		// Manager or above: level-1 (VP/Admin), level-2 (Director), level-3 (Manager)
+		// Manager or above: level-1 (VP/Admin), level-2 (Director), level-3 (Manager), level-admin (System Admin)
 		allowedLevels := map[string]bool{
-			"level-1": true, // VP/Admin
-			"level-2": true, // Director
-			"level-3": true, // Manager
+			"level-1":     true, // VP/Admin
+			"level-2":     true, // Director
+			"level-3":     true, // Manager
+			"level-admin": true, // System Admin
 		}
 
 		if !allowedLevels[level] {
@@ -257,7 +258,12 @@ func SameUserOrManagerMiddleware(paramName string) gin.HandlerFunc {
 		}
 
 		targetUserID := c.Param(paramName)
-		hierarchyLevel, _ := c.Get("hierarchyLevel")
+		hierarchyLevel, hlExists := c.Get("hierarchyLevel")
+		if !hlExists {
+			dto.RespondError(c, http.StatusForbidden, "Access denied: unable to determine user role")
+			c.Abort()
+			return
+		}
 		level := hierarchyLevel.(string)
 
 		// Allow if user is accessing their own data
@@ -319,14 +325,20 @@ func TeamMembershipMiddleware(paramName string) gin.HandlerFunc {
 			return
 		}
 
-		hierarchyLevel, _ := c.Get("hierarchyLevel")
+		hierarchyLevel, hlExists := c.Get("hierarchyLevel")
+		if !hlExists {
+			dto.RespondError(c, http.StatusForbidden, "Access denied: unable to determine user role")
+			c.Abort()
+			return
+		}
 		level := hierarchyLevel.(string)
 
 		// Manager or above can access any team (in their hierarchy)
 		allowedLevels := map[string]bool{
-			"level-1": true, // VP/Admin
-			"level-2": true, // Director
-			"level-3": true, // Manager
+			"level-1":     true, // VP/Admin
+			"level-2":     true, // Director
+			"level-3":     true, // Manager
+			"level-admin": true, // System Admin
 		}
 
 		if allowedLevels[level] {

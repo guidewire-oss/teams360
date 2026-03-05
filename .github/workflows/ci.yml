@@ -225,8 +225,8 @@ jobs:
             BASE=${{ github.event.pull_request.base.sha }}
           fi
           # Files that don't affect functionality
-          IGNORE_PATTERN='^\(docs/\|\.md$\|\.txt$\|LICENSE\|\.github/ISSUE_TEMPLATE\|\.github/PULL_REQUEST_TEMPLATE\)'
-          CHANGED=$(git diff --name-only "$BASE" HEAD | grep -v "$IGNORE_PATTERN" || true)
+          IGNORE_PATTERN='^docs/|\.md$|\.txt$|^LICENSE$|^\.github/ISSUE_TEMPLATE|^\.github/PULL_REQUEST_TEMPLATE'
+          CHANGED=$(git diff --name-only "$BASE" HEAD | grep -vE "$IGNORE_PATTERN" || true)
           if [ -z "$CHANGED" ]; then
             echo "Only docs/non-functional files changed — skipping E2E"
             echo "needs_e2e=false" >> "$GITHUB_OUTPUT"

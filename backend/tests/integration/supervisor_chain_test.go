@@ -46,6 +46,16 @@ var _ = Describe("Integration: Supervisor Chain API", func() {
 		teamRepo := postgres.NewTeamRepository(db)
 		v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
 
+		// Insert test users needed for supervisor chain tests
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash) VALUES
+			('manager1', 'manager1', 'manager1@test.com', 'Manager One', 'level-3', 'unused'),
+			('manager2', 'manager2', 'manager2@test.com', 'Manager Two', 'level-3', 'unused'),
+			('director1', 'director1', 'director1@test.com', 'Director One', 'level-2', 'unused')
+			ON CONFLICT (id) DO NOTHING
+		`)
+		Expect(err).NotTo(HaveOccurred())
+
 		// Insert test team
 		_, err = db.Exec(`
 			INSERT INTO teams (id, name, cadence)
@@ -58,6 +68,7 @@ var _ = Describe("Integration: Supervisor Chain API", func() {
 	AfterEach(func() {
 		db.Exec("DELETE FROM team_supervisors WHERE team_id LIKE 'sc_%'")
 		db.Exec("DELETE FROM teams WHERE id LIKE 'sc_%'")
+		db.Exec("DELETE FROM users WHERE id IN ('manager1', 'manager2', 'director1')")
 		cleanup()
 	})
 
