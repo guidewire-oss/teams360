@@ -116,6 +116,11 @@ func main() {
 	}
 	log.Info("database connection established")
 
+	// Store APP_ENV in app_config table for runtime queries
+	if err := postgres.EnsureAppConfig(db); err != nil {
+		log.WithError(err).Fatal("failed to set app_config")
+	}
+
 	// Run migrations
 	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
 	if err != nil {
@@ -135,6 +140,17 @@ func main() {
 		log.WithError(err).Fatal("failed to run migrations")
 	}
 	log.Info("database migrations completed")
+
+	// Seed demo data only when APP_ENV=demo
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "dev"
+	}
+	if appEnv == "demo" {
+		if err := postgres.SeedDemoData(db); err != nil {
+			log.WithError(err).Fatal("failed to seed demo data")
+		}
+	}
 
 	// Initialize repositories
 	healthCheckRepo := postgres.NewHealthCheckRepository(db)
