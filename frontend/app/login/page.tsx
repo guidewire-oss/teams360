@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
 import { setAuthData, LoginResponse } from '@/lib/auth';
-import { fetchSSOConfig, startSSOFlow, OAuthConfig } from '@/lib/sso';
+import { startSSOFlow, OAuthConfig } from '@/lib/sso';
 import { API_BASE_URL } from '@/lib/api/client';
 import { Lock, User, AlertCircle, Users, LogIn } from 'lucide-react';
 
@@ -15,10 +15,17 @@ export default function LoginPage() {
   const [error, setError] = useState('');
   const [ssoLoading, setSSOLoading] = useState(false);
   const [ssoConfig, setSsoConfig] = useState<OAuthConfig | null>(null);
+  const [isDemoMode, setIsDemoMode] = useState(false);
   const config = getOrgConfig();
 
   useEffect(() => {
-    fetchSSOConfig().then(setSsoConfig);
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.appEnv === 'demo') setIsDemoMode(true);
+        if (data.sso) setSsoConfig(data.sso as OAuthConfig);
+      })
+      .catch(() => {});
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -83,7 +90,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
         <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
-          <div className="grid md:grid-cols-2">
+          <div className={`grid ${isDemoMode ? 'md:grid-cols-2' : ''}`}>
             {/* Login Form */}
             <div className="p-8">
               <div className="text-center mb-8">
@@ -167,8 +174,8 @@ export default function LoginPage() {
               )}
             </div>
 
-            {/* Demo Credentials Info */}
-            <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-8 border-l">
+            {/* Demo Credentials Info - only shown when APP_ENV=demo */}
+            {isDemoMode && <div className="bg-gradient-to-br from-indigo-50 to-blue-50 p-8 border-l">
               <h3 className="text-lg font-semibold text-gray-900 mb-6 flex items-center gap-2">
                 <Users className="w-5 h-5 text-indigo-600" />
                 Demo Login Credentials
@@ -225,7 +232,7 @@ export default function LoginPage() {
                   </p>
                 </div>
               </div>
-            </div>
+            </div>}
           </div>
         </div>
       </div>

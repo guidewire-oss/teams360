@@ -21,12 +21,15 @@ func SetupSSORoutes(router *gin.Engine, userRepo user.Repository, jwtService *se
 	// so the frontend can display the "Sign in with SSO" button without
 	// baking NEXT_PUBLIC_OAUTH_* values at build time.
 	router.GET("/api/v1/config", func(c *gin.Context) {
+		appEnv := getEnvOrDefault("APP_ENV", "production")
+
 		clientID := os.Getenv("OAUTH_CLIENT_ID")
 		if clientID == "" {
-			c.JSON(200, gin.H{"sso": nil})
+			c.JSON(200, gin.H{"sso": nil, "appEnv": appEnv})
 			return
 		}
 		c.JSON(200, gin.H{
+			"appEnv": appEnv,
 			"sso": gin.H{
 				"clientId":     clientID,
 				"authorizeUrl": os.Getenv("OAUTH_AUTHORIZE_URL"),
