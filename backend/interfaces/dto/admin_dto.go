@@ -129,6 +129,31 @@ type TeamsResponse struct {
 	Total int            `json:"total"`
 }
 
+// SupervisorLinkDTO represents a supervisor in the chain with display names
+type SupervisorLinkDTO struct {
+	UserID    string `json:"userId"`
+	UserName  string `json:"userName"`
+	LevelID   string `json:"levelId"`
+	LevelName string `json:"levelName"`
+}
+
+// SupervisorChainResponse represents the full supervisor chain for a team
+type SupervisorChainResponse struct {
+	TeamID      string              `json:"teamId"`
+	Supervisors []SupervisorLinkDTO `json:"supervisors"`
+}
+
+// UpdateSupervisorChainRequest represents request to update a team's supervisor chain
+type UpdateSupervisorChainRequest struct {
+	Supervisors []SupervisorLinkInput `json:"supervisors" binding:"required"`
+}
+
+// SupervisorLinkInput represents a supervisor link in update requests
+type SupervisorLinkInput struct {
+	UserID  string `json:"userId" binding:"required"`
+	LevelID string `json:"levelId" binding:"required"`
+}
+
 // ============================================================================
 // Settings DTOs
 // ============================================================================

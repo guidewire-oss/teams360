@@ -4,7 +4,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/domain/team"
+	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/gin-gonic/gin"
 )
@@ -12,11 +14,13 @@ import (
 // TeamAdminHandler handles team-related admin HTTP requests
 type TeamAdminHandler struct {
 	teamRepo team.Repository
+	userRepo user.Repository
+	orgRepo  organization.Repository
 }
 
 // NewTeamAdminHandler creates a new TeamAdminHandler
-func NewTeamAdminHandler(teamRepo team.Repository) *TeamAdminHandler {
-	return &TeamAdminHandler{teamRepo: teamRepo}
+func NewTeamAdminHandler(teamRepo team.Repository, userRepo user.Repository, orgRepo organization.Repository) *TeamAdminHandler {
+	return &TeamAdminHandler{teamRepo: teamRepo, userRepo: userRepo, orgRepo: orgRepo}
 }
 
 // ListTeams handles GET /api/v1/admin/teams
@@ -165,6 +169,91 @@ func (h *TeamAdminHandler) DeleteTeam(c *gin.Context) {
 	}
 
 	dto.RespondMessage(c, http.StatusOK, "Team deleted successfully")
+}
+
+// GetSupervisorChain handles GET /api/v1/admin/teams/:id/supervisors
+func (h *TeamAdminHandler) GetSupervisorChain(c *gin.Context) {
+	teamID := c.Param("id")
+
+	// Verify team exists
+	_, err := h.teamRepo.FindByID(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
+		return
+	}
+
+	chain, err := h.teamRepo.FindSupervisorChain(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to fetch supervisor chain",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Enrich with user and level names
+	supervisors := make([]dto.SupervisorLinkDTO, len(chain))
+	for i, link := range chain {
+		supervisors[i] = dto.SupervisorLinkDTO{
+			UserID:  link.UserID,
+			LevelID: link.LevelID,
+		}
+
+		// Look up user name
+		u, err := h.userRepo.FindByID(c.Request.Context(), link.UserID)
+		if err == nil {
+			supervisors[i].UserName = u.Name
+		}
+
+		// Look up level name
+		level, err := h.orgRepo.FindHierarchyLevelByID(c.Request.Context(), link.LevelID)
+		if err == nil {
+			supervisors[i].LevelName = level.Name
+		}
+	}
+
+	c.JSON(http.StatusOK, dto.SupervisorChainResponse{
+		TeamID:      teamID,
+		Supervisors: supervisors,
+	})
+}
+
+// UpdateSupervisorChain handles PUT /api/v1/admin/teams/:id/supervisors
+func (h *TeamAdminHandler) UpdateSupervisorChain(c *gin.Context) {
+	teamID := c.Param("id")
+
+	var req dto.UpdateSupervisorChainRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body", Message: err.Error()})
+		return
+	}
+
+	// Verify team exists
+	_, err := h.teamRepo.FindByID(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
+		return
+	}
+
+	// Convert to domain model
+	chain := make([]*team.SupervisorLink, len(req.Supervisors))
+	for i, s := range req.Supervisors {
+		chain[i] = &team.SupervisorLink{
+			UserID:  s.UserID,
+			LevelID: s.LevelID,
+		}
+	}
+
+	if err := h.teamRepo.UpdateSupervisorChain(c.Request.Context(), teamID, chain); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to update supervisor chain",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	// Return the updated chain with enriched data
+	h.GetSupervisorChain(c)
 }
 
 // generateTeamIDFromName creates a URL-safe ID from a team name

@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
+import { API_BASE_URL } from '@/lib/api/client';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { getCurrentAssessmentPeriod } from '@/lib/assessment-period';
 import { LogOut, Building2, ChevronDown, ClipboardList, TrendingUp, Calendar } from 'lucide-react';
@@ -54,7 +55,7 @@ export default function MemberHomePage() {
     try {
       setLoading(true);
       console.log('[MemberHome] Fetching survey history for user:', userId);
-      const response = await fetch(`/api/v1/users/${userId}/survey-history`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/users/${userId}/survey-history`);
       console.log('[MemberHome] Response status:', response.status, response.ok);
       if (response.ok) {
         const data = await response.json();

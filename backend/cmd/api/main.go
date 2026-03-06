@@ -116,6 +116,11 @@ func main() {
 	}
 	log.Info("database connection established")
 
+	// Store APP_ENV in app_config table for runtime queries
+	if err := postgres.EnsureAppConfig(db); err != nil {
+		log.WithError(err).Fatal("failed to set app_config")
+	}
+
 	// Run migrations
 	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
 	if err != nil {
@@ -135,6 +140,17 @@ func main() {
 		log.WithError(err).Fatal("failed to run migrations")
 	}
 	log.Info("database migrations completed")
+
+	// Seed demo data only when APP_ENV=demo
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "dev"
+	}
+	if appEnv == "demo" {
+		if err := postgres.SeedDemoData(db); err != nil {
+			log.WithError(err).Fatal("failed to seed demo data")
+		}
+	}
 
 	// Initialize repositories
 	healthCheckRepo := postgres.NewHealthCheckRepository(db)
@@ -173,15 +189,15 @@ func main() {
 	})
 
 	// Setup API routes with repository injection
-	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
 	v1.SetupAuthRoutes(router, userRepo, jwtService)
 	v1.SetupSSORoutes(router, userRepo, jwtService)
-	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
-	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
+	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService)
+	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	v1.SetupTeamDashboardRoutes(router, db)             // Still uses db (complex dashboard queries)
 	v1.SetupUserRoutes(router, db)                      // Still uses db (complex user queries)
 	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
-	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
 	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 
 	// Static file serving for frontend SPA

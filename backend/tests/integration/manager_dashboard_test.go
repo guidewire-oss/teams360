@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
@@ -20,9 +22,11 @@ import (
 
 var _ = Describe("Integration: Manager Dashboard API", func() {
 	var (
-		db      *sql.DB
-		router  *gin.Engine
-		cleanup func()
+		db           *sql.DB
+		router       *gin.Engine
+		cleanup      func()
+		jwtService   *services.JWTService
+		managerToken string
 	)
 
 	BeforeEach(func() {
@@ -32,14 +36,21 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 		// Setup test database with helpers
 		db, cleanup = testhelpers.SetupTestDatabase()
 
+		// Initialize JWT service and generate a director-level token for tests
+		// Director (level-2) can access any manager's dashboard data
+		jwtService = services.NewJWTService()
+		tokenPair, tokenErr := jwtService.GenerateTokenPair(context.Background(), "test_director", "test_director", "director@test.com", "level-2", nil)
+		Expect(tokenErr).NotTo(HaveOccurred())
+		managerToken = tokenPair.AccessToken
+
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
 		trendsService := trends.NewService(db)
 
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
-		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
+		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService)
 	})
 
 	AfterEach(func() {
@@ -137,6 +148,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager requests their dashboard
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_manager1/teams/health", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -233,6 +245,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager filters by specific period
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_mgr2/teams/health?assessmentPeriod=2024+-+1st+Half", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -302,6 +315,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager 3 requests dashboard
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_mgr3/teams/health", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 

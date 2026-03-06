@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
 import { getTeamSubmissionStatus, TeamSubmissionStatus } from '@/lib/api/health-checks';
+import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod } from '@/lib/assessment-period';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 
@@ -91,7 +92,7 @@ export default function DashboardPage() {
       const periodQuery = assessmentPeriod ? `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}` : '';
 
       // Fetch health summary for radar chart
-      const healthRes = await fetch(`/api/v1/teams/${teamId}/dashboard/health-summary${periodQuery}`);
+      const healthRes = await authenticatedFetch(`${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/health-summary${periodQuery}`);
       if (healthRes.ok) {
         const data = await healthRes.json();
         // Transform backend format to frontend format
@@ -111,7 +112,7 @@ export default function DashboardPage() {
       }
 
       // Fetch response distribution
-      const distRes = await fetch(`/api/v1/teams/${teamId}/dashboard/response-distribution${periodQuery}`);
+      const distRes = await authenticatedFetch(`${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/response-distribution${periodQuery}`);
       if (distRes.ok) {
         const data = await distRes.json();
         // Transform backend format to frontend format
@@ -132,7 +133,7 @@ export default function DashboardPage() {
       }
 
       // Fetch individual responses
-      const respRes = await fetch(`/api/v1/teams/${teamId}/dashboard/individual-responses${periodQuery}`);
+      const respRes = await authenticatedFetch(`${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/individual-responses${periodQuery}`);
       if (respRes.ok) {
         const data = await respRes.json();
         // Transform backend format to frontend format
@@ -168,7 +169,7 @@ export default function DashboardPage() {
       }
 
       // Fetch trends (trends don't filter by period - they show all periods)
-      const trendsRes = await fetch(`/api/v1/teams/${teamId}/dashboard/trends`);
+      const trendsRes = await authenticatedFetch(`${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/trends`);
       if (trendsRes.ok) {
         const data = await trendsRes.json();
         // Transform backend format to frontend format
@@ -401,11 +402,12 @@ export default function DashboardPage() {
               <>
                 {/* Radar Chart Tab */}
                 {activeTab === 'radar' && (
-                  <div>
+                  <div data-testid="radar-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Team Health Overview</h2>
                     {healthSummary.length > 0 ? (
+                      <div data-testid="radar-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <RadarChart data={healthSummary} data-testid="radar-chart">
+                        <RadarChart data={healthSummary}>
                           <PolarGrid />
                           <PolarAngleAxis dataKey="dimension" />
                           <PolarRadiusAxis domain={[0, 3]} />
@@ -420,6 +422,7 @@ export default function DashboardPage() {
                           <Legend />
                         </RadarChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No health data available</p>
                     )}
@@ -428,11 +431,12 @@ export default function DashboardPage() {
 
                 {/* Distribution Tab */}
                 {activeTab === 'distribution' && (
-                  <div>
+                  <div data-testid="distribution-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Response Distribution</h2>
                     {distribution.length > 0 ? (
+                      <div data-testid="distribution-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <BarChart data={distribution} data-testid="distribution-chart">
+                        <BarChart data={distribution}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="dimension" />
                           <YAxis />
@@ -443,6 +447,7 @@ export default function DashboardPage() {
                           <Bar dataKey="green" fill="#10B981" name="Green (Good)" />
                         </BarChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No distribution data available</p>
                     )}
@@ -451,7 +456,7 @@ export default function DashboardPage() {
 
                 {/* Individual Responses Tab */}
                 {activeTab === 'responses' && (
-                  <div>
+                  <div data-testid="responses-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Individual Team Responses</h2>
                     {individualResponses.length > 0 ? (
                       <div className="space-y-4">
@@ -507,11 +512,12 @@ export default function DashboardPage() {
 
                 {/* Trends Tab */}
                 {activeTab === 'trends' && (
-                  <div>
+                  <div data-testid="trends-chart-section">
                     <h2 className="text-xl font-semibold text-gray-900 mb-6">Health Trends Over Time</h2>
                     {trends.length > 0 ? (
+                      <div data-testid="trends-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
-                        <LineChart data={trends} data-testid="trends-chart">
+                        <LineChart data={trends}>
                           <CartesianGrid strokeDasharray="3 3" />
                           <XAxis dataKey="period" />
                           <YAxis domain={[0, 3]} />
@@ -529,6 +535,7 @@ export default function DashboardPage() {
                           ))}
                         </LineChart>
                       </ResponsiveContainer>
+                      </div>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No trend data available</p>
                     )}

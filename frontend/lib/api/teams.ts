@@ -4,7 +4,7 @@
  * Provides methods to interact with the backend API for team information.
  */
 
-import { API_BASE_URL, APIError, APIRequestError, handleResponse } from './client';
+import { API_BASE_URL, APIError, APIRequestError, apiRequest, handleResponse } from './client';
 
 // Types matching backend DTOs
 export interface TeamMember {
@@ -33,12 +33,7 @@ export { APIRequestError as TeamsAPIError };
  * @returns Team information including name, cadence, and members
  */
 export async function getTeamInfo(teamId: string): Promise<TeamInfo> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/teams/${teamId}/info`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/teams/${teamId}/info`);
 
   return handleResponse<TeamInfo>(response);
 }
@@ -99,12 +94,7 @@ export interface TeamsListResponse {
  * @returns List of all teams
  */
 export async function listTeams(): Promise<TeamsListResponse> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/teams`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/teams`);
 
   return handleResponse<TeamsListResponse>(response);
 }

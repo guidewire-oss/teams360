@@ -3,21 +3,28 @@ package v1
 import (
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 )
 
 // SetupHealthCheckRoutes registers health check routes with repository injection
-func SetupHealthCheckRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, orgRepo organization.Repository) {
+// All routes require JWT authentication
+func SetupHealthCheckRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, orgRepo organization.Repository, jwtService *services.JWTService) {
 	handler := NewHealthCheckHandler(healthCheckRepo, orgRepo)
 
-	// Health check routes
-	router.POST("/api/v1/health-checks", handler.SubmitHealthCheck)
-	router.GET("/api/v1/health-dimensions", handler.GetHealthDimensions)
-	router.GET("/api/v1/health-checks/:id", handler.GetHealthCheckByID)
-	// Using /health-checks/team/:id to avoid conflict with /teams/:id
-	router.GET("/api/v1/health-checks/team/:id", handler.GetTeamHealthChecks)
+	// Health check routes - all require authentication
+	healthChecks := router.Group("/api/v1")
+	healthChecks.Use(middleware.JWTAuthMiddleware(jwtService))
+	{
+		healthChecks.POST("/health-checks", handler.SubmitHealthCheck)
+		healthChecks.GET("/health-dimensions", handler.GetHealthDimensions)
+		healthChecks.GET("/health-checks/:id", handler.GetHealthCheckByID)
+		// Using /health-checks/team/:id to avoid conflict with /teams/:id
+		healthChecks.GET("/health-checks/team/:id", handler.GetTeamHealthChecks)
 
-	// Team submission status for post-workshop surveys
-	router.GET("/api/v1/teams/:teamId/submission-status", handler.GetTeamSubmissionStatus)
+		// Team submission status for post-workshop surveys
+		healthChecks.GET("/teams/:teamId/submission-status", handler.GetTeamSubmissionStatus)
+	}
 }

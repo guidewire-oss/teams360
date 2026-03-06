@@ -32,9 +32,11 @@ import {
   X,
   Building2,
   AlertCircle,
+  GitBranch,
 } from "lucide-react";
 import HierarchyConfig from "@/components/HierarchyConfig";
 import DimensionConfig from "@/components/DimensionConfig";
+import SupervisorChainModal from "@/components/SupervisorChainModal";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -57,6 +59,7 @@ export default function AdminPage() {
   const [teamFormLoading, setTeamFormLoading] = useState(false);
   const [teamFormError, setTeamFormError] = useState<string | null>(null);
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+  const [supervisorChainTeam, setSupervisorChainTeam] = useState<AdminTeam | null>(null);
   const [availableTeamLeads, setAvailableTeamLeads] = useState<AdminUser[]>([]);
   const [teamLeadsLoading, setTeamLeadsLoading] = useState(false);
 
@@ -201,7 +204,7 @@ export default function AdminPage() {
     setTeamFormLoading(true);
     setTeamFormError(null);
     try {
-      await createTeam({
+      const newTeam = await createTeam({
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
@@ -211,8 +214,9 @@ export default function AdminPage() {
       clearAdminCache();
       await fetchAdminTeams();
 
-      // Close form
+      // Close form and auto-open supervisor chain modal
       handleCancelTeamForm();
+      setSupervisorChainTeam(newTeam);
     } catch (err: any) {
       console.error("Failed to create team:", err);
       setTeamFormError(err.message || "Failed to create team");
@@ -885,8 +889,18 @@ export default function AdminPage() {
                               onClick={() => handleShowEditTeamForm(team)}
                               className="text-indigo-600 hover:text-indigo-900"
                               disabled={deletingTeamId === team.id}
+                              title="Edit team"
                             >
                               <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              data-testid="manage-hierarchy-btn"
+                              onClick={() => setSupervisorChainTeam(team)}
+                              className="text-emerald-600 hover:text-emerald-900"
+                              disabled={deletingTeamId === team.id}
+                              title="Manage hierarchy"
+                            >
+                              <GitBranch className="w-4 h-4" />
                             </button>
                             <button
                               data-testid="delete-team-btn"
@@ -907,6 +921,16 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {/* Supervisor Chain Modal */}
+            {supervisorChainTeam && (
+              <SupervisorChainModal
+                teamId={supervisorChainTeam.id}
+                teamName={supervisorChainTeam.name}
+                onClose={() => setSupervisorChainTeam(null)}
+                onSaved={() => fetchAdminTeams()}
+              />
             )}
           </div>
         )}

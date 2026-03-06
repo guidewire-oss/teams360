@@ -90,11 +90,14 @@ export async function apiRequest(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
+  // Lazy import to avoid circular dependency (auth.ts imports from client.ts)
+  const { authenticatedFetch } = await import('@/lib/auth');
+
   const defaultHeaders: HeadersInit = {
     'Content-Type': 'application/json',
   };
 
-  return fetch(url, {
+  return authenticatedFetch(url, {
     ...options,
     headers: {
       ...defaultHeaders,

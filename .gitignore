@@ -244,3 +244,4 @@ docs/FEATURE_ANALYSIS.md
 docs/CODE_REVIEW_REPORT.md
 docs/prompts.txt
 backend/main
+backend/api

@@ -194,6 +194,7 @@ var _ = SynchronizedBeforeSuite(
 		backendCmd.Dir = "../../backend"
 		backendCmd.Env = append(os.Environ(),
 			"PORT=8080",
+			"APP_ENV=demo",
 			fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		)
 		// Set process group so we can kill all child processes

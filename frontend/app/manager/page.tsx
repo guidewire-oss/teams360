@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout, User } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
+import { API_BASE_URL } from '@/lib/api/client';
 import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
@@ -78,7 +79,7 @@ export default function ManagerPage() {
         ? `/api/v1/managers/${managerId}/teams/health?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
         : `/api/v1/managers/${managerId}/teams/health`;
 
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch dashboard data: ${response.statusText}`);
@@ -101,7 +102,7 @@ export default function ManagerPage() {
         ? `/api/v1/managers/${managerId}/dashboard/radar?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
         : `/api/v1/managers/${managerId}/dashboard/radar`;
 
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const data = await response.json();
         // Transform backend format to frontend format
@@ -131,7 +132,7 @@ export default function ManagerPage() {
   const fetchTrendsData = async (managerId: string) => {
     setTrendsLoading(true);
     try {
-      const response = await fetch(`/api/v1/managers/${managerId}/dashboard/trends`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/managers/${managerId}/dashboard/trends`);
       if (response.ok) {
         const data = await response.json();
         // Transform backend format to frontend format

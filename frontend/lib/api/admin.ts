@@ -147,6 +147,26 @@ export interface AdminTeamsListResponse {
 }
 
 // ============================================================================
+// SUPERVISOR CHAIN TYPES
+// ============================================================================
+
+export interface SupervisorLink {
+  userId: string;
+  userName: string;
+  levelId: string;
+  levelName: string;
+}
+
+export interface SupervisorChainResponse {
+  teamId: string;
+  supervisors: SupervisorLink[];
+}
+
+export interface UpdateSupervisorChainRequest {
+  supervisors: { userId: string; levelId: string }[];
+}
+
+// ============================================================================
 // HEALTH DIMENSION TYPES
 // ============================================================================
 
@@ -407,6 +427,42 @@ export async function deleteTeam(teamId: string): Promise<void> {
   await createApiClient<void>(`${API_BASE_URL}/api/v1/admin/teams/${teamId}`, {
     method: 'DELETE',
   });
+}
+
+// ============================================================================
+// SUPERVISOR CHAIN API METHODS
+// ============================================================================
+
+/**
+ * Fetches the supervisor chain for a team
+ *
+ * @param teamId - Team ID
+ * @returns Supervisor chain with user and level names
+ */
+export async function getSupervisorChain(teamId: string): Promise<SupervisorChainResponse> {
+  return createApiClient<SupervisorChainResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/supervisors`
+  );
+}
+
+/**
+ * Updates the supervisor chain for a team
+ *
+ * @param teamId - Team ID
+ * @param request - New supervisor chain
+ * @returns Updated supervisor chain
+ */
+export async function updateSupervisorChain(
+  teamId: string,
+  request: UpdateSupervisorChainRequest
+): Promise<SupervisorChainResponse> {
+  return createApiClient<SupervisorChainResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/supervisors`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
 }
 
 // ============================================================================

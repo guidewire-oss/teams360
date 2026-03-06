@@ -1,7 +1,10 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -15,6 +18,9 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 )
+
+// assessmentPeriodRegex matches "YYYY - 1st Half" or "YYYY - 2nd Half"
+var assessmentPeriodRegex = regexp.MustCompile(`^(\d{4}) - (1st|2nd) Half$`)
 
 // HealthCheckHandler handles health check related endpoints
 type HealthCheckHandler struct {
@@ -56,6 +62,40 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	// Validate date is not in the future
+	if req.Date != "" {
+		parsedDate, err := time.Parse(time.RFC3339Nano, req.Date)
+		if err != nil {
+			telemetry.SetSpanError(span, err)
+			log.WithError(err).Warn("invalid date format in health check submission")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   "Invalid date format",
+				Message: "Date must be in RFC3339 format (e.g., 2024-01-15T10:30:00Z)",
+			})
+			return
+		}
+		if parsedDate.After(time.Now()) {
+			log.Warn("health check submission with future date rejected")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   "Invalid date: future dates are not allowed",
+				Message: "Health check date cannot be in the future",
+			})
+			return
+		}
+	}
+
+	// Validate assessment period format if provided
+	if req.AssessmentPeriod != "" {
+		if err := validateAssessmentPeriod(req.AssessmentPeriod); err != nil {
+			log.WithError(err).Warn("invalid assessment period format")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   err.Error(),
+				Message: "Assessment period must be in format 'YYYY - 1st Half' or 'YYYY - 2nd Half'",
+			})
+			return
+		}
 	}
 
 	// Set span attributes for business context
@@ -324,4 +364,39 @@ func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthChec
 	}
 
 	return response
+}
+
+// validateAssessmentPeriod validates the assessment period format and ensures it's not in the future
+// Valid formats: "YYYY - 1st Half" or "YYYY - 2nd Half"
+func validateAssessmentPeriod(period string) error {
+	matches := assessmentPeriodRegex.FindStringSubmatch(period)
+	if matches == nil {
+		return fmt.Errorf("invalid assessment period format: must be 'YYYY - 1st Half' or 'YYYY - 2nd Half'")
+	}
+
+	// Extract year from the match
+	year, err := strconv.Atoi(matches[1])
+	if err != nil {
+		return fmt.Errorf("invalid year in assessment period")
+	}
+
+	// Check if assessment period is in the future
+	currentYear := time.Now().Year()
+	currentMonth := time.Now().Month()
+	half := matches[2]
+
+	// Future year is always invalid
+	if year > currentYear {
+		return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+	}
+
+	// If current year, check if the half is in the future
+	if year == currentYear {
+		// 1st Half: Jan-Jun, 2nd Half: Jul-Dec
+		if half == "2nd" && currentMonth < 7 {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+	}
+
+	return nil
 }

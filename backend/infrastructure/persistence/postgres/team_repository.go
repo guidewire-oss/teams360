@@ -607,12 +607,12 @@ func (r *TeamRepository) updateSupervisorChainTx(ctx context.Context, tx *sql.Tx
 		return fmt.Errorf("failed to delete team supervisors: %w", err)
 	}
 
-	// Insert new supervisors
-	for position, supervisor := range chain {
+	// Insert new supervisors (positions are 1-based per DB constraint)
+	for i, supervisor := range chain {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO team_supervisors (team_id, user_id, hierarchy_level_id, position)
 			VALUES ($1, $2, $3, $4)
-		`, teamID, supervisor.UserID, supervisor.LevelID, position)
+		`, teamID, supervisor.UserID, supervisor.LevelID, i+1)
 		if err != nil {
 			return fmt.Errorf("failed to save team supervisor: %w", err)
 		}

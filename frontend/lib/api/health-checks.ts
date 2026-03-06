@@ -5,7 +5,7 @@
  * Handles authentication, error handling, and data transformation.
  */
 
-import { API_BASE_URL, APIError, APIRequestError, handleResponse } from './client';
+import { API_BASE_URL, APIError, APIRequestError, apiRequest, handleResponse } from './client';
 import type { HealthCheckResponse, HealthCheckSession, HealthDimension } from '@/lib/types';
 
 // Re-export domain types from the canonical source for backwards compatibility
@@ -16,7 +16,7 @@ export interface SubmitHealthCheckRequest {
   id?: string;
   teamId: string;
   userId: string;
-  date: string; // YYYY-MM-DD format
+  date: string; // RFC3339 format (e.g., 2024-01-15T10:30:00Z)
   assessmentPeriod?: string;
   surveyType?: 'individual' | 'post_workshop';
   responses: HealthCheckResponse[];
@@ -54,11 +54,8 @@ export { APIRequestError as HealthCheckAPIError };
 export async function submitHealthCheck(
   data: SubmitHealthCheckRequest
 ): Promise<HealthCheckSession> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/health-checks`, {
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/health-checks`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(data),
   });
 
@@ -71,12 +68,7 @@ export async function submitHealthCheck(
  * @returns Array of health dimensions
  */
 export async function getHealthDimensions(): Promise<HealthDimension[]> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/health-dimensions`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/health-dimensions`);
 
   const data = await handleResponse<HealthDimensionsResponse>(response);
   return data.dimensions;
@@ -89,12 +81,7 @@ export async function getHealthDimensions(): Promise<HealthDimension[]> {
  * @returns Health check session
  */
 export async function getHealthCheckById(id: string): Promise<HealthCheckSession> {
-  const response = await fetch(`${API_BASE_URL}/api/v1/health-checks/${id}`, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/health-checks/${id}`);
 
   return handleResponse<HealthCheckSession>(response);
 }
@@ -119,22 +106,17 @@ export async function getTeamHealthChecks(
     params.toString() ? `?${params.toString()}` : ''
   }`;
 
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest(url);
 
   const data = await handleResponse<HealthCheckSessionsResponse>(response);
   return data.sessions;
 }
 
 /**
- * Helper function to format date to YYYY-MM-DD
+ * Helper function to format date as RFC3339 (without milliseconds)
  */
 export function formatDateForAPI(date: Date = new Date()): string {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().replace(/\.\d{3}Z$/, 'Z');
 }
 
 /**
@@ -149,12 +131,8 @@ export async function getTeamSubmissionStatus(
   assessmentPeriod: string
 ): Promise<TeamSubmissionStatus> {
   const params = new URLSearchParams({ assessmentPeriod });
-  const response = await fetch(
-    `${API_BASE_URL}/api/v1/teams/${teamId}/submission-status?${params.toString()}`,
-    {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
-    }
+  const response = await apiRequest(
+    `${API_BASE_URL}/api/v1/teams/${teamId}/submission-status?${params.toString()}`
   );
 
   return handleResponse<TeamSubmissionStatus>(response);
