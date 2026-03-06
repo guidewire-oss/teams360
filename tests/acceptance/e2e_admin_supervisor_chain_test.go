@@ -50,10 +50,10 @@ var _ = Describe("E2E: Admin Supervisor Chain Management", Label("e2e", "admin",
 
 	AfterEach(func() {
 		proc := GinkgoParallelProcess()
-		// Clean up in FK order
-		db.Exec("DELETE FROM team_supervisors WHERE team_id LIKE 'sc_test_%'")
-		db.Exec("DELETE FROM team_members WHERE team_id LIKE 'sc_test_%'")
-		db.Exec("DELETE FROM teams WHERE id LIKE 'sc_test_%'")
+		// Clean up only this process's data in FK order
+		db.Exec(fmt.Sprintf("DELETE FROM team_supervisors WHERE team_id = '%s'", testTeamID))
+		db.Exec(fmt.Sprintf("DELETE FROM team_members WHERE team_id = '%s'", testTeamID))
+		db.Exec(fmt.Sprintf("DELETE FROM teams WHERE id = '%s'", testTeamID))
 		db.Exec(fmt.Sprintf("DELETE FROM users WHERE id IN ('sc_vp_%d', 'sc_dir_%d', 'sc_mgr_%d', 'sc_lead_%d')", proc, proc, proc, proc))
 
 		if page != nil {
