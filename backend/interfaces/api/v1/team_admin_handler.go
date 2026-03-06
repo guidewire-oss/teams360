@@ -216,6 +216,96 @@ func (h *TeamAdminHandler) DeleteTeam(c *gin.Context) {
 	dto.RespondMessage(c, http.StatusOK, "Team deleted successfully")
 }
 
+// GetTeamMembers handles GET /api/v1/admin/teams/:id/members
+func (h *TeamAdminHandler) GetTeamMembers(c *gin.Context) {
+	teamID := c.Param("id")
+
+	// Verify team exists
+	_, err := h.teamRepo.FindByID(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
+		return
+	}
+
+	members, err := h.teamRepo.FindTeamMembers(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to fetch team members",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	memberDTOs := make([]dto.TeamMemberAdminDTO, len(members))
+	for i, m := range members {
+		memberDTOs[i] = dto.TeamMemberAdminDTO{
+			UserID:   m.ID,
+			UserName: m.FullName,
+			Email:    m.Email,
+		}
+	}
+
+	c.JSON(http.StatusOK, dto.TeamMembersResponse{
+		Members: memberDTOs,
+		Total:   len(memberDTOs),
+	})
+}
+
+// AddTeamMember handles POST /api/v1/admin/teams/:id/members
+func (h *TeamAdminHandler) AddTeamMember(c *gin.Context) {
+	teamID := c.Param("id")
+
+	var req dto.AddTeamMemberRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body", Message: err.Error()})
+		return
+	}
+
+	// Verify team exists
+	_, err := h.teamRepo.FindByID(c.Request.Context(), teamID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team not found"})
+		return
+	}
+
+	// Verify user exists
+	_, err = h.userRepo.FindByID(c.Request.Context(), req.UserID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "User not found"})
+		return
+	}
+
+	if err := h.teamRepo.AddMember(c.Request.Context(), teamID, req.UserID); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to add team member",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	dto.RespondMessage(c, http.StatusCreated, "Member added successfully")
+}
+
+// RemoveTeamMember handles DELETE /api/v1/admin/teams/:id/members/:userId
+func (h *TeamAdminHandler) RemoveTeamMember(c *gin.Context) {
+	teamID := c.Param("id")
+	userID := c.Param("userId")
+
+	if err := h.teamRepo.RemoveMember(c.Request.Context(), teamID, userID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team member not found"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to remove team member",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	dto.RespondMessage(c, http.StatusOK, "Member removed successfully")
+}
+
 // GetSupervisorChain handles GET /api/v1/admin/teams/:id/supervisors
 func (h *TeamAdminHandler) GetSupervisorChain(c *gin.Context) {
 	teamID := c.Param("id")

@@ -695,6 +695,41 @@ func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string)
 	return nil
 }
 
+// GetAppSettings reads the singleton app_settings row
+func (r *OrganizationRepository) GetAppSettings(ctx context.Context) (*organization.AppSettings, error) {
+	var s organization.AppSettings
+	err := r.db.QueryRowContext(ctx, `
+		SELECT email_notifications, slack_notifications, weekly_digest, retention_months
+		FROM app_settings WHERE id = 1
+	`).Scan(&s.EmailNotifications, &s.SlackNotifications, &s.WeeklyDigest, &s.RetentionMonths)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Return defaults if row doesn't exist yet
+			return &organization.AppSettings{RetentionMonths: 12}, nil
+		}
+		return nil, fmt.Errorf("failed to query app settings: %w", err)
+	}
+	return &s, nil
+}
+
+// UpdateAppSettings persists app settings to the singleton row
+func (r *OrganizationRepository) UpdateAppSettings(ctx context.Context, s *organization.AppSettings) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, retention_months, updated_at)
+		VALUES (1, $1, $2, $3, $4, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			email_notifications = EXCLUDED.email_notifications,
+			slack_notifications = EXCLUDED.slack_notifications,
+			weekly_digest = EXCLUDED.weekly_digest,
+			retention_months = EXCLUDED.retention_months,
+			updated_at = NOW()
+	`, s.EmailNotifications, s.SlackNotifications, s.WeeklyDigest, s.RetentionMonths)
+	if err != nil {
+		return fmt.Errorf("failed to update app settings: %w", err)
+	}
+	return nil
+}
+
 // Helper methods
 
 // saveHierarchyLevelTx saves a hierarchy level within a transaction

@@ -129,6 +129,24 @@ type TeamsResponse struct {
 	Total int            `json:"total"`
 }
 
+// TeamMemberAdminDTO represents a team member in admin context
+type TeamMemberAdminDTO struct {
+	UserID   string `json:"userId"`
+	UserName string `json:"userName"`
+	Email    string `json:"email"`
+}
+
+// TeamMembersResponse represents response with list of team members
+type TeamMembersResponse struct {
+	Members []TeamMemberAdminDTO `json:"members"`
+	Total   int                  `json:"total"`
+}
+
+// AddTeamMemberRequest represents request to add a member to a team
+type AddTeamMemberRequest struct {
+	UserID string `json:"userId" binding:"required"`
+}
+
 // SupervisorLinkDTO represents a supervisor in the chain with display names
 type SupervisorLinkDTO struct {
 	UserID    string `json:"userId"`

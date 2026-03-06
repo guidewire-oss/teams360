@@ -45,6 +45,9 @@ func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userR
 			teams.POST("", handler.CreateTeam)
 			teams.PUT("/:id", handler.UpdateTeam)
 			teams.DELETE("/:id", handler.DeleteTeam)
+			teams.GET("/:id/members", handler.GetTeamMembers)
+			teams.POST("/:id/members", handler.AddTeamMember)
+			teams.DELETE("/:id/members/:userId", handler.RemoveTeamMember)
 			teams.GET("/:id/supervisors", handler.GetTeamSupervisors)
 			teams.PUT("/:id/supervisors", handler.UpdateTeamSupervisors)
 		}

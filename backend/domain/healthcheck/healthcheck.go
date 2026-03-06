@@ -71,4 +71,7 @@ type Repository interface {
 
 	// Team submission status for post-workshop survey
 	GetTeamSubmissionStatus(ctx context.Context, teamID string, assessmentPeriod string) (*TeamSubmissionStatus, error)
+
+	// FindDistinctAssessmentPeriods returns all unique assessment periods from submitted sessions
+	FindDistinctAssessmentPeriods(ctx context.Context) ([]string, error)
 }

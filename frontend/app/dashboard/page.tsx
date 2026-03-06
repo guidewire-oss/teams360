@@ -6,7 +6,7 @@ import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
-import { getTeamSubmissionStatus, TeamSubmissionStatus } from '@/lib/api/health-checks';
+import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod } from '@/lib/assessment-period';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
@@ -59,6 +59,7 @@ export default function DashboardPage() {
   const [trends, setTrends] = useState<TrendData[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
 
   useEffect(() => {
@@ -83,6 +84,13 @@ export default function DashboardPage() {
       setLoading(false);
     }
   }, [router]);
+
+  // Fetch assessment period options from database
+  useEffect(() => {
+    getAssessmentPeriods()
+      .then(setAssessmentPeriodOptions)
+      .catch((err) => console.error('Failed to fetch assessment periods:', err));
+  }, []);
 
   const fetchDashboardData = async (teamId: string, assessmentPeriod: string) => {
     try {
@@ -329,10 +337,9 @@ export default function DashboardPage() {
               className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             >
               <option value="">All Periods</option>
-              <option value="2024 - 2nd Half">2024 - 2nd Half</option>
-              <option value="2024 - 1st Half">2024 - 1st Half</option>
-              <option value="2023 - 2nd Half">2023 - 2nd Half</option>
-              <option value="2023 - 1st Half">2023 - 1st Half</option>
+              {assessmentPeriodOptions.map((period) => (
+                <option key={period} value={period}>{period}</option>
+              ))}
             </select>
           </div>
         </div>

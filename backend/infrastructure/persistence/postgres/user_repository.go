@@ -348,7 +348,7 @@ func (r *UserRepository) FindSupervisorChainUp(ctx context.Context, userID strin
 			-- Base case: direct supervisor of the given user
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
 			       u.password_hash, u.created_at, u.updated_at,
-			       1 AS depth, ARRAY[u.id::text] AS visited
+			       1 AS depth, ARRAY[$1::text, u.id::text] AS visited
 			FROM users u
 			WHERE u.id = (SELECT reports_to FROM users WHERE id = $1)
 

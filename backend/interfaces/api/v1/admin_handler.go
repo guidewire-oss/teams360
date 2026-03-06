@@ -89,6 +89,18 @@ func (h *AdminHandler) DeleteTeam(c *gin.Context) {
 	h.TeamHandler.DeleteTeam(c)
 }
 
+func (h *AdminHandler) GetTeamMembers(c *gin.Context) {
+	h.TeamHandler.GetTeamMembers(c)
+}
+
+func (h *AdminHandler) AddTeamMember(c *gin.Context) {
+	h.TeamHandler.AddTeamMember(c)
+}
+
+func (h *AdminHandler) RemoveTeamMember(c *gin.Context) {
+	h.TeamHandler.RemoveTeamMember(c)
+}
+
 func (h *AdminHandler) GetTeamSupervisors(c *gin.Context) {
 	h.TeamHandler.GetSupervisorChain(c)
 }

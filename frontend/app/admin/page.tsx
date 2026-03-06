@@ -15,6 +15,10 @@ import {
   updateTeam as updateAdminTeam,
   deleteTeam,
   clearAdminCache,
+  getNotificationSettings,
+  updateNotificationSettings,
+  getRetentionPolicy,
+  updateRetentionPolicy,
   AdminUser,
   HierarchyLevel,
   AdminTeam,
@@ -37,6 +41,7 @@ import {
 import HierarchyConfig from "@/components/HierarchyConfig";
 import DimensionConfig from "@/components/DimensionConfig";
 import SupervisorChainModal from "@/components/SupervisorChainModal";
+import TeamMembersModal from "@/components/TeamMembersModal";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -60,6 +65,7 @@ export default function AdminPage() {
   const [teamFormError, setTeamFormError] = useState<string | null>(null);
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
   const [supervisorChainTeam, setSupervisorChainTeam] = useState<AdminTeam | null>(null);
+  const [membersTeam, setMembersTeam] = useState<AdminTeam | null>(null);
   const [availableTeamLeads, setAvailableTeamLeads] = useState<AdminUser[]>([]);
   const [teamLeadsLoading, setTeamLeadsLoading] = useState(false);
 
@@ -86,6 +92,16 @@ export default function AdminPage() {
     null,
   );
 
+  // Settings tab state
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [slackEnabled, setSlackEnabled] = useState(false);
+  const [notifyOnSubmission, setNotifyOnSubmission] = useState(false);
+  const [retentionMonths, setRetentionMonths] = useState(12);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+
   useEffect(() => {
     const currentUser = getCurrentUser();
     if (!currentUser) {
@@ -111,6 +127,54 @@ export default function AdminPage() {
       loadUsersData();
     }
   }, [activeTab]);
+
+  // Fetch settings when activeTab changes to 'settings'
+  useEffect(() => {
+    if (activeTab === "settings") {
+      loadSettings();
+    }
+  }, [activeTab]);
+
+  const loadSettings = async () => {
+    setSettingsLoading(true);
+    setSettingsError(null);
+    try {
+      const [notifSettings, retention] = await Promise.all([
+        getNotificationSettings(),
+        getRetentionPolicy(),
+      ]);
+      setEmailEnabled(notifSettings.emailEnabled);
+      setSlackEnabled(notifSettings.slackEnabled);
+      setNotifyOnSubmission(notifSettings.notifyOnSubmission);
+      setRetentionMonths(retention.keepSessionsMonths);
+    } catch (err) {
+      setSettingsError("Failed to load settings");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsError(null);
+    setSettingsSuccess(false);
+    try {
+      await Promise.all([
+        updateNotificationSettings({
+          emailEnabled,
+          slackEnabled,
+          notifyOnSubmission,
+        }),
+        updateRetentionPolicy({ keepSessionsMonths: retentionMonths }),
+      ]);
+      setSettingsSuccess(true);
+      setTimeout(() => setSettingsSuccess(false), 3000);
+    } catch (err) {
+      setSettingsError("Failed to save settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
 
   const loadUsersData = async () => {
     setUsersLoading(true);
@@ -893,6 +957,15 @@ export default function AdminPage() {
                               <Edit2 className="w-4 h-4" />
                             </button>
                             <button
+                              data-testid="manage-members-btn"
+                              onClick={() => setMembersTeam(team)}
+                              className="text-blue-600 hover:text-blue-900"
+                              disabled={deletingTeamId === team.id}
+                              title="Manage members"
+                            >
+                              <Users className="w-4 h-4" />
+                            </button>
+                            <button
                               data-testid="manage-hierarchy-btn"
                               onClick={() => setSupervisorChainTeam(team)}
                               className="text-emerald-600 hover:text-emerald-900"
@@ -928,6 +1001,18 @@ export default function AdminPage() {
                 teamId={supervisorChainTeam.id}
                 teamName={supervisorChainTeam.name}
                 onClose={() => setSupervisorChainTeam(null)}
+              />
+            )}
+
+            {/* Team Members Modal */}
+            {membersTeam && (
+              <TeamMembersModal
+                teamId={membersTeam.id}
+                teamName={membersTeam.name}
+                onClose={() => {
+                  setMembersTeam(null);
+                  fetchAdminTeams(); // Refresh member counts
+                }}
               />
             )}
           </div>
@@ -1435,6 +1520,10 @@ export default function AdminPage() {
                   <DimensionConfig />
                 </div>
 
+                {settingsLoading ? (
+                  <div className="text-center py-4 text-gray-500">Loading settings...</div>
+                ) : (
+                  <>
                 <div data-testid="notifications-settings">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
                   Notification Settings
@@ -1444,7 +1533,9 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
-                      defaultChecked
+                      data-testid="email-enabled-checkbox"
+                      checked={emailEnabled}
+                      onChange={(e) => setEmailEnabled(e.target.checked)}
                     />
                     <span>Send email reminders for upcoming health checks</span>
                   </label>
@@ -1452,7 +1543,9 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
-                      defaultChecked
+                      data-testid="slack-enabled-checkbox"
+                      checked={slackEnabled}
+                      onChange={(e) => setSlackEnabled(e.target.checked)}
                     />
                     <span>Notify managers when team health declines</span>
                   </label>
@@ -1460,6 +1553,9 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
+                      data-testid="weekly-digest-checkbox"
+                      checked={notifyOnSubmission}
+                      onChange={(e) => setNotifyOnSubmission(e.target.checked)}
                     />
                     <span>Send weekly summary reports</span>
                   </label>
@@ -1475,11 +1571,16 @@ export default function AdminPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Keep health check data for
                     </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                      <option>6 months</option>
-                      <option defaultValue="selected">1 year</option>
-                      <option>2 years</option>
-                      <option>Forever</option>
+                    <select
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      data-testid="retention-months-select"
+                      value={retentionMonths}
+                      onChange={(e) => setRetentionMonths(Number(e.target.value))}
+                    >
+                      <option value={6}>6 months</option>
+                      <option value={12}>1 year</option>
+                      <option value={24}>2 years</option>
+                      <option value={120}>Forever</option>
                     </select>
                   </div>
                   <div>
@@ -1495,14 +1596,31 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {settingsError && (
+                <div className="text-red-600 text-sm" data-testid="settings-error">{settingsError}</div>
+              )}
+              {settingsSuccess && (
+                <div className="text-green-600 text-sm" data-testid="settings-success">Settings saved successfully</div>
+              )}
+
               <div className="flex gap-4 pt-6 border-t">
-                <button className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-                  Save Settings
+                <button
+                  onClick={saveSettings}
+                  disabled={settingsSaving}
+                  data-testid="save-settings-btn"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  {settingsSaving ? "Saving..." : "Save Settings"}
                 </button>
-                <button className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                <button
+                  onClick={loadSettings}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
                   Cancel
                 </button>
               </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

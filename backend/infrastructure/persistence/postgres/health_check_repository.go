@@ -500,6 +500,38 @@ func (r *HealthCheckRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+// FindDistinctAssessmentPeriods returns all unique assessment periods from submitted sessions
+func (r *HealthCheckRepository) FindDistinctAssessmentPeriods(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT assessment_period FROM health_check_sessions
+		WHERE assessment_period IS NOT NULL AND assessment_period != '' AND completed = true
+		ORDER BY assessment_period DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assessment periods: %w", err)
+	}
+	defer rows.Close()
+
+	var periods []string
+	for rows.Next() {
+		var period string
+		if err := rows.Scan(&period); err != nil {
+			return nil, fmt.Errorf("failed to scan assessment period: %w", err)
+		}
+		periods = append(periods, period)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating assessment periods: %w", err)
+	}
+
+	if periods == nil {
+		periods = []string{}
+	}
+
+	return periods, nil
+}
+
 // scanSessions is a helper function to scan query results into sessions
 func (r *HealthCheckRepository) scanSessions(ctx context.Context, query string, args ...interface{}) ([]*healthcheck.HealthCheckSession, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
