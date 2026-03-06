@@ -29,6 +29,7 @@ type Repository interface {
 	FindAll(ctx context.Context) ([]*User, error)
 	FindByHierarchyLevel(ctx context.Context, levelID string) ([]*User, error)
 	FindSubordinates(ctx context.Context, supervisorID string) ([]*User, error)
+	FindSupervisorChainUp(ctx context.Context, userID string) ([]*User, error)
 	Save(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id string) error

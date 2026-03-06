@@ -23,13 +23,15 @@ func NewTeamRepository(db *sql.DB) team.Repository {
 func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, error) {
 	var t team.Team
 	var teamLeadID sql.NullString
+	var teamLeadName sql.NullString
 	var cadence sql.NullString
 	var createdAt, updatedAt sql.NullTime
 
 	err := r.db.QueryRowContext(ctx, `
-		SELECT id, name, team_lead_id, cadence, created_at, updated_at
-		FROM teams
-		WHERE id = $1
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		FROM teams t
+		LEFT JOIN users u ON t.team_lead_id = u.id
+		WHERE t.id = $1
 	`, id).Scan(
 		&t.ID,
 		&t.Name,
@@ -37,6 +39,7 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 		&cadence,
 		&createdAt,
 		&updatedAt,
+		&teamLeadName,
 	)
 
 	if err == sql.ErrNoRows {
@@ -49,6 +52,9 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 	// Handle NULL fields
 	if teamLeadID.Valid {
 		t.TeamLeadID = &teamLeadID.String
+	}
+	if teamLeadName.Valid {
+		t.TeamLeadName = &teamLeadName.String
 	}
 	if cadence.Valid {
 		t.Cadence = cadence.String
@@ -94,9 +100,10 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 // FindAll retrieves all teams
 func (r *TeamRepository) FindAll(ctx context.Context) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, team_lead_id, cadence, created_at, updated_at
-		FROM teams
-		ORDER BY name
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		FROM teams t
+		LEFT JOIN users u ON t.team_lead_id = u.id
+		ORDER BY t.name
 	`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query teams: %w", err)
@@ -125,10 +132,11 @@ func (r *TeamRepository) FindAllWithDetails(ctx context.Context) ([]team.Team, e
 // FindByLeadID retrieves all teams led by a specific user
 func (r *TeamRepository) FindByLeadID(ctx context.Context, leadID string) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, name, team_lead_id, cadence, created_at, updated_at
-		FROM teams
-		WHERE team_lead_id = $1
-		ORDER BY name
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		FROM teams t
+		LEFT JOIN users u ON t.team_lead_id = u.id
+		WHERE t.team_lead_id = $1
+		ORDER BY t.name
 	`, leadID)
 
 	if err != nil {
@@ -142,9 +150,10 @@ func (r *TeamRepository) FindByLeadID(ctx context.Context, leadID string) ([]*te
 // FindBySupervisorID retrieves all teams where a user is in the supervisor chain
 func (r *TeamRepository) FindBySupervisorID(ctx context.Context, supervisorID string) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT DISTINCT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at
+		SELECT DISTINCT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
 		FROM teams t
 		INNER JOIN team_supervisors ts ON t.id = ts.team_id
+		LEFT JOIN users u ON t.team_lead_id = u.id
 		WHERE ts.user_id = $1
 		ORDER BY t.name
 	`, supervisorID)
@@ -511,6 +520,7 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 	for rows.Next() {
 		var t team.Team
 		var teamLeadID sql.NullString
+		var teamLeadName sql.NullString
 		var cadence sql.NullString
 		var createdAt, updatedAt sql.NullTime
 
@@ -521,6 +531,7 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 			&cadence,
 			&createdAt,
 			&updatedAt,
+			&teamLeadName,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan team: %w", err)
@@ -529,6 +540,9 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 		// Handle NULL fields
 		if teamLeadID.Valid {
 			t.TeamLeadID = &teamLeadID.String
+		}
+		if teamLeadName.Valid {
+			t.TeamLeadName = &teamLeadName.String
 		}
 		if cadence.Valid {
 			t.Cadence = cadence.String

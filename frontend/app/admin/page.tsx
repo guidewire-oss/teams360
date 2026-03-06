@@ -214,9 +214,8 @@ export default function AdminPage() {
       clearAdminCache();
       await fetchAdminTeams();
 
-      // Close form and auto-open supervisor chain modal
+      // Close form (supervisor chain is auto-derived from user hierarchy)
       handleCancelTeamForm();
-      setSupervisorChainTeam(newTeam);
     } catch (err: any) {
       console.error("Failed to create team:", err);
       setTeamFormError(err.message || "Failed to create team");
@@ -898,7 +897,7 @@ export default function AdminPage() {
                               onClick={() => setSupervisorChainTeam(team)}
                               className="text-emerald-600 hover:text-emerald-900"
                               disabled={deletingTeamId === team.id}
-                              title="Manage hierarchy"
+                              title="View hierarchy"
                             >
                               <GitBranch className="w-4 h-4" />
                             </button>
@@ -923,13 +922,12 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Supervisor Chain Modal */}
+            {/* Supervisor Chain Modal (read-only, auto-derived from user hierarchy) */}
             {supervisorChainTeam && (
               <SupervisorChainModal
                 teamId={supervisorChainTeam.id}
                 teamName={supervisorChainTeam.name}
                 onClose={() => setSupervisorChainTeam(null)}
-                onSaved={() => fetchAdminTeams()}
               />
             )}
           </div>

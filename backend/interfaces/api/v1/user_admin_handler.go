@@ -1,11 +1,14 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -13,11 +16,12 @@ import (
 // UserAdminHandler handles user-related admin HTTP requests
 type UserAdminHandler struct {
 	userRepo user.Repository
+	teamRepo team.Repository
 }
 
 // NewUserAdminHandler creates a new UserAdminHandler
-func NewUserAdminHandler(userRepo user.Repository) *UserAdminHandler {
-	return &UserAdminHandler{userRepo: userRepo}
+func NewUserAdminHandler(userRepo user.Repository, teamRepo team.Repository) *UserAdminHandler {
+	return &UserAdminHandler{userRepo: userRepo, teamRepo: teamRepo}
 }
 
 // ListUsers handles GET /api/v1/admin/users
@@ -168,6 +172,11 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Re-derive supervisor chains if reports_to or hierarchy level changed
+	if req.ReportsTo != nil || req.HierarchyLevel != nil {
+		h.rederiveSupervisorChains(c.Request.Context(), usr.ID)
+	}
+
 	// Fetch team IDs
 	teamIds, _ := h.userRepo.FindTeamIDsForUser(c.Request.Context(), usr.ID)
 	if teamIds == nil {
@@ -220,4 +229,54 @@ func generateUserIDFromUsername(username string) string {
 		}
 	}
 	return result.String()
+}
+
+// rederiveSupervisorChains re-derives supervisor chains for all teams affected
+// by a change to the given user's reports_to or hierarchy level.
+func (h *UserAdminHandler) rederiveSupervisorChains(ctx context.Context, userID string) {
+	log := logger.Get()
+
+	// Find teams where this user is team lead
+	leadTeams, err := h.teamRepo.FindByLeadID(ctx, userID)
+	if err != nil {
+		log.Warn("failed to find teams for lead " + userID + ": " + err.Error())
+		return
+	}
+
+	// Find teams where this user is in the supervisor chain
+	supervisedTeams, err := h.teamRepo.FindBySupervisorID(ctx, userID)
+	if err != nil {
+		log.Warn("failed to find supervised teams for " + userID + ": " + err.Error())
+	}
+
+	// Collect unique team IDs that need re-derivation
+	teamsToUpdate := make(map[string]*team.Team)
+	for _, t := range leadTeams {
+		teamsToUpdate[t.ID] = t
+	}
+	for _, t := range supervisedTeams {
+		teamsToUpdate[t.ID] = t
+	}
+
+	// Re-derive each team's supervisor chain from its team lead
+	for _, t := range teamsToUpdate {
+		if t.TeamLeadID == nil || *t.TeamLeadID == "" {
+			continue
+		}
+		supervisors, err := h.userRepo.FindSupervisorChainUp(ctx, *t.TeamLeadID)
+		if err != nil {
+			log.Warn("failed to derive supervisor chain for team " + t.ID + ": " + err.Error())
+			continue
+		}
+		chain := make([]*team.SupervisorLink, len(supervisors))
+		for i, sup := range supervisors {
+			chain[i] = &team.SupervisorLink{
+				UserID:  sup.ID,
+				LevelID: sup.HierarchyLevelID,
+			}
+		}
+		if err := h.teamRepo.UpdateSupervisorChain(ctx, t.ID, chain); err != nil {
+			log.Warn("failed to update supervisor chain for team " + t.ID + ": " + err.Error())
+		}
+	}
 }

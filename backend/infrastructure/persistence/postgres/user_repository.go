@@ -340,6 +340,39 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 	return r.scanUsers(ctx, rows)
 }
 
+// FindSupervisorChainUp walks UP the reports_to chain from a user, returning
+// supervisors in order: direct manager first, then their manager, etc.
+func (r *UserRepository) FindSupervisorChainUp(ctx context.Context, userID string) ([]*user.User, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		WITH RECURSIVE supervisors AS (
+			-- Base case: direct supervisor of the given user
+			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
+			       u.password_hash, u.created_at, u.updated_at, 1 AS depth
+			FROM users u
+			WHERE u.id = (SELECT reports_to FROM users WHERE id = $1)
+
+			UNION ALL
+
+			-- Recursive case: supervisor's supervisor
+			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
+			       u.password_hash, u.created_at, u.updated_at, s.depth + 1
+			FROM users u
+			INNER JOIN supervisors s ON u.id = s.reports_to
+		)
+		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
+		       password_hash, created_at, updated_at
+		FROM supervisors
+		ORDER BY depth
+	`, userID)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to query supervisor chain: %w", err)
+	}
+	defer rows.Close()
+
+	return r.scanUsers(ctx, rows)
+}
+
 // Save persists a new user
 func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 	log := logger.Get()

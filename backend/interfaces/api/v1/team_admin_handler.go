@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 )
 
@@ -87,15 +89,29 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 		return
 	}
 
+	// Look up team lead name if set
+	var teamLeadName *string
+	if tm.TeamLeadID != nil && *tm.TeamLeadID != "" {
+		if leadUser, err := h.userRepo.FindByID(c.Request.Context(), *tm.TeamLeadID); err == nil {
+			teamLeadName = &leadUser.Name
+		}
+	}
+
 	// Convert to DTO and return
 	responseDTO := dto.AdminTeamDTO{
-		ID:          tm.ID,
-		Name:        tm.Name,
-		TeamLeadID:  tm.TeamLeadID,
-		Cadence:     tm.Cadence,
-		MemberCount: 0,
-		CreatedAt:   tm.CreatedAt,
-		UpdatedAt:   tm.UpdatedAt,
+		ID:           tm.ID,
+		Name:         tm.Name,
+		TeamLeadID:   tm.TeamLeadID,
+		TeamLeadName: teamLeadName,
+		Cadence:      tm.Cadence,
+		MemberCount:  0,
+		CreatedAt:    tm.CreatedAt,
+		UpdatedAt:    tm.UpdatedAt,
+	}
+
+	// Auto-derive supervisor chain from team lead's reports_to hierarchy
+	if tm.TeamLeadID != nil && *tm.TeamLeadID != "" {
+		h.deriveSupervisorChainForTeam(c.Request.Context(), tm.ID, *tm.TeamLeadID)
 	}
 
 	c.JSON(http.StatusCreated, responseDTO)
@@ -118,6 +134,12 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 		return
 	}
 
+	// Track if team lead changed
+	oldLeadID := ""
+	if tm.TeamLeadID != nil {
+		oldLeadID = *tm.TeamLeadID
+	}
+
 	// Update fields if provided
 	if req.Name != nil {
 		tm.Name = *req.Name
@@ -138,19 +160,35 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 		return
 	}
 
+	// Re-derive supervisor chain if team lead changed
+	newLeadID := ""
+	if tm.TeamLeadID != nil {
+		newLeadID = *tm.TeamLeadID
+	}
+	if newLeadID != oldLeadID && newLeadID != "" {
+		h.deriveSupervisorChainForTeam(c.Request.Context(), tm.ID, newLeadID)
+	}
+
+	// Re-fetch team to get updated TeamLeadName from JOIN
+	updatedTm, err := h.teamRepo.FindByID(c.Request.Context(), tm.ID)
+	if err != nil {
+		// Fallback to original tm if re-fetch fails
+		updatedTm = tm
+	}
+
 	// Get member count
 	memberCount, _ := h.teamRepo.CountTeamMembers(c.Request.Context(), tm.ID)
 
 	// Convert to DTO and return
 	responseDTO := dto.AdminTeamDTO{
-		ID:           tm.ID,
-		Name:         tm.Name,
-		TeamLeadID:   tm.TeamLeadID,
-		TeamLeadName: tm.TeamLeadName,
-		Cadence:      tm.Cadence,
+		ID:           updatedTm.ID,
+		Name:         updatedTm.Name,
+		TeamLeadID:   updatedTm.TeamLeadID,
+		TeamLeadName: updatedTm.TeamLeadName,
+		Cadence:      updatedTm.Cadence,
 		MemberCount:  memberCount,
-		CreatedAt:    tm.CreatedAt,
-		UpdatedAt:    tm.UpdatedAt,
+		CreatedAt:    updatedTm.CreatedAt,
+		UpdatedAt:    updatedTm.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, responseDTO)
@@ -270,4 +308,28 @@ func generateTeamIDFromName(name string) string {
 		}
 	}
 	return result.String()
+}
+
+// deriveSupervisorChainForTeam walks up the team lead's reports_to hierarchy
+// and populates the team_supervisors table as a derived cache.
+func (h *TeamAdminHandler) deriveSupervisorChainForTeam(ctx context.Context, teamID, teamLeadID string) {
+	log := logger.Get()
+
+	supervisors, err := h.userRepo.FindSupervisorChainUp(ctx, teamLeadID)
+	if err != nil {
+		log.Warn("failed to derive supervisor chain for team " + teamID + ": " + err.Error())
+		return
+	}
+
+	chain := make([]*team.SupervisorLink, len(supervisors))
+	for i, sup := range supervisors {
+		chain[i] = &team.SupervisorLink{
+			UserID:  sup.ID,
+			LevelID: sup.HierarchyLevelID,
+		}
+	}
+
+	if err := h.teamRepo.UpdateSupervisorChain(ctx, teamID, chain); err != nil {
+		log.Warn("failed to save derived supervisor chain for team " + teamID + ": " + err.Error())
+	}
 }
