@@ -270,6 +270,81 @@ var _ = Describe("E2E: Authorization Security", func() {
 		})
 	})
 
+	Describe("Fix 3: Team Dashboard and User Routes Protection", func() {
+		Context("when making unauthenticated requests to previously unprotected routes", func() {
+			It("should return 401 for team dashboard health-summary without token", func() {
+				resp, err := makeRequest("GET", "/api/v1/teams/e2e_team1/dashboard/health-summary", nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized),
+					"Team dashboard health-summary should require authentication")
+			})
+
+			It("should return 401 for team dashboard response-distribution without token", func() {
+				resp, err := makeRequest("GET", "/api/v1/teams/e2e_team1/dashboard/response-distribution", nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized),
+					"Team dashboard response-distribution should require authentication")
+			})
+
+			It("should return 401 for team dashboard individual-responses without token", func() {
+				resp, err := makeRequest("GET", "/api/v1/teams/e2e_team1/dashboard/individual-responses", nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized),
+					"Team dashboard individual-responses should require authentication")
+			})
+
+			It("should return 401 for team dashboard trends without token", func() {
+				resp, err := makeRequest("GET", "/api/v1/teams/e2e_team1/dashboard/trends", nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized),
+					"Team dashboard trends should require authentication")
+			})
+
+			It("should return 401 for user survey-history without token", func() {
+				resp, err := makeRequest("GET", "/api/v1/users/e2e_demo/survey-history", nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusUnauthorized),
+					"User survey-history should require authentication")
+			})
+		})
+
+		Context("when authenticated user accesses team dashboard for their team", func() {
+			It("should allow team member to access their team's dashboard", func() {
+				// demo user (seed data) is in team-phoenix
+				resp, err := makeAuthenticatedRequest("GET", "/api/v1/teams/team-phoenix/dashboard/health-summary", teamMemberToken, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(SatisfyAny(
+					Equal(http.StatusOK),
+					Equal(http.StatusNotFound),
+				), "Team member should be able to access their team's dashboard")
+			})
+		})
+
+		Context("when authenticated user accesses another team's dashboard", func() {
+			It("should return 403 for user accessing non-member team dashboard", func() {
+				// demo user is NOT in team-dragon
+				resp, err := makeAuthenticatedRequest("GET", "/api/v1/teams/team-dragon/dashboard/health-summary", teamMemberToken, nil)
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusForbidden),
+					"User should not be able to access dashboard of teams they don't belong to")
+			})
+		})
+	})
+
 	Describe("Issue #6: Team Lead Team Modification Restriction", func() {
 		var teamLeadToken string
 

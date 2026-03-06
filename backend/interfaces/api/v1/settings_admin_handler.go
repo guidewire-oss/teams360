@@ -197,11 +197,16 @@ func (h *SettingsAdminHandler) DeleteDimension(c *gin.Context) {
 
 // GetNotificationSettings handles GET /api/v1/admin/settings/notifications
 func (h *SettingsAdminHandler) GetNotificationSettings(c *gin.Context) {
-	// Placeholder implementation - would typically read from a settings table
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch settings", Message: err.Error()})
+		return
+	}
+
 	settings := dto.NotificationSettings{
-		EmailEnabled:       false,
-		SlackEnabled:       false,
-		NotifyOnSubmission: false,
+		EmailEnabled:       appSettings.EmailNotifications,
+		SlackEnabled:       appSettings.SlackNotifications,
+		NotifyOnSubmission: appSettings.WeeklyDigest,
 		NotifyManagers:     false,
 		ReminderDaysBefore: 7,
 		ReminderRecipients: []string{},
@@ -218,17 +223,37 @@ func (h *SettingsAdminHandler) UpdateNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	// Placeholder implementation - would typically write to a settings table
+	// Read current settings to preserve retention
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
+		return
+	}
+
+	appSettings.EmailNotifications = settings.EmailEnabled
+	appSettings.SlackNotifications = settings.SlackEnabled
+	appSettings.WeeklyDigest = settings.NotifyOnSubmission
+
+	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save settings", Message: err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, settings)
 }
 
 // GetRetentionPolicy handles GET /api/v1/admin/settings/retention
 func (h *SettingsAdminHandler) GetRetentionPolicy(c *gin.Context) {
-	// Placeholder implementation - would typically read from a settings table
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch retention policy", Message: err.Error()})
+		return
+	}
+
 	policy := dto.RetentionPolicy{
-		KeepSessionsMonths: 12,
+		KeepSessionsMonths: appSettings.RetentionMonths,
 		ArchiveEnabled:     false,
-		AnonymizeAfterDays: 365,
+		AnonymizeAfterDays: appSettings.RetentionMonths * 30,
 	}
 
 	c.JSON(http.StatusOK, policy)
@@ -242,17 +267,24 @@ func (h *SettingsAdminHandler) UpdateRetentionPolicy(c *gin.Context) {
 		return
 	}
 
-	// Validate values
 	if policy.KeepSessionsMonths < 1 || policy.KeepSessionsMonths > 120 {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Keep sessions months must be between 1 and 120"})
 		return
 	}
 
-	if policy.AnonymizeAfterDays < 30 {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Anonymize after days must be at least 30"})
+	// Read current settings to preserve notifications
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
 		return
 	}
 
-	// Placeholder implementation - would typically write to a settings table
+	appSettings.RetentionMonths = policy.KeepSessionsMonths
+
+	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save retention policy", Message: err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, policy)
 }

@@ -3,19 +3,24 @@ package v1
 import (
 	"database/sql"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // SetupTeamDashboardRoutes registers team lead dashboard routes
-// TODO: Update signature to accept healthcheck.Repository instead of *sql.DB
-// Target: func SetupTeamDashboardRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository)
-// Dashboard queries health check sessions and responses, so it needs healthcheck.Repository
-func SetupTeamDashboardRoutes(router *gin.Engine, db *sql.DB) {
+// All routes require JWT authentication and team membership
+func SetupTeamDashboardRoutes(router *gin.Engine, db *sql.DB, jwtService *services.JWTService) {
 	handler := NewTeamDashboardHandler(db)
 
-	// Team Lead Dashboard routes
-	router.GET("/api/v1/teams/:teamId/dashboard/health-summary", handler.GetHealthSummary)
-	router.GET("/api/v1/teams/:teamId/dashboard/response-distribution", handler.GetResponseDistribution)
-	router.GET("/api/v1/teams/:teamId/dashboard/individual-responses", handler.GetIndividualResponses)
-	router.GET("/api/v1/teams/:teamId/dashboard/trends", handler.GetTrends)
+	// Team Lead Dashboard routes - require authentication + team membership
+	dashboard := router.Group("/api/v1/teams/:teamId/dashboard")
+	dashboard.Use(middleware.JWTAuthMiddleware(jwtService))
+	dashboard.Use(middleware.TeamMembershipMiddleware("teamId"))
+	{
+		dashboard.GET("/health-summary", handler.GetHealthSummary)
+		dashboard.GET("/response-distribution", handler.GetResponseDistribution)
+		dashboard.GET("/individual-responses", handler.GetIndividualResponses)
+		dashboard.GET("/trends", handler.GetTrends)
+	}
 }

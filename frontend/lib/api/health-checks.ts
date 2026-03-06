@@ -139,6 +139,18 @@ export async function getTeamSubmissionStatus(
 }
 
 /**
+ * Fetches all distinct assessment periods from the database
+ *
+ * @returns Array of assessment period strings (e.g., ["2024 - 2nd Half", "2024 - 1st Half"])
+ */
+export async function getAssessmentPeriods(): Promise<string[]> {
+  const response = await apiRequest(`${API_BASE_URL}/api/v1/assessment-periods`);
+
+  const data = await handleResponse<{ periods: string[] }>(response);
+  return data.periods;
+}
+
+/**
  * Checks if the API is reachable
  *
  * @returns true if API is healthy

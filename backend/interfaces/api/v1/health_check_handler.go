@@ -341,6 +341,20 @@ func (h *HealthCheckHandler) GetTeamSubmissionStatus(c *gin.Context) {
 	})
 }
 
+// GetAssessmentPeriods handles GET /api/v1/assessment-periods
+func (h *HealthCheckHandler) GetAssessmentPeriods(c *gin.Context) {
+	periods, err := h.repository.FindDistinctAssessmentPeriods(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to fetch assessment periods",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"periods": periods})
+}
+
 // Helper function to convert domain model to DTO
 func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthCheckSessionResponse {
 	response := dto.HealthCheckSessionResponse{

@@ -215,23 +215,26 @@ export interface DimensionsListResponse {
 export interface NotificationSettings {
   emailEnabled: boolean;
   slackEnabled: boolean;
-  emailRecipients: string[];
-  slackWebhookUrl: string;
-  notifyOnSurveySubmission: boolean;
-  notifyOnLowScores: boolean;
-  lowScoreThreshold: number;
-  createdAt: string;
-  updatedAt: string;
+  notifyOnSubmission: boolean;
+  notifyManagers: boolean;
+  reminderDaysBefore: number;
+  reminderRecipients: string[];
 }
 
 export interface UpdateNotificationSettingsRequest {
   emailEnabled?: boolean;
   slackEnabled?: boolean;
-  emailRecipients?: string[];
-  slackWebhookUrl?: string;
-  notifyOnSurveySubmission?: boolean;
-  notifyOnLowScores?: boolean;
-  lowScoreThreshold?: number;
+  notifyOnSubmission?: boolean;
+}
+
+export interface RetentionPolicy {
+  keepSessionsMonths: number;
+  archiveEnabled: boolean;
+  anonymizeAfterDays: number;
+}
+
+export interface UpdateRetentionPolicyRequest {
+  keepSessionsMonths: number;
 }
 
 // ============================================================================
@@ -430,6 +433,50 @@ export async function deleteTeam(teamId: string): Promise<void> {
 }
 
 // ============================================================================
+// TEAM MEMBER MANAGEMENT API METHODS
+// ============================================================================
+
+export interface TeamMemberAdmin {
+  userId: string;
+  userName: string;
+  email: string;
+}
+
+export interface TeamMembersResponse {
+  members: TeamMemberAdmin[];
+  total: number;
+}
+
+/**
+ * Fetches members of a team
+ */
+export async function getTeamMembers(teamId: string): Promise<TeamMembersResponse> {
+  return createApiClient<TeamMembersResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/members`
+  );
+}
+
+/**
+ * Adds a member to a team
+ */
+export async function addTeamMember(teamId: string, userId: string): Promise<void> {
+  await createApiClient<void>(`${API_BASE_URL}/api/v1/admin/teams/${teamId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+/**
+ * Removes a member from a team
+ */
+export async function removeTeamMember(teamId: string, userId: string): Promise<void> {
+  await createApiClient<void>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/members/${userId}`,
+    { method: 'DELETE' }
+  );
+}
+
+// ============================================================================
 // SUPERVISOR CHAIN API METHODS
 // ============================================================================
 
@@ -558,6 +605,34 @@ export async function updateNotificationSettings(
 ): Promise<NotificationSettings> {
   return createApiClient<NotificationSettings>(
     `${API_BASE_URL}/api/v1/admin/settings/notifications`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
+// RETENTION POLICY API METHODS
+// ============================================================================
+
+/**
+ * Fetches retention policy settings
+ */
+export async function getRetentionPolicy(): Promise<RetentionPolicy> {
+  return createApiClient<RetentionPolicy>(
+    `${API_BASE_URL}/api/v1/admin/settings/retention`
+  );
+}
+
+/**
+ * Updates retention policy settings
+ */
+export async function updateRetentionPolicy(
+  request: UpdateRetentionPolicyRequest
+): Promise<RetentionPolicy> {
+  return createApiClient<RetentionPolicy>(
+    `${API_BASE_URL}/api/v1/admin/settings/retention`,
     {
       method: 'PUT',
       body: JSON.stringify(request),
