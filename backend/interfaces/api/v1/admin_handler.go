@@ -19,7 +19,7 @@ type AdminHandler struct {
 func NewAdminHandler(orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository) *AdminHandler {
 	return &AdminHandler{
 		HierarchyHandler: NewHierarchyAdminHandler(orgRepo),
-		UserHandler:      NewUserAdminHandler(userRepo),
+		UserHandler:      NewUserAdminHandler(userRepo, teamRepo),
 		TeamHandler:      NewTeamAdminHandler(teamRepo, userRepo, orgRepo),
 		SettingsHandler:  NewSettingsAdminHandler(orgRepo),
 	}
