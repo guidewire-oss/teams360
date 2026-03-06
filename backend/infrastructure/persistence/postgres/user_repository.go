@@ -347,17 +347,21 @@ func (r *UserRepository) FindSupervisorChainUp(ctx context.Context, userID strin
 		WITH RECURSIVE supervisors AS (
 			-- Base case: direct supervisor of the given user
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at, 1 AS depth
+			       u.password_hash, u.created_at, u.updated_at,
+			       1 AS depth, ARRAY[u.id::text] AS visited
 			FROM users u
 			WHERE u.id = (SELECT reports_to FROM users WHERE id = $1)
 
 			UNION ALL
 
 			-- Recursive case: supervisor's supervisor
+			-- Stops on cycle (visited array) or max depth (20 levels)
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at, s.depth + 1
+			       u.password_hash, u.created_at, u.updated_at,
+			       s.depth + 1, s.visited || u.id::text
 			FROM users u
 			INNER JOIN supervisors s ON u.id = s.reports_to
+			WHERE s.depth < 20 AND NOT (u.id::text = ANY(s.visited))
 		)
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
 		       password_hash, created_at, updated_at

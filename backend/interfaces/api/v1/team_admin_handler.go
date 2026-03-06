@@ -165,8 +165,13 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 	if tm.TeamLeadID != nil {
 		newLeadID = *tm.TeamLeadID
 	}
-	if newLeadID != oldLeadID && newLeadID != "" {
-		h.deriveSupervisorChainForTeam(c.Request.Context(), tm.ID, newLeadID)
+	if newLeadID != oldLeadID {
+		if newLeadID == "" {
+			// Team lead was removed — clear stale supervisor chain
+			h.teamRepo.UpdateSupervisorChain(c.Request.Context(), tm.ID, []*team.SupervisorLink{})
+		} else {
+			h.deriveSupervisorChainForTeam(c.Request.Context(), tm.ID, newLeadID)
+		}
 	}
 
 	// Re-fetch team to get updated TeamLeadName from JOIN

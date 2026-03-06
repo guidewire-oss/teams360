@@ -138,6 +138,10 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Capture pre-update values for change detection
+	oldReportsTo := usr.ReportsTo
+	oldHierarchyLevel := usr.HierarchyLevelID
+
 	// Update fields if provided
 	if req.Username != nil {
 		usr.Username = *req.Username
@@ -172,8 +176,10 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	// Re-derive supervisor chains if reports_to or hierarchy level changed
-	if req.ReportsTo != nil || req.HierarchyLevel != nil {
+	// Re-derive supervisor chains only if reports_to or hierarchy level actually changed
+	reportsToChanged := !ptrStrEqual(oldReportsTo, usr.ReportsTo)
+	hierarchyChanged := oldHierarchyLevel != usr.HierarchyLevelID
+	if reportsToChanged || hierarchyChanged {
 		h.rederiveSupervisorChains(c.Request.Context(), usr.ID)
 	}
 
@@ -231,6 +237,17 @@ func generateUserIDFromUsername(username string) string {
 	return result.String()
 }
 
+// ptrStrEqual compares two *string values for equality (nil-safe).
+func ptrStrEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
 // rederiveSupervisorChains re-derives supervisor chains for all teams affected
 // by a change to the given user's reports_to or hierarchy level.
 func (h *UserAdminHandler) rederiveSupervisorChains(ctx context.Context, userID string) {
@@ -240,7 +257,6 @@ func (h *UserAdminHandler) rederiveSupervisorChains(ctx context.Context, userID 
 	leadTeams, err := h.teamRepo.FindByLeadID(ctx, userID)
 	if err != nil {
 		log.Warn("failed to find teams for lead " + userID + ": " + err.Error())
-		return
 	}
 
 	// Find teams where this user is in the supervisor chain

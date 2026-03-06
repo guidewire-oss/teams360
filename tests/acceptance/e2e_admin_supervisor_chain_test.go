@@ -264,7 +264,7 @@ var _ = Describe("E2E: Admin Supervisor Chain Management", Label("e2e", "admin",
 
 			By("Creating a team with team lead via API")
 			// Use the admin API to create a team with a team lead
-			apiTeamID := fmt.Sprintf("sc_api_%d", proc)
+			apiTeamID := fmt.Sprintf("sc_api_%d_%d", proc, time.Now().UnixNano())
 			createScript := fmt.Sprintf(`async () => {
 				const token = localStorage.getItem('accessToken');
 				const res = await fetch('/api/v1/admin/teams', {

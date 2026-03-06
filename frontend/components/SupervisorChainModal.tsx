@@ -11,7 +11,6 @@ interface SupervisorChainModalProps {
   teamId: string;
   teamName: string;
   onClose: () => void;
-  onSaved?: () => void;
 }
 
 export default function SupervisorChainModal({
