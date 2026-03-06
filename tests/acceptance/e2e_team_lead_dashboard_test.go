@@ -137,7 +137,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				}
 
 				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='radar-chart'], .recharts-radar, svg:has(.recharts-polar-grid), text=No health data available")
+				chartOrNoData := page.Locator("[data-testid='radar-chart'], .recharts-radar, svg:has(.recharts-polar-grid)").
+				Or(page.Locator("text=No health data available"))
 				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -179,7 +180,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='distribution-chart'], .recharts-bar, svg:has(.recharts-bar-rectangle), text=No distribution data available")
+				chartOrNoData := page.Locator("[data-testid='distribution-chart'], .recharts-bar, svg:has(.recharts-bar-rectangle)").
+				Or(page.Locator("text=No distribution data available"))
 				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -221,7 +223,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Check for either response cards or "no responses" message
-				responseContent := page.Locator("[data-testid='response-card'], text=No individual responses available")
+				responseContent := page.Locator("[data-testid='response-card']").
+				Or(page.Locator("text=No individual responses available"))
 				err = responseContent.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -318,7 +321,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='trends-chart'], .recharts-line, svg:has(.recharts-line), text=No trend data available")
+				chartOrNoData := page.Locator("[data-testid='trends-chart'], .recharts-line, svg:has(.recharts-line)").
+				Or(page.Locator("text=No trend data available"))
 				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
