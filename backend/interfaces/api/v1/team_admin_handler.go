@@ -168,7 +168,9 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 	if newLeadID != oldLeadID {
 		if newLeadID == "" {
 			// Team lead was removed — clear stale supervisor chain
-			h.teamRepo.UpdateSupervisorChain(c.Request.Context(), tm.ID, []*team.SupervisorLink{})
+			if err := h.teamRepo.UpdateSupervisorChain(c.Request.Context(), tm.ID, []*team.SupervisorLink{}); err != nil {
+				logger.Get().Warn("failed to clear supervisor chain for team " + tm.ID + ": " + err.Error())
+			}
 		} else {
 			h.deriveSupervisorChainForTeam(c.Request.Context(), tm.ID, newLeadID)
 		}
