@@ -241,10 +241,7 @@ func (h *TeamAdminHandler) GetTeamMembers(c *gin.Context) {
 		memberDTOs[i] = dto.TeamMemberAdminDTO{
 			UserID:   m.ID,
 			UserName: m.FullName,
-		}
-		// Look up email
-		if u, err := h.userRepo.FindByID(c.Request.Context(), m.ID); err == nil {
-			memberDTOs[i].Email = u.Email
+			Email:    m.Email,
 		}
 	}
 
@@ -295,6 +292,10 @@ func (h *TeamAdminHandler) RemoveTeamMember(c *gin.Context) {
 	userID := c.Param("userId")
 
 	if err := h.teamRepo.RemoveMember(c.Request.Context(), teamID, userID); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, dto.ErrorResponse{Error: "Team member not found"})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 			Error:   "Failed to remove team member",
 			Message: err.Error(),

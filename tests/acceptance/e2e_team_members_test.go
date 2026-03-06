@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -22,7 +23,7 @@ var _ = Describe("E2E: Team Member Management", func() {
 		Expect(adminToken).NotTo(BeEmpty())
 
 		// Create a fresh test team for member management tests
-		testTeamID = fmt.Sprintf("e2e_members_team_%d", GinkgoRandomSeed())
+		testTeamID = fmt.Sprintf("e2e_members_team_%d", time.Now().UnixNano())
 		_, err = db.Exec(`
 			INSERT INTO teams (id, name, team_lead_id) VALUES ($1, 'E2E Members Test Team', 'e2e_lead1')
 			ON CONFLICT (id) DO NOTHING
@@ -56,8 +57,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 					} `json:"members"`
 					Total int `json:"total"`
 				}
-				body, _ := io.ReadAll(resp.Body)
-				json.Unmarshal(body, &result)
+				body, err := io.ReadAll(resp.Body)
+				Expect(err).NotTo(HaveOccurred())
+				err = json.Unmarshal(body, &result)
+				Expect(err).NotTo(HaveOccurred())
 
 				Expect(result.Members).To(BeEmpty())
 				Expect(result.Total).To(Equal(0))
@@ -85,8 +88,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 					} `json:"members"`
 					Total int `json:"total"`
 				}
-				body, _ := io.ReadAll(resp.Body)
-				json.Unmarshal(body, &result)
+				body, err := io.ReadAll(resp.Body)
+				Expect(err).NotTo(HaveOccurred())
+				err = json.Unmarshal(body, &result)
+				Expect(err).NotTo(HaveOccurred())
 
 				Expect(result.Total).To(Equal(1))
 				Expect(result.Members).To(HaveLen(1))
@@ -116,8 +121,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 					} `json:"members"`
 					Total int `json:"total"`
 				}
-				body2, _ := io.ReadAll(resp2.Body)
-				json.Unmarshal(body2, &result)
+				body2, err := io.ReadAll(resp2.Body)
+				Expect(err).NotTo(HaveOccurred())
+				err = json.Unmarshal(body2, &result)
+				Expect(err).NotTo(HaveOccurred())
 
 				Expect(result.Total).To(Equal(1))
 				Expect(result.Members[0].UserID).To(Equal("e2e_member2"))
@@ -159,8 +166,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 					Members []struct{} `json:"members"`
 					Total   int        `json:"total"`
 				}
-				body, _ := io.ReadAll(resp2.Body)
-				json.Unmarshal(body, &result)
+				body, err := io.ReadAll(resp2.Body)
+				Expect(err).NotTo(HaveOccurred())
+				err = json.Unmarshal(body, &result)
+				Expect(err).NotTo(HaveOccurred())
 
 				Expect(result.Total).To(Equal(0))
 			})
@@ -190,8 +199,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 			var result struct {
 				Total int `json:"total"`
 			}
-			listBody, _ := io.ReadAll(resp3.Body)
-			json.Unmarshal(listBody, &result)
+			listBody, err := io.ReadAll(resp3.Body)
+			Expect(err).NotTo(HaveOccurred())
+			err = json.Unmarshal(listBody, &result)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(result.Total).To(Equal(2))
 
 			By("Removing one member")
@@ -211,8 +222,10 @@ var _ = Describe("E2E: Team Member Management", func() {
 				} `json:"members"`
 				Total int `json:"total"`
 			}
-			listBody2, _ := io.ReadAll(resp5.Body)
-			json.Unmarshal(listBody2, &result2)
+			listBody2, err := io.ReadAll(resp5.Body)
+			Expect(err).NotTo(HaveOccurred())
+			err = json.Unmarshal(listBody2, &result2)
+			Expect(err).NotTo(HaveOccurred())
 			Expect(result2.Total).To(Equal(1))
 			Expect(result2.Members[0].UserID).To(Equal("e2e_member2"))
 		})

@@ -29,6 +29,7 @@ type TeamMember struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	FullName string `json:"fullName"`
+	Email    string `json:"email,omitempty"`
 }
 
 // SupervisorLink represents a link in the supervisor chain

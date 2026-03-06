@@ -504,7 +504,7 @@ func (r *HealthCheckRepository) Delete(ctx context.Context, id string) error {
 func (r *HealthCheckRepository) FindDistinctAssessmentPeriods(ctx context.Context) ([]string, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT DISTINCT assessment_period FROM health_check_sessions
-		WHERE assessment_period IS NOT NULL AND assessment_period != ''
+		WHERE assessment_period IS NOT NULL AND assessment_period != '' AND completed = true
 		ORDER BY assessment_period DESC
 	`)
 	if err != nil {

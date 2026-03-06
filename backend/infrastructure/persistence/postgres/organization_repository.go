@@ -703,8 +703,11 @@ func (r *OrganizationRepository) GetAppSettings(ctx context.Context) (*organizat
 		FROM app_settings WHERE id = 1
 	`).Scan(&s.EmailNotifications, &s.SlackNotifications, &s.WeeklyDigest, &s.RetentionMonths)
 	if err != nil {
-		// Return defaults if table/row doesn't exist yet
-		return &organization.AppSettings{RetentionMonths: 12}, nil
+		if err == sql.ErrNoRows {
+			// Return defaults if row doesn't exist yet
+			return &organization.AppSettings{RetentionMonths: 12}, nil
+		}
+		return nil, fmt.Errorf("failed to query app settings: %w", err)
 	}
 	return &s, nil
 }

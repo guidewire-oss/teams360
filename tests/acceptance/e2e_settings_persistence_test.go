@@ -18,6 +18,18 @@ var _ = Describe("E2E: Admin Settings Persistence", func() {
 		adminToken, err = loginAndGetToken("admin", "admin")
 		Expect(err).NotTo(HaveOccurred(), "Failed to login as admin")
 		Expect(adminToken).NotTo(BeEmpty())
+
+		// Reset settings to defaults to avoid order-dependent tests
+		_, err = db.Exec(`
+			UPDATE app_settings SET
+				email_notifications = false,
+				slack_notifications = false,
+				weekly_digest = false,
+				retention_months = 12,
+				updated_at = NOW()
+			WHERE id = 1
+		`)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	Describe("Notification Settings CRUD", func() {

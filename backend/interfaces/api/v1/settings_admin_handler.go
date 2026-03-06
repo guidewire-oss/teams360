@@ -286,5 +286,9 @@ func (h *SettingsAdminHandler) UpdateRetentionPolicy(c *gin.Context) {
 		return
 	}
 
+	// Recompute derived field before responding
+	policy.KeepSessionsMonths = appSettings.RetentionMonths
+	policy.AnonymizeAfterDays = appSettings.RetentionMonths * 30
+
 	c.JSON(http.StatusOK, policy)
 }

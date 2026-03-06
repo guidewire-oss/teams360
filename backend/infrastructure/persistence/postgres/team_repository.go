@@ -205,7 +205,7 @@ func (r *TeamRepository) FindMembers(ctx context.Context, teamID string) ([]*tea
 // FindTeamMembers retrieves team members with full user details
 func (r *TeamRepository) FindTeamMembers(ctx context.Context, teamID string) ([]team.TeamMember, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT u.id, u.username, u.full_name
+		SELECT u.id, u.username, u.full_name, u.email
 		FROM users u
 		INNER JOIN team_members tm ON u.id = tm.user_id
 		WHERE tm.team_id = $1
@@ -220,7 +220,7 @@ func (r *TeamRepository) FindTeamMembers(ctx context.Context, teamID string) ([]
 	var members []team.TeamMember
 	for rows.Next() {
 		var member team.TeamMember
-		if err := rows.Scan(&member.ID, &member.Username, &member.FullName); err != nil {
+		if err := rows.Scan(&member.ID, &member.Username, &member.FullName, &member.Email); err != nil {
 			return nil, fmt.Errorf("failed to scan team member: %w", err)
 		}
 		members = append(members, member)
