@@ -215,10 +215,10 @@ var _ = Describe("E2E: Team Member Home Page", Label("e2e"), func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				// Verify it shows a valid period format
+				// Verify it shows the period label (cadence is team-specific, so home shows generic label)
 				text, err := periodText.TextContent()
 				Expect(err).NotTo(HaveOccurred())
-				Expect(text).To(Or(ContainSubstring("1st Half"), ContainSubstring("2nd Half")))
+				Expect(text).To(ContainSubstring("Current Period"))
 
 				GinkgoWriter.Printf("Current assessment period displayed: %s\n", text)
 			})

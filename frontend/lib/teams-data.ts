@@ -54,7 +54,7 @@ export const TEAMS_DATA: Team[] = [
   {
     id: 'team4',
     name: 'Falcon Squad',
-    cadence: 'biweekly',
+    cadence: 'monthly',
     nextCheckDate: '2024-01-15',
     members: ['lead4', 'mem16', 'mem17', 'mem18', 'mem19', 'mem20'],
     supervisorChain: [
@@ -116,7 +116,7 @@ export const TEAMS_DATA: Team[] = [
   {
     id: 'team8',
     name: 'Wolf Squad',
-    cadence: 'biweekly',
+    cadence: 'monthly',
     nextCheckDate: '2024-01-25',
     members: ['lead8', 'mem36', 'mem37', 'mem38', 'mem39', 'mem40'],
     supervisorChain: [

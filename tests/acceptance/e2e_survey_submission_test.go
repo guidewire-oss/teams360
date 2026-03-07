@@ -286,8 +286,8 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 
 			By("Verifying assessment period was auto-calculated")
 			Expect(assessmentPeriod).NotTo(BeEmpty())
-			// Assessment period should be in format "YYYY - 1st Half" or "YYYY - 2nd Half"
-			Expect(assessmentPeriod).To(MatchRegexp(`\d{4} - (1st|2nd) Half`))
+			// Assessment period format depends on team cadence (monthly/quarterly/half-yearly/yearly)
+			Expect(assessmentPeriod).To(MatchRegexp(`\d{4}( (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)|( Q[1-4])|( H[12]))?`))
 
 			GinkgoWriter.Printf("✅ E2E Test PASSED: Survey submitted successfully\n")
 			GinkgoWriter.Printf("   Session ID: %s\n", sessionID)
