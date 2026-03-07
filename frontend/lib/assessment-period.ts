@@ -12,6 +12,17 @@
 
 export type Cadence = 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
 
+const VALID_CADENCES: ReadonlySet<string> = new Set(['monthly', 'quarterly', 'half-yearly', 'yearly']);
+
+/**
+ * Validate and narrow a string to a Cadence type.
+ * Returns the cadence if valid, or 'half-yearly' as a safe default.
+ */
+export function toCadence(value: string | undefined | null): Cadence {
+  if (value && VALID_CADENCES.has(value)) return value as Cadence;
+  return 'half-yearly';
+}
+
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const MONTH_NAME_TO_INDEX: Record<string, number> = {
@@ -111,8 +122,9 @@ function periodSortKey(parsed: ParsedPeriod): number {
     case 'yearly':
       return parsed.year * 100;
     case 'legacy':
-      // "1st Half" ~ H1, "2nd Half" ~ H2
-      return parsed.year * 100 + (parsed.half === '1st' ? 0 : 6);
+      // Legacy mapping: "YYYY - 1st Half" covers Jul-Dec of YYYY (= YYYY H2),
+      // "YYYY - 2nd Half" covers Jan-Jun of YYYY+1 (= (YYYY+1) H1)
+      return parsed.half === '1st' ? parsed.year * 100 + 6 : (parsed.year + 1) * 100;
   }
 }
 

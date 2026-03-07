@@ -208,10 +208,12 @@ describe('compareAssessmentPeriods', () => {
   });
 
   it('should compare legacy format with new formats', () => {
-    // Legacy "1st Half" maps to month 0, same as H1
-    expect(compareAssessmentPeriods('2024 - 1st Half', '2024 H1')).toBe(0);
-    // Legacy "2nd Half" maps to month 6, same as H2
-    expect(compareAssessmentPeriods('2024 - 2nd Half', '2024 H2')).toBe(0);
+    // Legacy "YYYY - 1st Half" covers Jul-Dec of YYYY = equivalent to "YYYY H2"
+    expect(compareAssessmentPeriods('2024 - 1st Half', '2024 H2')).toBe(0);
+    // Legacy "YYYY - 2nd Half" covers Jan-Jun of YYYY+1 = equivalent to "(YYYY+1) H1"
+    expect(compareAssessmentPeriods('2024 - 2nd Half', '2025 H1')).toBe(0);
+    // "2024 - 2nd Half" (Jan-Jun 2025) should sort AFTER "2024 - 1st Half" (Jul-Dec 2024)
+    expect(compareAssessmentPeriods('2024 - 1st Half', '2024 - 2nd Half')).toBeLessThan(0);
   });
 
   it('should return 0 for invalid periods', () => {

@@ -103,7 +103,7 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 			log.WithError(err).Warn("invalid assessment period format")
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
 				Error:   err.Error(),
-				Message: "Assessment period must be in format 'YYYY - 1st Half' or 'YYYY - 2nd Half'",
+				Message: "Assessment period must be in a valid format: 'YYYY Mon', 'YYYY Q1-Q4', 'YYYY H1/H2', 'YYYY', or 'YYYY - 1st/2nd Half'",
 			})
 			return
 		}
@@ -404,13 +404,20 @@ func validateAssessmentPeriod(period string) error {
 	currentMonth := int(now.Month())
 
 	// Try legacy format: "YYYY - 1st Half" or "YYYY - 2nd Half"
+	// "YYYY - 1st Half" covers Jul-Dec of YYYY; "YYYY - 2nd Half" covers Jan-Jun of YYYY+1
 	if m := legacyPeriodRegex.FindStringSubmatch(period); m != nil {
 		year, _ := strconv.Atoi(m[1])
-		if year > currentYear {
-			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
-		}
-		if year == currentYear && m[2] == "2nd" && currentMonth < 7 {
-			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		half := m[2]
+		if half == "1st" {
+			// Covers Jul-Dec of YYYY — future if we haven't reached Jul of YYYY
+			if year > currentYear || (year == currentYear && currentMonth < 7) {
+				return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+			}
+		} else {
+			// Covers Jan-Jun of YYYY+1 — future if we haven't reached Jan of YYYY+1
+			if year+1 > currentYear {
+				return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+			}
 		}
 		return nil
 	}

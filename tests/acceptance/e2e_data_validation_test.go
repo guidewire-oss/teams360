@@ -258,12 +258,13 @@ var _ = Describe("E2E: Data Validation", func() {
 
 			It("should accept valid monthly period format", func() {
 				uniqueID := fmt.Sprintf("test-monthly-%d", time.Now().UnixNano())
+				pastYear := time.Now().Year() - 1
 				body := map[string]interface{}{
 					"id":               uniqueID,
 					"teamId":           "team-phoenix",
 					"userId":           "demo",
 					"date":             time.Now().Format(time.RFC3339),
-					"assessmentPeriod": "2025 Jan",
+					"assessmentPeriod": fmt.Sprintf("%d Jan", pastYear),
 					"responses": []map[string]interface{}{
 						{
 							"dimensionId": "mission",
@@ -287,12 +288,13 @@ var _ = Describe("E2E: Data Validation", func() {
 
 			It("should accept valid quarterly period format", func() {
 				uniqueID := fmt.Sprintf("test-quarterly-%d", time.Now().UnixNano())
+				pastYear := time.Now().Year() - 1
 				body := map[string]interface{}{
 					"id":               uniqueID,
 					"teamId":           "team-phoenix",
 					"userId":           "demo",
 					"date":             time.Now().Format(time.RFC3339),
-					"assessmentPeriod": "2025 Q1",
+					"assessmentPeriod": fmt.Sprintf("%d Q1", pastYear),
 					"responses": []map[string]interface{}{
 						{
 							"dimensionId": "mission",
@@ -316,12 +318,13 @@ var _ = Describe("E2E: Data Validation", func() {
 
 			It("should accept valid half-yearly period format", func() {
 				uniqueID := fmt.Sprintf("test-half-%d", time.Now().UnixNano())
+				pastYear := time.Now().Year() - 1
 				body := map[string]interface{}{
 					"id":               uniqueID,
 					"teamId":           "team-phoenix",
 					"userId":           "demo",
 					"date":             time.Now().Format(time.RFC3339),
-					"assessmentPeriod": "2025 H1",
+					"assessmentPeriod": fmt.Sprintf("%d H1", pastYear),
 					"responses": []map[string]interface{}{
 						{
 							"dimensionId": "mission",
@@ -345,12 +348,13 @@ var _ = Describe("E2E: Data Validation", func() {
 
 			It("should accept valid yearly period format", func() {
 				uniqueID := fmt.Sprintf("test-yearly-%d", time.Now().UnixNano())
+				pastYear := time.Now().Year() - 1
 				body := map[string]interface{}{
 					"id":               uniqueID,
 					"teamId":           "team-phoenix",
 					"userId":           "demo",
 					"date":             time.Now().Format(time.RFC3339),
-					"assessmentPeriod": "2025",
+					"assessmentPeriod": fmt.Sprintf("%d", pastYear),
 					"responses": []map[string]interface{}{
 						{
 							"dimensionId": "mission",

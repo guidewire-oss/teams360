@@ -37,7 +37,9 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 
 		Context("when team has quarterly cadence", func() {
 			It("should save assessment period in quarterly format (YYYY Q#)", func() {
-				cadenceTeamID = fmt.Sprintf("cadence-team-%d", time.Now().UnixNano())
+				// Capture time before submission to avoid boundary race conditions
+				testStartTime := time.Now()
+				cadenceTeamID = fmt.Sprintf("cadence-team-%d", testStartTime.UnixNano())
 
 				By("Creating a team with quarterly cadence")
 				_, err := db.Exec(`
@@ -187,9 +189,9 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				Expect(err).NotTo(HaveOccurred())
 
 				// Should match "YYYY Q#" format (e.g., "2026 Q1")
-				now := time.Now()
-				expectedQuarter := (now.Month()-1)/3 + 1
-				expectedPeriod := fmt.Sprintf("%d Q%d", now.Year(), expectedQuarter)
+				// Use testStartTime captured before submission to avoid boundary races
+				expectedQuarter := (testStartTime.Month()-1)/3 + 1
+				expectedPeriod := fmt.Sprintf("%d Q%d", testStartTime.Year(), expectedQuarter)
 				Expect(assessmentPeriod).To(Equal(expectedPeriod),
 					"Assessment period should be in quarterly format matching current quarter")
 
@@ -202,7 +204,9 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 
 		Context("when team has monthly cadence", func() {
 			It("should save assessment period in monthly format (YYYY Mon)", func() {
-				cadenceTeamID = fmt.Sprintf("cadence-monthly-%d", time.Now().UnixNano())
+				// Capture time before submission to avoid boundary race conditions
+				testStartTime := time.Now()
+				cadenceTeamID = fmt.Sprintf("cadence-monthly-%d", testStartTime.UnixNano())
 
 				By("Creating a team with monthly cadence and assigning user")
 				_, err := db.Exec(`
@@ -330,9 +334,9 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				Expect(err).NotTo(HaveOccurred())
 
 				// Should match "YYYY Mon" format (e.g., "2026 Mar")
+				// Use testStartTime captured before submission to avoid boundary races
 				monthNames := []string{"Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"}
-				now := time.Now()
-				expectedPeriod := fmt.Sprintf("%d %s", now.Year(), monthNames[now.Month()-1])
+				expectedPeriod := fmt.Sprintf("%d %s", testStartTime.Year(), monthNames[testStartTime.Month()-1])
 				Expect(assessmentPeriod).To(Equal(expectedPeriod),
 					"Assessment period should be in monthly format matching current month")
 
