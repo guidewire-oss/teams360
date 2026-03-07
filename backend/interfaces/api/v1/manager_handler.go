@@ -5,6 +5,7 @@ import (
 
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
+	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 	"github.com/gin-gonic/gin"
@@ -14,13 +15,15 @@ import (
 type ManagerHandler struct {
 	healthCheckRepo healthcheck.Repository
 	trendsService   *trends.Service
+	userRepo        user.Repository
 }
 
 // NewManagerHandler creates a new manager handler
-func NewManagerHandler(healthCheckRepo healthcheck.Repository, trendsService *trends.Service) *ManagerHandler {
+func NewManagerHandler(healthCheckRepo healthcheck.Repository, trendsService *trends.Service, userRepo user.Repository) *ManagerHandler {
 	return &ManagerHandler{
 		healthCheckRepo: healthCheckRepo,
 		trendsService:   trendsService,
+		userRepo:        userRepo,
 	}
 }
 
@@ -152,6 +155,47 @@ func (h *ManagerHandler) GetManagerTrends(c *gin.Context) {
 		ManagerID:  managerID,
 		Periods:    result.Periods,
 		Dimensions: dimensions,
+	}
+
+	dto.RespondSuccess(c, http.StatusOK, response)
+}
+
+// GetSubordinates handles GET /api/v1/managers/:managerId/subordinates
+// Returns the full subordinate tree for org hierarchy display
+func (h *ManagerHandler) GetSubordinates(c *gin.Context) {
+	ctx := c.Request.Context()
+	managerID := c.Param("managerId")
+
+	if managerID == "" {
+		dto.RespondError(c, http.StatusBadRequest, "Manager ID is required")
+		return
+	}
+
+	subordinates, err := h.userRepo.FindSubordinates(ctx, managerID)
+	if err != nil {
+		dto.RespondErrorWithDetails(c, http.StatusInternalServerError, "Failed to fetch subordinates", err.Error())
+		return
+	}
+
+	subs := make([]dto.SubordinateDTO, len(subordinates))
+	for i, u := range subordinates {
+		reportsTo := ""
+		if u.ReportsTo != nil {
+			reportsTo = *u.ReportsTo
+		}
+		subs[i] = dto.SubordinateDTO{
+			ID:               u.ID,
+			Username:         u.Username,
+			Name:             u.Name,
+			HierarchyLevelID: u.HierarchyLevelID,
+			ReportsTo:        reportsTo,
+			TeamIDs:          u.TeamIDs,
+		}
+	}
+
+	response := dto.SubordinatesResponse{
+		ManagerID:    managerID,
+		Subordinates: subs,
 	}
 
 	dto.RespondSuccess(c, http.StatusOK, response)

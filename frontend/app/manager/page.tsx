@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -42,7 +42,77 @@ interface TrendData {
   [key: string]: string | number;
 }
 
+interface Subordinate {
+  id: string;
+  username: string;
+  name: string;
+  hierarchyLevelId: string;
+  reportsTo?: string;
+  teamIds: string[];
+}
+
 type TabView = 'teams' | 'hierarchy' | 'summary' | 'comparison' | 'radar' | 'trends';
+
+const LEVEL_STYLES: Record<string, { border: string; icon: string; label: string }> = {
+  'level-1': { border: 'border-purple-500', icon: 'text-purple-600', label: 'VP' },
+  'level-2': { border: 'border-blue-500', icon: 'text-blue-600', label: 'Director' },
+  'level-3': { border: 'border-teal-500', icon: 'text-teal-600', label: 'Manager' },
+  'level-4': { border: 'border-green-500', icon: 'text-green-600', label: 'Team Lead' },
+  'level-5': { border: 'border-gray-400', icon: 'text-gray-500', label: 'Team Member' },
+};
+
+function HierarchyNode({
+  person,
+  childrenByParent,
+  teamsByIdMap,
+  depth,
+}: {
+  person: { id: string; name: string; hierarchyLevelId: string; username: string; teamIds: string[] };
+  childrenByParent: Map<string, Subordinate[]>;
+  teamsByIdMap: Map<string, TeamHealthSummary>;
+  depth: number;
+}) {
+  const style = LEVEL_STYLES[person.hierarchyLevelId] || LEVEL_STYLES['level-5'];
+  const directReports = childrenByParent.get(person.id) || [];
+  const personTeams = (person.teamIds || [])
+    .map((tid) => teamsByIdMap.get(tid))
+    .filter((t): t is TeamHealthSummary => !!t);
+
+  return (
+    <div data-testid={`org-node-${person.id}`} className={`border-l-4 ${style.border} pl-4 py-2`}>
+      <div className="flex items-center gap-3">
+        <Users className={`w-5 h-5 ${style.icon}`} />
+        <div>
+          <div className="font-semibold text-gray-900">
+            {person.name}
+            <span className={`ml-2 text-xs font-normal px-2 py-0.5 rounded-full bg-gray-100 ${style.icon}`}>
+              {style.label}
+            </span>
+          </div>
+          {personTeams.length > 0 && (
+            <div className="text-xs text-gray-500 mt-0.5">
+              {personTeams.map((t) => t.teamName).join(', ')}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {directReports.length > 0 && (
+        <div className={`mt-3 ${depth < 4 ? 'ml-6' : 'ml-4'} space-y-2`}>
+          {directReports.map((sub) => (
+            <HierarchyNode
+              key={sub.id}
+              person={sub}
+              childrenByParent={childrenByParent}
+              teamsByIdMap={teamsByIdMap}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ManagerPage() {
   const router = useRouter();
@@ -55,6 +125,28 @@ export default function ManagerPage() {
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabView>('teams');
   const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
+
+  // Subordinate tree state
+  const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
+
+  // Pre-group subordinates by parent and teams by ID for O(1) lookups in hierarchy tree
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Subordinate[]>();
+    for (const sub of subordinates) {
+      const parent = sub.reportsTo || '';
+      if (!map.has(parent)) map.set(parent, []);
+      map.get(parent)!.push(sub);
+    }
+    return map;
+  }, [subordinates]);
+
+  const teamsByIdMap = useMemo(() => {
+    const map = new Map<string, TeamHealthSummary>();
+    for (const team of dashboardData?.teams || []) {
+      map.set(team.teamId, team);
+    }
+    return map;
+  }, [dashboardData?.teams]);
 
   // Radar and Trends data states
   const [radarData, setRadarData] = useState<RadarData[]>([]);
@@ -69,6 +161,7 @@ export default function ManagerPage() {
     } else {
       setUser(currentUser);
       fetchDashboardData(currentUser.id, '');
+      fetchSubordinates(currentUser.id);
     }
   }, [router]);
 
@@ -101,6 +194,18 @@ export default function ManagerPage() {
       console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubordinates = async (managerId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/v1/managers/${managerId}/subordinates`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubordinates(data.subordinates || []);
+      }
+    } catch (err) {
+      console.error('Error fetching subordinates:', err);
     }
   };
 
@@ -595,52 +700,19 @@ export default function ManagerPage() {
           <div data-testid="hierarchy-tree" className="bg-white rounded-xl shadow-sm border p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Organization Hierarchy</h3>
 
-            {/* VP Level */}
-            <div className="space-y-4">
-              <div data-testid="org-node-vp" className="border-l-4 border-purple-500 pl-4 py-2">
-                <div className="flex items-center gap-3">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  <div>
-                    <div className="font-semibold text-gray-900">VP Level</div>
-                    <div className="text-sm text-gray-600">{user?.name || 'Vice President'}</div>
-                  </div>
-                </div>
-
-                {/* Directors */}
-                <div className="mt-4 ml-6 space-y-3">
-                  <div data-testid="org-node-director" className="border-l-4 border-blue-500 pl-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <Users className="w-5 h-5 text-blue-600" />
-                        <div>
-                          <div className="font-semibold text-gray-900">Director Level</div>
-                          <div className="text-sm text-gray-600">
-                            {dashboardData?.teams?.length || 0} team{(dashboardData?.teams?.length || 0) !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Managers/Teams */}
-                      <div className="mt-3 ml-6 space-y-2">
-                        {(dashboardData?.teams || []).map((team) => (
-                          <div key={team.teamId} className="border-l-4 border-green-500 pl-4 py-1">
-                            <div className="flex items-center gap-3">
-                              <Users className="w-4 h-4 text-green-600" />
-                              <div>
-                                <div className="font-medium text-gray-900">{team.teamName}</div>
-                                <div className="text-xs text-gray-500">
-                                  Health: {formatHealthScore(team.overallHealth)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                </div>
+            {subordinates.length > 0 || user ? (
+              <div className="space-y-4">
+                {/* Current user as root */}
+                {user && (
+                  <HierarchyNode
+                    person={{ id: user.id, name: user.name, hierarchyLevelId: user.hierarchyLevelId || user.hierarchyLevel || 'level-3', username: user.username, teamIds: user.teamIds || [] }}
+                    childrenByParent={childrenByParent}
+                    teamsByIdMap={teamsByIdMap}
+                    depth={0}
+                  />
+                )}
               </div>
-            </div>
-
-            {(!dashboardData || dashboardData.teams.length === 0) && (
+            ) : (
               <div className="text-center py-8 text-gray-500">
                 <p>No organizational structure to display</p>
               </div>
