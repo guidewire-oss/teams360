@@ -8,6 +8,7 @@ import (
 
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
+	"github.com/lib/pq"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -307,24 +308,32 @@ func (r *UserRepository) FindByHierarchyLevel(ctx context.Context, levelID strin
 	return r.scanUsers(ctx, rows)
 }
 
-// FindSubordinates recursively finds all users reporting to a given user
+// FindSubordinates recursively finds all users reporting to a given user.
+// Includes cycle protection (visited array) and depth limit to prevent
+// infinite recursion from bad data in reports_to.
+// Team memberships are batch-loaded in a single query to avoid N+1.
 func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID string) ([]*user.User, error) {
-	// Use recursive CTE to get all subordinates
+	// Use recursive CTE with cycle protection and depth limit
 	rows, err := r.db.QueryContext(ctx, `
 		WITH RECURSIVE subordinates AS (
 			-- Base case: direct reports
 			SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-			       password_hash, created_at, updated_at
+			       password_hash, created_at, updated_at,
+			       1 AS depth, ARRAY[$1::text, id::text] AS visited
 			FROM users
 			WHERE reports_to = $1
 
 			UNION ALL
 
 			-- Recursive case: reports of reports
+			-- Stops on cycle (visited array) or max depth (20 levels)
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at
+			       u.password_hash, u.created_at, u.updated_at,
+			       s.depth + 1, s.visited || u.id::text
 			FROM users u
 			INNER JOIN subordinates s ON u.reports_to = s.id
+			WHERE s.depth < 20
+			  AND NOT (u.id::text = ANY(s.visited))
 		)
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
 		       password_hash, created_at, updated_at
@@ -337,7 +346,85 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 	}
 	defer rows.Close()
 
-	return r.scanUsers(ctx, rows)
+	// Scan users without per-user team queries
+	var users []*user.User
+	for rows.Next() {
+		var u user.User
+		var email, hierarchyLevelID, reportsTo sql.NullString
+		var createdAt, updatedAt sql.NullTime
+		var passwordHash sql.NullString
+
+		err := rows.Scan(
+			&u.ID, &u.Username, &u.Name, &email,
+			&hierarchyLevelID, &reportsTo, &passwordHash,
+			&createdAt, &updatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan user: %w", err)
+		}
+
+		if email.Valid {
+			u.Email = email.String
+		}
+		if hierarchyLevelID.Valid {
+			u.HierarchyLevelID = hierarchyLevelID.String
+		}
+		if reportsTo.Valid {
+			u.ReportsTo = &reportsTo.String
+		}
+		if passwordHash.Valid {
+			u.PasswordHash = passwordHash.String
+		}
+		if createdAt.Valid {
+			u.CreatedAt = createdAt.Time
+		}
+		if updatedAt.Valid {
+			u.UpdatedAt = updatedAt.Time
+		}
+		u.IsAdmin = u.Username == "admin"
+		u.TeamIDs = []string{} // populated below in batch
+
+		users = append(users, &u)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows error: %w", err)
+	}
+
+	// Batch-load team memberships in a single query to avoid N+1
+	if len(users) > 0 {
+		userIDs := make([]string, len(users))
+		userMap := make(map[string]*user.User, len(users))
+		for i, u := range users {
+			userIDs[i] = u.ID
+			userMap[u.ID] = u
+		}
+
+		teamRows, err := r.db.QueryContext(ctx, `
+			SELECT user_id, team_id
+			FROM team_members
+			WHERE user_id = ANY($1)
+			ORDER BY user_id, team_id
+		`, pq.Array(userIDs))
+		if err != nil {
+			return nil, fmt.Errorf("failed to batch-load team memberships: %w", err)
+		}
+		defer teamRows.Close()
+
+		for teamRows.Next() {
+			var userID, teamID string
+			if err := teamRows.Scan(&userID, &teamID); err != nil {
+				return nil, fmt.Errorf("failed to scan team membership: %w", err)
+			}
+			if u, ok := userMap[userID]; ok {
+				u.TeamIDs = append(u.TeamIDs, teamID)
+			}
+		}
+		if err := teamRows.Err(); err != nil {
+			return nil, fmt.Errorf("team rows error: %w", err)
+		}
+	}
+
+	return users, nil
 }
 
 // FindSupervisorChainUp walks UP the reports_to chain from a user, returning

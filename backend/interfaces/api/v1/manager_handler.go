@@ -187,7 +187,6 @@ func (h *ManagerHandler) GetSubordinates(c *gin.Context) {
 			ID:               u.ID,
 			Username:         u.Username,
 			Name:             u.Name,
-			Email:            u.Email,
 			HierarchyLevelID: u.HierarchyLevelID,
 			ReportsTo:        reportsTo,
 			TeamIDs:          u.TeamIDs,

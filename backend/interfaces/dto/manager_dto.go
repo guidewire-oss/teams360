@@ -50,7 +50,6 @@ type SubordinateDTO struct {
 	ID               string   `json:"id"`
 	Username         string   `json:"username"`
 	Name             string   `json:"name"`
-	Email            string   `json:"email,omitempty"`
 	HierarchyLevelID string   `json:"hierarchyLevelId"`
 	ReportsTo        string   `json:"reportsTo,omitempty"`
 	TeamIDs          []string `json:"teamIds"`

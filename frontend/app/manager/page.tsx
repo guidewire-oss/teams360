@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -46,7 +46,6 @@ interface Subordinate {
   id: string;
   username: string;
   name: string;
-  email?: string;
   hierarchyLevelId: string;
   reportsTo?: string;
   teamIds: string[];
@@ -64,20 +63,20 @@ const LEVEL_STYLES: Record<string, { border: string; icon: string; label: string
 
 function HierarchyNode({
   person,
-  subordinates,
-  teams,
+  childrenByParent,
+  teamsByIdMap,
   depth,
 }: {
   person: { id: string; name: string; hierarchyLevelId: string; username: string; teamIds: string[] };
-  subordinates: Subordinate[];
-  teams: TeamHealthSummary[];
+  childrenByParent: Map<string, Subordinate[]>;
+  teamsByIdMap: Map<string, TeamHealthSummary>;
   depth: number;
 }) {
   const style = LEVEL_STYLES[person.hierarchyLevelId] || LEVEL_STYLES['level-5'];
-  const directReports = subordinates.filter((s) => s.reportsTo === person.id);
-  const personTeams = teams.filter((t) =>
-    person.teamIds?.some((tid) => tid === t.teamId)
-  );
+  const directReports = childrenByParent.get(person.id) || [];
+  const personTeams = (person.teamIds || [])
+    .map((tid) => teamsByIdMap.get(tid))
+    .filter((t): t is TeamHealthSummary => !!t);
 
   return (
     <div data-testid={`org-node-${person.id}`} className={`border-l-4 ${style.border} pl-4 py-2`}>
@@ -104,8 +103,8 @@ function HierarchyNode({
             <HierarchyNode
               key={sub.id}
               person={sub}
-              subordinates={subordinates}
-              teams={teams}
+              childrenByParent={childrenByParent}
+              teamsByIdMap={teamsByIdMap}
               depth={depth + 1}
             />
           ))}
@@ -129,6 +128,25 @@ export default function ManagerPage() {
 
   // Subordinate tree state
   const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
+
+  // Pre-group subordinates by parent and teams by ID for O(1) lookups in hierarchy tree
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Subordinate[]>();
+    for (const sub of subordinates) {
+      const parent = sub.reportsTo || '';
+      if (!map.has(parent)) map.set(parent, []);
+      map.get(parent)!.push(sub);
+    }
+    return map;
+  }, [subordinates]);
+
+  const teamsByIdMap = useMemo(() => {
+    const map = new Map<string, TeamHealthSummary>();
+    for (const team of dashboardData?.teams || []) {
+      map.set(team.teamId, team);
+    }
+    return map;
+  }, [dashboardData?.teams]);
 
   // Radar and Trends data states
   const [radarData, setRadarData] = useState<RadarData[]>([]);
@@ -688,8 +706,8 @@ export default function ManagerPage() {
                 {user && (
                   <HierarchyNode
                     person={{ id: user.id, name: user.name, hierarchyLevelId: user.hierarchyLevelId || user.hierarchyLevel || 'level-3', username: user.username, teamIds: user.teamIds || [] }}
-                    subordinates={subordinates}
-                    teams={dashboardData?.teams || []}
+                    childrenByParent={childrenByParent}
+                    teamsByIdMap={teamsByIdMap}
                     depth={0}
                   />
                 )}
