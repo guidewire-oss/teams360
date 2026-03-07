@@ -50,7 +50,8 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 		trendsService := trends.NewService(db)
 
 		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
-		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService)
+		userRepo := postgres.NewUserRepository(db)
+		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	})
 
 	AfterEach(func() {

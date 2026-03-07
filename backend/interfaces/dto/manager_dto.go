@@ -44,3 +44,20 @@ type ManagerDimensionTrend struct {
 	DimensionID string    `json:"dimensionId"`
 	Scores      []float64 `json:"scores"` // matches periods array order
 }
+
+// SubordinateDTO represents a user in the subordinate tree
+type SubordinateDTO struct {
+	ID               string   `json:"id"`
+	Username         string   `json:"username"`
+	Name             string   `json:"name"`
+	Email            string   `json:"email,omitempty"`
+	HierarchyLevelID string   `json:"hierarchyLevelId"`
+	ReportsTo        string   `json:"reportsTo,omitempty"`
+	TeamIDs          []string `json:"teamIds"`
+}
+
+// SubordinatesResponse represents the response for a manager's subordinate tree
+type SubordinatesResponse struct {
+	ManagerID    string           `json:"managerId"`
+	Subordinates []SubordinateDTO `json:"subordinates"`
+}

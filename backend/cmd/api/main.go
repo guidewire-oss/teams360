@@ -192,7 +192,7 @@ func main() {
 	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
 	v1.SetupAuthRoutes(router, userRepo, jwtService)
 	v1.SetupSSORoutes(router, userRepo, jwtService)
-	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService)
+	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	v1.SetupTeamDashboardRoutes(router, db, jwtService) // Dashboard routes with JWT + team membership
 	v1.SetupUserRoutes(router, db, jwtService)          // User routes with JWT + same-user-or-manager
