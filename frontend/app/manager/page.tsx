@@ -687,7 +687,7 @@ export default function ManagerPage() {
                 {/* Current user as root */}
                 {user && (
                   <HierarchyNode
-                    person={{ id: user.id, name: user.name, hierarchyLevelId: user.hierarchyLevelId || user.hierarchyLevel || 'level-3', username: user.username, teamIds: [] }}
+                    person={{ id: user.id, name: user.name, hierarchyLevelId: user.hierarchyLevelId || user.hierarchyLevel || 'level-3', username: user.username, teamIds: user.teamIds || [] }}
                     subordinates={subordinates}
                     teams={dashboardData?.teams || []}
                     depth={0}
