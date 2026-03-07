@@ -255,6 +255,172 @@ var _ = Describe("E2E: Data Validation", func() {
 					Equal(http.StatusOK),
 				), "Valid assessment period format should not be rejected")
 			})
+
+			It("should accept valid monthly period format", func() {
+				uniqueID := fmt.Sprintf("test-monthly-%d", time.Now().UnixNano())
+				body := map[string]interface{}{
+					"id":               uniqueID,
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": "2025 Jan",
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(SatisfyAny(
+					Equal(http.StatusCreated),
+					Equal(http.StatusConflict),
+					Equal(http.StatusOK),
+				), "Valid monthly period format should be accepted")
+			})
+
+			It("should accept valid quarterly period format", func() {
+				uniqueID := fmt.Sprintf("test-quarterly-%d", time.Now().UnixNano())
+				body := map[string]interface{}{
+					"id":               uniqueID,
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": "2025 Q1",
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(SatisfyAny(
+					Equal(http.StatusCreated),
+					Equal(http.StatusConflict),
+					Equal(http.StatusOK),
+				), "Valid quarterly period format should be accepted")
+			})
+
+			It("should accept valid half-yearly period format", func() {
+				uniqueID := fmt.Sprintf("test-half-%d", time.Now().UnixNano())
+				body := map[string]interface{}{
+					"id":               uniqueID,
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": "2025 H1",
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(SatisfyAny(
+					Equal(http.StatusCreated),
+					Equal(http.StatusConflict),
+					Equal(http.StatusOK),
+				), "Valid half-yearly period format should be accepted")
+			})
+
+			It("should accept valid yearly period format", func() {
+				uniqueID := fmt.Sprintf("test-yearly-%d", time.Now().UnixNano())
+				body := map[string]interface{}{
+					"id":               uniqueID,
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": "2025",
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(SatisfyAny(
+					Equal(http.StatusCreated),
+					Equal(http.StatusConflict),
+					Equal(http.StatusOK),
+				), "Valid yearly period format should be accepted")
+			})
+
+			It("should reject future monthly period", func() {
+				futureYear := time.Now().Year() + 2
+				body := map[string]interface{}{
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": fmt.Sprintf("%d Jan", futureYear),
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest),
+					"Future monthly period should be rejected")
+			})
+
+			It("should reject future quarterly period", func() {
+				futureYear := time.Now().Year() + 2
+				body := map[string]interface{}{
+					"teamId":           "team-phoenix",
+					"userId":           "demo",
+					"date":             time.Now().Format(time.RFC3339),
+					"assessmentPeriod": fmt.Sprintf("%d Q1", futureYear),
+					"responses": []map[string]interface{}{
+						{
+							"dimensionId": "mission",
+							"score":       3,
+							"trend":       "stable",
+						},
+					},
+				}
+				bodyBytes, _ := json.Marshal(body)
+
+				resp, err := makeAuthenticatedRequest("POST", "/api/v1/health-checks", userToken, strings.NewReader(string(bodyBytes)))
+				Expect(err).NotTo(HaveOccurred())
+				defer resp.Body.Close()
+
+				Expect(resp.StatusCode).To(Equal(http.StatusBadRequest),
+					"Future quarterly period should be rejected")
+			})
 		})
 	})
 

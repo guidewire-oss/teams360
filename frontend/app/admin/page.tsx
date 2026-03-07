@@ -730,10 +730,10 @@ export default function AdminPage() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       disabled={teamFormLoading}
                     >
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
+                      <option value="half-yearly">Half-Yearly</option>
+                      <option value="yearly">Yearly</option>
                     </select>
                   </div>
                 </div>
@@ -851,10 +851,10 @@ export default function AdminPage() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       disabled={teamFormLoading}
                     >
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
                       <option value="monthly">Monthly</option>
                       <option value="quarterly">Quarterly</option>
+                      <option value="half-yearly">Half-Yearly</option>
+                      <option value="yearly">Yearly</option>
                     </select>
                   </div>
                 </div>

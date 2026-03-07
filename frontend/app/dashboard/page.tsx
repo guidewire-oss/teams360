@@ -8,7 +8,8 @@ import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
 import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
-import { getAssessmentPeriod } from '@/lib/assessment-period';
+import { getAssessmentPeriod, Cadence } from '@/lib/assessment-period';
+import { getTeamInfoCached } from '@/lib/api/teams';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
 
 type TabType = 'radar' | 'distribution' | 'responses' | 'trends';
@@ -75,9 +76,12 @@ export default function DashboardPage() {
       const firstTeamId = currentUser.teamIds[0];
       setTeamId(firstTeamId);
       fetchDashboardData(firstTeamId, '');
-      // Fetch submission status for post-workshop button
-      const currentPeriod = getAssessmentPeriod();
-      getTeamSubmissionStatus(firstTeamId, currentPeriod)
+      // Fetch team info for cadence, then compute current period for submission status
+      getTeamInfoCached(firstTeamId)
+        .then((teamInfo) => {
+          const currentPeriod = getAssessmentPeriod(new Date(), teamInfo.cadence as Cadence);
+          return getTeamSubmissionStatus(firstTeamId, currentPeriod);
+        })
         .then(setSubmissionStatus)
         .catch((err) => console.error('Failed to fetch submission status:', err));
     } else {

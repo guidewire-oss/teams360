@@ -436,7 +436,7 @@ var _ = Describe("E2E: Admin Dashboard Management", Label("e2e", "admin"), func(
 				testTeamName := "Team to Edit"
 				_, err := db.Exec(`
 					INSERT INTO teams (id, name, team_lead_id, cadence)
-					VALUES ($1, $2, 'e2e_lead1', 'weekly')
+					VALUES ($1, $2, 'e2e_lead1', 'monthly')
 				`, testTeamID, testTeamName)
 				Expect(err).NotTo(HaveOccurred())
 

@@ -6,7 +6,7 @@ import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { getCurrentAssessmentPeriod } from '@/lib/assessment-period';
+// Assessment period import removed — period is team-specific, computed on survey page
 import { LogOut, Building2, ChevronDown, ClipboardList, TrendingUp, Calendar } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
 
@@ -39,7 +39,7 @@ export default function MemberHomePage() {
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const currentPeriod = getCurrentAssessmentPeriod();
+  const currentPeriod = ''; // Period is team-specific; shown on survey page after team selection
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -204,7 +204,7 @@ export default function MemberHomePage() {
             <div>
               <div className="flex items-center space-x-2 mb-2">
                 <Calendar className="h-5 w-5" />
-                <span data-testid="current-period" className="text-sm font-medium opacity-90">{currentPeriod}</span>
+                <span data-testid="current-period" className="text-sm font-medium opacity-90">Current Period</span>
               </div>
               <h3 className="text-xl font-bold mb-2">Ready to share your feedback?</h3>
               <p className="text-blue-100">Your input helps the team improve. Take a few minutes to complete the health check.</p>

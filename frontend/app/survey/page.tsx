@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { HealthCheckResponse } from '@/lib/types';
-import { getAssessmentPeriod } from '@/lib/assessment-period';
+import { getAssessmentPeriod, Cadence } from '@/lib/assessment-period';
 import { submitHealthCheck, formatDateForAPI, HealthCheckAPIError } from '@/lib/api/health-checks';
 import { getTeamInfoCached, TeamInfo, TeamsAPIError } from '@/lib/api/teams';
 import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
@@ -174,7 +174,7 @@ function SurveyPageContent() {
     try {
       // Automatically determine assessment period based on submission date
       const submissionDate = new Date();
-      const assessmentPeriod = getAssessmentPeriod(submissionDate);
+      const assessmentPeriod = getAssessmentPeriod(submissionDate, team.cadence as Cadence);
 
       // Submit to backend API using team from API response
       const session = await submitHealthCheck({
@@ -282,11 +282,8 @@ function SurveyPageContent() {
 
   const isTeamLead = user.hierarchyLevelId === 'level-4';
 
-  // Get current quarter and year
-  const now = new Date();
-  const currentQuarter = Math.floor(now.getMonth() / 3) + 1;
-  const currentYear = now.getFullYear();
-  const surveyPeriod = `Q${currentQuarter} ${currentYear}`;
+  // Compute display period from team cadence
+  const surveyPeriod = team ? getAssessmentPeriod(new Date(), team.cadence as Cadence) : '';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">

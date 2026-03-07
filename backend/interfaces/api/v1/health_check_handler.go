@@ -19,8 +19,19 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
 )
 
-// assessmentPeriodRegex matches "YYYY - 1st Half" or "YYYY - 2nd Half"
-var assessmentPeriodRegex = regexp.MustCompile(`^(\d{4}) - (1st|2nd) Half$`)
+// Assessment period format regexes
+var (
+	legacyPeriodRegex     = regexp.MustCompile(`^(\d{4}) - (1st|2nd) Half$`)
+	monthlyPeriodRegex    = regexp.MustCompile(`^(\d{4}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$`)
+	quarterlyPeriodRegex  = regexp.MustCompile(`^(\d{4}) Q([1-4])$`)
+	halfYearlyPeriodRegex = regexp.MustCompile(`^(\d{4}) H([12])$`)
+	yearlyPeriodRegex     = regexp.MustCompile(`^(\d{4})$`)
+
+	monthNameToNumber = map[string]int{
+		"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+		"Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+	}
+)
 
 // HealthCheckHandler handles health check related endpoints
 type HealthCheckHandler struct {
@@ -380,37 +391,73 @@ func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthChec
 	return response
 }
 
-// validateAssessmentPeriod validates the assessment period format and ensures it's not in the future
-// Valid formats: "YYYY - 1st Half" or "YYYY - 2nd Half"
+// validateAssessmentPeriod validates the assessment period format and ensures it's not in the future.
+// Valid formats:
+//   - Legacy:      "YYYY - 1st Half" or "YYYY - 2nd Half"
+//   - Monthly:     "YYYY Jan" through "YYYY Dec"
+//   - Quarterly:   "YYYY Q1" through "YYYY Q4"
+//   - Half-yearly: "YYYY H1" or "YYYY H2"
+//   - Yearly:      "YYYY"
 func validateAssessmentPeriod(period string) error {
-	matches := assessmentPeriodRegex.FindStringSubmatch(period)
-	if matches == nil {
-		return fmt.Errorf("invalid assessment period format: must be 'YYYY - 1st Half' or 'YYYY - 2nd Half'")
-	}
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
 
-	// Extract year from the match
-	year, err := strconv.Atoi(matches[1])
-	if err != nil {
-		return fmt.Errorf("invalid year in assessment period")
-	}
-
-	// Check if assessment period is in the future
-	currentYear := time.Now().Year()
-	currentMonth := time.Now().Month()
-	half := matches[2]
-
-	// Future year is always invalid
-	if year > currentYear {
-		return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
-	}
-
-	// If current year, check if the half is in the future
-	if year == currentYear {
-		// 1st Half: Jan-Jun, 2nd Half: Jul-Dec
-		if half == "2nd" && currentMonth < 7 {
+	// Try legacy format: "YYYY - 1st Half" or "YYYY - 2nd Half"
+	if m := legacyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		if year > currentYear {
 			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
 		}
+		if year == currentYear && m[2] == "2nd" && currentMonth < 7 {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
 	}
 
-	return nil
+	// Try monthly format: "YYYY Jan"
+	if m := monthlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		monthNum := monthNameToNumber[m[2]]
+		if year > currentYear || (year == currentYear && monthNum > currentMonth) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try quarterly format: "YYYY Q1"
+	if m := quarterlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		quarter, _ := strconv.Atoi(m[2])
+		currentQuarter := (currentMonth-1)/3 + 1
+		if year > currentYear || (year == currentYear && quarter > currentQuarter) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try half-yearly format: "YYYY H1"
+	if m := halfYearlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		half, _ := strconv.Atoi(m[2])
+		currentHalf := 1
+		if currentMonth > 6 {
+			currentHalf = 2
+		}
+		if year > currentYear || (year == currentYear && half > currentHalf) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try yearly format: "YYYY"
+	if m := yearlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		if year > currentYear {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	return fmt.Errorf("invalid assessment period format: must be 'YYYY Mon', 'YYYY Q1-Q4', 'YYYY H1/H2', 'YYYY', or 'YYYY - 1st/2nd Half'")
 }
