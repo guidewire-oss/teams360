@@ -176,16 +176,22 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	if req.ReportsTo != nil {
 		usr.ReportsTo = req.ReportsTo
 	}
+	// Track auth type transition for password requirement
+	oldAuthType := usr.AuthType
 	if req.AuthType != nil {
-		if *req.AuthType == "sso" {
+		switch *req.AuthType {
+		case "sso":
 			usr.AuthType = user.AuthTypeSSO
-		} else {
+		case "local":
 			usr.AuthType = user.AuthTypeLocal
+		default:
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid authType (must be 'local' or 'sso')"})
+			return
 		}
 	}
 
 	// Handle password update
-	var newPassword string
+	var newPasswordHash string
 	if req.Password != nil && *req.Password != "" {
 		if usr.AuthType == user.AuthTypeSSO {
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Cannot set password for SSO users"})
@@ -196,7 +202,13 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
 			return
 		}
-		newPassword = string(hashed)
+		newPasswordHash = string(hashed)
+	}
+
+	// Switching from SSO to local requires a password
+	if oldAuthType == user.AuthTypeSSO && usr.AuthType == user.AuthTypeLocal && newPasswordHash == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Password is required when switching from SSO to local authentication"})
+		return
 	}
 
 	// Update using repository
@@ -209,8 +221,8 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	}
 
 	// Update password separately (Update() doesn't touch password_hash)
-	if newPassword != "" {
-		if err := h.userRepo.UpdatePassword(c.Request.Context(), usr.ID, newPassword); err != nil {
+	if newPasswordHash != "" {
+		if err := h.userRepo.UpdatePassword(c.Request.Context(), usr.ID, newPasswordHash); err != nil {
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
 				Error:   "Failed to update password",
 				Message: err.Error(),

@@ -22,6 +22,8 @@ import {
   AdminUser,
   HierarchyLevel,
   AdminTeam,
+  CreateUserRequest,
+  UpdateUserRequest,
 } from "@/lib/api/admin";
 import {
   Settings,
@@ -422,7 +424,11 @@ export default function AdminPage() {
       if (!userFormData.email.trim()) {
         throw new Error("Email is required");
       }
-      if (userFormData.authType === "local" && !editingUser && !userFormData.password.trim()) {
+      if (
+        userFormData.authType === "local" &&
+        (!editingUser || editingUser.authType === "sso") &&
+        !userFormData.password.trim()
+      ) {
         throw new Error("Password is required for local users");
       }
       if (!userFormData.hierarchyLevel) {
@@ -431,7 +437,7 @@ export default function AdminPage() {
 
       if (editingUser) {
         // Update existing user
-        const updateData: any = {
+        const updateData: UpdateUserRequest = {
           fullName: userFormData.fullName,
           username: userFormData.username,
           email: userFormData.email,
@@ -448,7 +454,7 @@ export default function AdminPage() {
         await updateUser(editingUser.id, updateData);
       } else {
         // Create new user
-        const createData: any = {
+        const createData: CreateUserRequest = {
           id: userFormData.username, // Use username as ID
           fullName: userFormData.fullName,
           username: userFormData.username,
@@ -456,10 +462,8 @@ export default function AdminPage() {
           hierarchyLevel: userFormData.hierarchyLevel,
           reportsTo: userFormData.reportsTo || null,
           authType: userFormData.authType,
+          ...(userFormData.authType === "local" ? { password: userFormData.password } : {}),
         };
-        if (userFormData.authType === "local") {
-          createData.password = userFormData.password;
-        }
         await createUser(createData);
       }
 

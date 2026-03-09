@@ -91,7 +91,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			Reason("sso_user_local_login").
 			Details("SSO user attempted local password login").
 			Failure()
-		dto.RespondError(c, http.StatusUnauthorized, "This account uses SSO. Please use the SSO login button.")
+		dto.RespondError(c, http.StatusUnauthorized, "Invalid username or password")
 		return
 	}
 

@@ -13,7 +13,6 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
-
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

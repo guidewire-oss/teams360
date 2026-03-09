@@ -527,7 +527,7 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 		reportsTo = sql.NullString{String: *u.ReportsTo, Valid: true}
 	}
 
-	// Hash password if provided
+	// Hash password if provided; SSO users get an empty string (password_hash is NOT NULL)
 	var passwordHash sql.NullString
 	if u.PasswordHash != "" {
 		// If the password hash is already a bcrypt hash (starts with $2a$), use it as-is
@@ -541,6 +541,9 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 			}
 			passwordHash = sql.NullString{String: string(hashed), Valid: true}
 		}
+	} else {
+		// password_hash column is NOT NULL — use empty string for SSO users
+		passwordHash = sql.NullString{String: "", Valid: true}
 	}
 
 	// Set timestamps
