@@ -64,12 +64,9 @@ export interface AdminUser {
   hierarchyLevel: string;
   reportsTo: string | null;
   teamIds: string[];
+  authType: 'local' | 'sso';
   createdAt: string;
   updatedAt: string;
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface CreateUserRequest {
@@ -77,14 +74,10 @@ export interface CreateUserRequest {
   username: string;
   email: string;
   fullName: string;
-  password: string;
+  password?: string;  // Required for local users, omit for SSO
+  authType?: 'local' | 'sso';
   hierarchyLevel: string;
   reportsTo?: string | null;
-  teamIds?: string[];
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface UpdateUserRequest {
@@ -92,13 +85,9 @@ export interface UpdateUserRequest {
   email?: string;
   fullName?: string;
   password?: string;
+  authType?: 'local' | 'sso';
   hierarchyLevel?: string;
   reportsTo?: string | null;
-  teamIds?: string[];
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface UsersListResponse {

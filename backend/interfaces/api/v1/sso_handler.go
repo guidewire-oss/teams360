@@ -13,6 +13,7 @@ import (
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
@@ -86,6 +87,13 @@ func (h *SSOHandler) Callback(c *gin.Context) {
 	if err != nil {
 		log.WithField("email", email).Warn("SSO login: no user found for email")
 		dto.RespondError(c, http.StatusUnauthorized, "No account found for this email address. Please contact your administrator.")
+		return
+	}
+
+	// Only SSO users can authenticate via SSO
+	if usr.AuthType != user.AuthTypeSSO {
+		log.WithField("email", email).Warn("SSO login: local user attempted SSO login")
+		dto.RespondError(c, http.StatusUnauthorized, "This account does not support SSO login. Please use username and password.")
 		return
 	}
 

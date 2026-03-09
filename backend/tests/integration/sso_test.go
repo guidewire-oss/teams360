@@ -275,8 +275,8 @@ var _ = Describe("SSO Authentication Integration Tests", func() {
 			Context("when the email from the token matches a user in the DB", func() {
 				BeforeEach(func() {
 					_, err := db.Exec(`
-						INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
-						VALUES ('sso-user-1', 'ssouser', 'sso@example.com', 'SSO User', 'level-3', 'unused')
+						INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash, auth_type)
+						VALUES ('sso-user-1', 'ssouser', 'sso@example.com', 'SSO User', 'level-3', 'unused', 'sso')
 					`)
 					Expect(err).NotTo(HaveOccurred())
 				})

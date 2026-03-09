@@ -61,6 +61,7 @@ type AdminUserDTO struct {
 	HierarchyLevel string    `json:"hierarchyLevel"`
 	ReportsTo      *string   `json:"reportsTo"`
 	TeamIds        []string  `json:"teamIds"`
+	AuthType       string    `json:"authType"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }
@@ -71,7 +72,8 @@ type CreateUserRequest struct {
 	Username       string  `json:"username" binding:"required"` // Required - used to generate ID if not provided
 	Email          string  `json:"email" binding:"required,email"`
 	FullName       string  `json:"fullName" binding:"required"`
-	Password       string  `json:"password" binding:"required,min=4"`
+	Password       string  `json:"password"`                        // Required for local users, omit for SSO users
+	AuthType       string  `json:"authType"`                        // "local" (default) or "sso"
 	HierarchyLevel string  `json:"hierarchyLevel" binding:"required"`
 	ReportsTo      *string `json:"reportsTo"`
 }
@@ -82,6 +84,7 @@ type UpdateUserRequest struct {
 	Email          *string `json:"email"`
 	FullName       *string `json:"fullName"`
 	Password       *string `json:"password"`
+	AuthType       *string `json:"authType"`
 	HierarchyLevel *string `json:"hierarchyLevel"`
 	ReportsTo      *string `json:"reportsTo"`
 }

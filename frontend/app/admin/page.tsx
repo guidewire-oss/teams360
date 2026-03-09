@@ -85,6 +85,7 @@ export default function AdminPage() {
     password: "",
     hierarchyLevel: "",
     reportsTo: "",
+    authType: "local" as "local" | "sso",
   });
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [userFormSubmitting, setUserFormSubmitting] = useState(false);
@@ -376,6 +377,7 @@ export default function AdminPage() {
       password: "",
       hierarchyLevel: "",
       reportsTo: "",
+      authType: "local",
     });
     setUserFormError(null);
     setShowNewUserForm(false);
@@ -397,6 +399,7 @@ export default function AdminPage() {
       password: "",
       hierarchyLevel: userToEdit.hierarchyLevel,
       reportsTo: userToEdit.reportsTo || "",
+      authType: userToEdit.authType || "local",
     });
     setUserFormError(null);
     setEditingUser(userToEdit);
@@ -419,8 +422,8 @@ export default function AdminPage() {
       if (!userFormData.email.trim()) {
         throw new Error("Email is required");
       }
-      if (!editingUser && !userFormData.password.trim()) {
-        throw new Error("Password is required for new users");
+      if (userFormData.authType === "local" && !editingUser && !userFormData.password.trim()) {
+        throw new Error("Password is required for local users");
       }
       if (!userFormData.hierarchyLevel) {
         throw new Error("Role is required");
@@ -434,25 +437,30 @@ export default function AdminPage() {
           email: userFormData.email,
           hierarchyLevel: userFormData.hierarchyLevel,
           reportsTo: userFormData.reportsTo || null,
+          authType: userFormData.authType,
         };
 
-        // Only include password if it was changed
-        if (userFormData.password.trim()) {
+        // Only include password if it was changed (and user is local)
+        if (userFormData.authType === "local" && userFormData.password.trim()) {
           updateData.password = userFormData.password;
         }
 
         await updateUser(editingUser.id, updateData);
       } else {
         // Create new user
-        await createUser({
+        const createData: any = {
           id: userFormData.username, // Use username as ID
           fullName: userFormData.fullName,
           username: userFormData.username,
           email: userFormData.email,
-          password: userFormData.password,
           hierarchyLevel: userFormData.hierarchyLevel,
           reportsTo: userFormData.reportsTo || null,
-        });
+          authType: userFormData.authType,
+        };
+        if (userFormData.authType === "local") {
+          createData.password = userFormData.password;
+        }
+        await createUser(createData);
       }
 
       // Clear cache and reload users
@@ -1112,22 +1120,57 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password *
+                      Authentication Type
                     </label>
-                    <input
-                      type="password"
-                      data-testid="user-password-input"
-                      value={userFormData.password}
-                      onChange={(e) =>
-                        setUserFormData({
-                          ...userFormData,
-                          password: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter password"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="create-auth-type"
+                          data-testid="auth-type-local"
+                          checked={userFormData.authType === "local"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "local" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">Local (Password)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="create-auth-type"
+                          data-testid="auth-type-sso"
+                          checked={userFormData.authType === "sso"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "sso", password: "" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">SSO (Identity Provider)</span>
+                      </label>
+                    </div>
                   </div>
+                  {userFormData.authType === "local" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="user-password-input"
+                        value={userFormData.password}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter password"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role *
@@ -1277,22 +1320,57 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password (leave blank to keep current)
+                      Authentication Type
                     </label>
-                    <input
-                      type="password"
-                      data-testid="user-password-input"
-                      value={userFormData.password}
-                      onChange={(e) =>
-                        setUserFormData({
-                          ...userFormData,
-                          password: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter new password"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit-auth-type"
+                          data-testid="auth-type-local"
+                          checked={userFormData.authType === "local"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "local" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">Local (Password)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit-auth-type"
+                          data-testid="auth-type-sso"
+                          checked={userFormData.authType === "sso"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "sso", password: "" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">SSO (Identity Provider)</span>
+                      </label>
+                    </div>
                   </div>
+                  {userFormData.authType === "local" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password (leave blank to keep current)
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="user-password-input"
+                        value={userFormData.password}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter new password"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role *
@@ -1431,6 +1509,14 @@ export default function AdminPage() {
                               (l) => l.id === userItem.hierarchyLevel,
                             )?.name || userItem.hierarchyLevel}
                           </span>
+                          {userItem.authType === "sso" && (
+                            <span
+                              className="ml-2 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700"
+                              data-testid="sso-badge"
+                            >
+                              SSO
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-500">
