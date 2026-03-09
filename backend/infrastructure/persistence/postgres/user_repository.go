@@ -639,7 +639,7 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 			email = $3,
 			hierarchy_level_id = $4,
 			reports_to = $5,
-			auth_type = $6,
+			auth_type = COALESCE(NULLIF($6, ''), auth_type),
 			updated_at = $7
 		WHERE id = $8
 	`, u.Username, u.Name, email, hierarchyLevelID, reportsTo, string(u.AuthType), u.UpdatedAt, u.ID)
