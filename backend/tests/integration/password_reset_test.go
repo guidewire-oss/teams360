@@ -49,7 +49,8 @@ var _ = Describe("Password Reset API Integration Tests", func() {
 		passwordResetService = services.NewPasswordResetService(passwordResetRepo, userRepo, emailService)
 
 		// Setup auth routes with password reset
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
+		orgRepo := postgres.NewOrganizationRepository(db)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 		v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 	})
 
