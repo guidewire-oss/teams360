@@ -72,8 +72,8 @@ type CreateUserRequest struct {
 	Username       string  `json:"username" binding:"required"` // Required - used to generate ID if not provided
 	Email          string  `json:"email" binding:"required,email"`
 	FullName       string  `json:"fullName" binding:"required"`
-	Password       string  `json:"password"`                        // Required for local users, omit for SSO users
-	AuthType       string  `json:"authType"`                        // "local" (default) or "sso"
+	Password       string  `json:"password"` // Required for local users, omit for SSO users
+	AuthType       string  `json:"authType"` // "local" (default) or "sso"
 	HierarchyLevel string  `json:"hierarchyLevel" binding:"required"`
 	ReportsTo      *string `json:"reportsTo"`
 }
