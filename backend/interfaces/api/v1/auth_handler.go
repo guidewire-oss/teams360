@@ -79,6 +79,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	span.SetAttributes(attribute.String("user.id", usr.ID))
 
+	// SSO users cannot log in with username/password
+	if usr.AuthType == user.AuthTypeSSO {
+		telemetry.RecordLogin(ctx, false, time.Since(startTime), "sso_user_local_login")
+		log.Auth("login").
+			Username(req.Username).
+			UserID(usr.ID).
+			IP(clientIP).
+			RequestID(requestID).
+			Endpoint(endpoint).
+			Reason("sso_user_local_login").
+			Details("SSO user attempted local password login").
+			Failure()
+		dto.RespondError(c, http.StatusUnauthorized, "Invalid username or password")
+		return
+	}
+
 	// Validate password using bcrypt
 	if err := bcrypt.CompareHashAndPassword([]byte(usr.PasswordHash), []byte(req.Password)); err != nil {
 		telemetry.RecordLogin(ctx, false, time.Since(startTime), "incorrect_password")

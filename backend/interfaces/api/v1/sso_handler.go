@@ -89,6 +89,13 @@ func (h *SSOHandler) Callback(c *gin.Context) {
 		return
 	}
 
+	// Only SSO users can authenticate via SSO
+	if usr.AuthType != user.AuthTypeSSO {
+		log.WithField("email", email).Warn("SSO login: local user attempted SSO login")
+		dto.RespondError(c, http.StatusUnauthorized, "This account does not support SSO login. Please use username and password.")
+		return
+	}
+
 	teamIds := collectTeamIDs(ctx, h.userRepo, usr.ID)
 
 	// Issue our own JWT tokens

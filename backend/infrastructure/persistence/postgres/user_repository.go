@@ -27,11 +27,11 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 	var u user.User
 	var email, hierarchyLevelID, reportsTo sql.NullString
 	var createdAt, updatedAt sql.NullTime
-	var passwordHash sql.NullString
+	var passwordHash, authType sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`, id).Scan(
@@ -42,6 +42,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 		&hierarchyLevelID,
 		&reportsTo,
 		&passwordHash,
+		&authType,
 		&createdAt,
 		&updatedAt,
 	)
@@ -65,6 +66,12 @@ func (r *UserRepository) FindByID(ctx context.Context, id string) (*user.User, e
 	}
 	if passwordHash.Valid {
 		u.PasswordHash = passwordHash.String
+	}
+	if authType.Valid {
+		u.AuthType = user.AuthType(authType.String)
+	}
+	if u.AuthType == "" {
+		u.AuthType = user.AuthTypeLocal
 	}
 	if createdAt.Valid {
 		u.CreatedAt = createdAt.Time
@@ -91,11 +98,11 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	var u user.User
 	var email, hierarchyLevelID, reportsTo sql.NullString
 	var createdAt, updatedAt sql.NullTime
-	var passwordHash sql.NullString
+	var passwordHash, authType sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM users
 		WHERE username = $1
 	`, username).Scan(
@@ -106,6 +113,7 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 		&hierarchyLevelID,
 		&reportsTo,
 		&passwordHash,
+		&authType,
 		&createdAt,
 		&updatedAt,
 	)
@@ -130,6 +138,12 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 	if passwordHash.Valid {
 		u.PasswordHash = passwordHash.String
 	}
+	if authType.Valid {
+		u.AuthType = user.AuthType(authType.String)
+	}
+	if u.AuthType == "" {
+		u.AuthType = user.AuthTypeLocal
+	}
 	if createdAt.Valid {
 		u.CreatedAt = createdAt.Time
 	}
@@ -151,18 +165,18 @@ func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*
 }
 
 // FindByEmail retrieves a user by email
-func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.User, error) {
+func (r *UserRepository) FindByEmail(ctx context.Context, emailParam string) (*user.User, error) {
 	var u user.User
 	var emailVal, hierarchyLevelID, reportsTo sql.NullString
 	var createdAt, updatedAt sql.NullTime
-	var passwordHash sql.NullString
+	var passwordHash, authType sql.NullString
 
 	err := r.db.QueryRowContext(ctx, `
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM users
 		WHERE email = $1
-	`, email).Scan(
+	`, emailParam).Scan(
 		&u.ID,
 		&u.Username,
 		&u.Name,
@@ -170,6 +184,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 		&hierarchyLevelID,
 		&reportsTo,
 		&passwordHash,
+		&authType,
 		&createdAt,
 		&updatedAt,
 	)
@@ -193,6 +208,12 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 	}
 	if passwordHash.Valid {
 		u.PasswordHash = passwordHash.String
+	}
+	if authType.Valid {
+		u.AuthType = user.AuthType(authType.String)
+	}
+	if u.AuthType == "" {
+		u.AuthType = user.AuthTypeLocal
 	}
 	if createdAt.Valid {
 		u.CreatedAt = createdAt.Time
@@ -218,7 +239,7 @@ func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*user.U
 func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM users
 		ORDER BY username
 	`)
@@ -233,7 +254,7 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 		var u user.User
 		var email, hierarchyLevelID, reportsTo sql.NullString
 		var createdAt, updatedAt sql.NullTime
-		var passwordHash sql.NullString
+		var passwordHash, authType sql.NullString
 
 		err := rows.Scan(
 			&u.ID,
@@ -243,6 +264,7 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 			&hierarchyLevelID,
 			&reportsTo,
 			&passwordHash,
+			&authType,
 			&createdAt,
 			&updatedAt,
 		)
@@ -262,6 +284,12 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 		}
 		if passwordHash.Valid {
 			u.PasswordHash = passwordHash.String
+		}
+		if authType.Valid {
+			u.AuthType = user.AuthType(authType.String)
+		}
+		if u.AuthType == "" {
+			u.AuthType = user.AuthTypeLocal
 		}
 		if createdAt.Valid {
 			u.CreatedAt = createdAt.Time
@@ -294,7 +322,7 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*user.User, error) {
 func (r *UserRepository) FindByHierarchyLevel(ctx context.Context, levelID string) ([]*user.User, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM users
 		WHERE hierarchy_level_id = $1
 		ORDER BY username
@@ -318,7 +346,7 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 		WITH RECURSIVE subordinates AS (
 			-- Base case: direct reports
 			SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-			       password_hash, created_at, updated_at,
+			       password_hash, auth_type, created_at, updated_at,
 			       1 AS depth, ARRAY[$1::text, id::text] AS visited
 			FROM users
 			WHERE reports_to = $1
@@ -328,7 +356,7 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 			-- Recursive case: reports of reports
 			-- Stops on cycle (visited array) or max depth (20 levels)
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at,
+			       u.password_hash, u.auth_type, u.created_at, u.updated_at,
 			       s.depth + 1, s.visited || u.id::text
 			FROM users u
 			INNER JOIN subordinates s ON u.reports_to = s.id
@@ -336,7 +364,7 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 			  AND NOT (u.id::text = ANY(s.visited))
 		)
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM subordinates
 		ORDER BY username
 	`, supervisorID)
@@ -352,12 +380,12 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 		var u user.User
 		var email, hierarchyLevelID, reportsTo sql.NullString
 		var createdAt, updatedAt sql.NullTime
-		var passwordHash sql.NullString
+		var passwordHash, authType sql.NullString
 
 		err := rows.Scan(
 			&u.ID, &u.Username, &u.Name, &email,
 			&hierarchyLevelID, &reportsTo, &passwordHash,
-			&createdAt, &updatedAt,
+			&authType, &createdAt, &updatedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
@@ -374,6 +402,12 @@ func (r *UserRepository) FindSubordinates(ctx context.Context, supervisorID stri
 		}
 		if passwordHash.Valid {
 			u.PasswordHash = passwordHash.String
+		}
+		if authType.Valid {
+			u.AuthType = user.AuthType(authType.String)
+		}
+		if u.AuthType == "" {
+			u.AuthType = user.AuthTypeLocal
 		}
 		if createdAt.Valid {
 			u.CreatedAt = createdAt.Time
@@ -434,7 +468,7 @@ func (r *UserRepository) FindSupervisorChainUp(ctx context.Context, userID strin
 		WITH RECURSIVE supervisors AS (
 			-- Base case: direct supervisor of the given user
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at,
+			       u.password_hash, u.auth_type, u.created_at, u.updated_at,
 			       1 AS depth, ARRAY[$1::text, u.id::text] AS visited
 			FROM users u
 			WHERE u.id = (SELECT reports_to FROM users WHERE id = $1)
@@ -444,14 +478,14 @@ func (r *UserRepository) FindSupervisorChainUp(ctx context.Context, userID strin
 			-- Recursive case: supervisor's supervisor
 			-- Stops on cycle (visited array) or max depth (20 levels)
 			SELECT u.id, u.username, u.full_name, u.email, u.hierarchy_level_id, u.reports_to,
-			       u.password_hash, u.created_at, u.updated_at,
+			       u.password_hash, u.auth_type, u.created_at, u.updated_at,
 			       s.depth + 1, s.visited || u.id::text
 			FROM users u
 			INNER JOIN supervisors s ON u.id = s.reports_to
 			WHERE s.depth < 20 AND NOT (u.id::text = ANY(s.visited))
 		)
 		SELECT id, username, full_name, email, hierarchy_level_id, reports_to,
-		       password_hash, created_at, updated_at
+		       password_hash, auth_type, created_at, updated_at
 		FROM supervisors
 		ORDER BY depth
 	`, userID)
@@ -493,7 +527,7 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 		reportsTo = sql.NullString{String: *u.ReportsTo, Valid: true}
 	}
 
-	// Hash password if provided
+	// Hash password if provided; SSO users get an empty string (password_hash is NOT NULL)
 	var passwordHash sql.NullString
 	if u.PasswordHash != "" {
 		// If the password hash is already a bcrypt hash (starts with $2a$), use it as-is
@@ -507,6 +541,9 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 			}
 			passwordHash = sql.NullString{String: string(hashed), Valid: true}
 		}
+	} else {
+		// password_hash column is NOT NULL — use empty string for SSO users
+		passwordHash = sql.NullString{String: "", Valid: true}
 	}
 
 	// Set timestamps
@@ -516,11 +553,16 @@ func (r *UserRepository) Save(ctx context.Context, u *user.User) error {
 	}
 	u.UpdatedAt = now
 
+	// Default auth_type to local if not set
+	if u.AuthType == "" {
+		u.AuthType = user.AuthTypeLocal
+	}
+
 	// Insert user
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO users (id, username, full_name, email, hierarchy_level_id, reports_to, password_hash, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-	`, u.ID, u.Username, u.Name, email, hierarchyLevelID, reportsTo, passwordHash, u.CreatedAt, u.UpdatedAt)
+		INSERT INTO users (id, username, full_name, email, hierarchy_level_id, reports_to, password_hash, auth_type, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	`, u.ID, u.Username, u.Name, email, hierarchyLevelID, reportsTo, passwordHash, string(u.AuthType), u.CreatedAt, u.UpdatedAt)
 
 	if err != nil {
 		log.DB("insert").
@@ -597,9 +639,10 @@ func (r *UserRepository) Update(ctx context.Context, u *user.User) error {
 			email = $3,
 			hierarchy_level_id = $4,
 			reports_to = $5,
-			updated_at = $6
-		WHERE id = $7
-	`, u.Username, u.Name, email, hierarchyLevelID, reportsTo, u.UpdatedAt, u.ID)
+			auth_type = COALESCE(NULLIF($6, ''), auth_type),
+			updated_at = $7
+		WHERE id = $8
+	`, u.Username, u.Name, email, hierarchyLevelID, reportsTo, string(u.AuthType), u.UpdatedAt, u.ID)
 
 	if err != nil {
 		log.DB("update").
@@ -771,7 +814,7 @@ func (r *UserRepository) scanUsers(ctx context.Context, rows *sql.Rows) ([]*user
 		var u user.User
 		var email, hierarchyLevelID, reportsTo sql.NullString
 		var createdAt, updatedAt sql.NullTime
-		var passwordHash sql.NullString
+		var passwordHash, authType sql.NullString
 
 		err := rows.Scan(
 			&u.ID,
@@ -781,6 +824,7 @@ func (r *UserRepository) scanUsers(ctx context.Context, rows *sql.Rows) ([]*user
 			&hierarchyLevelID,
 			&reportsTo,
 			&passwordHash,
+			&authType,
 			&createdAt,
 			&updatedAt,
 		)
@@ -800,6 +844,12 @@ func (r *UserRepository) scanUsers(ctx context.Context, rows *sql.Rows) ([]*user
 		}
 		if passwordHash.Valid {
 			u.PasswordHash = passwordHash.String
+		}
+		if authType.Valid {
+			u.AuthType = user.AuthType(authType.String)
+		}
+		if u.AuthType == "" {
+			u.AuthType = user.AuthTypeLocal
 		}
 		if createdAt.Valid {
 			u.CreatedAt = createdAt.Time

@@ -52,6 +52,7 @@ func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 			HierarchyLevel: usr.HierarchyLevelID,
 			ReportsTo:      usr.ReportsTo,
 			TeamIds:        teamIds,
+			AuthType:       string(usr.AuthType),
 			CreatedAt:      usr.CreatedAt,
 			UpdatedAt:      usr.UpdatedAt,
 		}
@@ -71,12 +72,27 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
-		return
+	// Determine auth type (default to local)
+	authType := user.AuthTypeLocal
+	if req.AuthType == "sso" {
+		authType = user.AuthTypeSSO
 	}
+
+	// For local users, password is required
+	var passwordHash string
+	if authType == user.AuthTypeLocal {
+		if len(req.Password) < 4 {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Password is required for local users (min 4 characters)"})
+			return
+		}
+		hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
+			return
+		}
+		passwordHash = string(hashed)
+	}
+	// SSO users get no password hash
 
 	// Auto-generate ID from username if not provided
 	userID := req.ID
@@ -92,7 +108,8 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		Name:             req.FullName,
 		HierarchyLevelID: req.HierarchyLevel,
 		ReportsTo:        req.ReportsTo,
-		PasswordHash:     string(hashedPassword),
+		PasswordHash:     passwordHash,
+		AuthType:         authType,
 		TeamIDs:          []string{},
 	}
 
@@ -114,6 +131,7 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		HierarchyLevel: usr.HierarchyLevelID,
 		ReportsTo:      usr.ReportsTo,
 		TeamIds:        usr.TeamIDs,
+		AuthType:       string(usr.AuthType),
 		CreatedAt:      usr.CreatedAt,
 		UpdatedAt:      usr.UpdatedAt,
 	}
@@ -158,13 +176,39 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	if req.ReportsTo != nil {
 		usr.ReportsTo = req.ReportsTo
 	}
-	if req.Password != nil {
+	// Track auth type transition for password requirement
+	oldAuthType := usr.AuthType
+	if req.AuthType != nil {
+		switch *req.AuthType {
+		case "sso":
+			usr.AuthType = user.AuthTypeSSO
+		case "local":
+			usr.AuthType = user.AuthTypeLocal
+		default:
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid authType (must be 'local' or 'sso')"})
+			return
+		}
+	}
+
+	// Handle password update
+	var newPasswordHash string
+	if req.Password != nil && *req.Password != "" {
+		if usr.AuthType == user.AuthTypeSSO {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Cannot set password for SSO users"})
+			return
+		}
 		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
 			return
 		}
-		usr.PasswordHash = string(hashed)
+		newPasswordHash = string(hashed)
+	}
+
+	// Switching from SSO to local requires a password
+	if oldAuthType == user.AuthTypeSSO && usr.AuthType == user.AuthTypeLocal && newPasswordHash == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Password is required when switching from SSO to local authentication"})
+		return
 	}
 
 	// Update using repository
@@ -174,6 +218,17 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	// Update password separately (Update() doesn't touch password_hash)
+	if newPasswordHash != "" {
+		if err := h.userRepo.UpdatePassword(c.Request.Context(), usr.ID, newPasswordHash); err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Error:   "Failed to update password",
+				Message: err.Error(),
+			})
+			return
+		}
 	}
 
 	// Re-derive supervisor chains only if reports_to or hierarchy level actually changed
@@ -198,6 +253,7 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		HierarchyLevel: usr.HierarchyLevelID,
 		ReportsTo:      usr.ReportsTo,
 		TeamIds:        teamIds,
+		AuthType:       string(usr.AuthType),
 		CreatedAt:      usr.CreatedAt,
 		UpdatedAt:      usr.UpdatedAt,
 	}
