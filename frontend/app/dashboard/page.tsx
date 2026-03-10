@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle, AlertCircle, Grid3X3 } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
@@ -63,6 +63,7 @@ export default function DashboardPage() {
   const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [responseView, setResponseView] = useState<'person' | 'dimension'>('person');
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -243,6 +244,24 @@ export default function DashboardPage() {
     if (score === 3) return 'Green';
     if (score === 2) return 'Yellow';
     return 'Red';
+  };
+
+  const getScoreBgColor = (score: number) => {
+    if (score === 3) return 'bg-green-500';
+    if (score === 2) return 'bg-yellow-400';
+    return 'bg-red-500';
+  };
+
+  const getTrendSymbol = (trend: string) => {
+    if (trend === 'improving') return '↑';
+    if (trend === 'declining') return '↓';
+    return '→';
+  };
+
+  const getTrendColor = (trend: string) => {
+    if (trend === 'improving') return 'text-green-600';
+    if (trend === 'declining') return 'text-red-600';
+    return 'text-gray-500';
   };
 
   return (
@@ -486,53 +505,172 @@ export default function DashboardPage() {
                 {/* Individual Responses Tab */}
                 {activeTab === 'responses' && (
                   <div data-testid="responses-section">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Individual Team Responses</h2>
-                    {individualResponses.length > 0 ? (
-                      <div className="space-y-4">
-                        {individualResponses.map((response, idx) => (
-                          <div key={idx} className="border rounded-lg p-4" data-testid="response-card">
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-3">
-                                <h3 className="font-semibold text-gray-900">{response.userName}</h3>
-                                {response.surveyType === 'post_workshop' ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                    Post-Workshop
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    Individual
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {new Date(response.date).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {response.responses.map((resp, respIdx) => (
-                                <div key={respIdx} className="bg-gray-50 rounded p-3">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <span className="text-sm font-medium text-gray-700">
-                                      {resp.dimensionName}
-                                    </span>
-                                    <span
-                                      className={`text-xs font-semibold px-2 py-1 rounded ${getScoreColor(resp.score)}`}
-                                      data-testid="score-indicator"
-                                    >
-                                      {getScoreLabel(resp.score)}
-                                    </span>
-                                  </div>
-                                  {resp.comment && (
-                                    <p className="text-xs text-gray-600 mt-2" data-testid="comment">
-                                      {resp.comment}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900">Individual Team Responses</h2>
+                      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                        <button
+                          data-testid="view-by-person-btn"
+                          onClick={() => setResponseView('person')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            responseView === 'person'
+                              ? 'bg-white text-indigo-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <UsersIcon className="w-3.5 h-3.5" />
+                          By Person
+                        </button>
+                        <button
+                          data-testid="view-by-dimension-btn"
+                          onClick={() => setResponseView('dimension')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            responseView === 'dimension'
+                              ? 'bg-white text-indigo-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Grid3X3 className="w-3.5 h-3.5" />
+                          By Dimension
+                        </button>
                       </div>
+                    </div>
+
+                    {individualResponses.length > 0 ? (
+                      <>
+                        {/* Person View (existing card layout) */}
+                        {responseView === 'person' && (
+                          <div className="space-y-4">
+                            {individualResponses.map((response, idx) => (
+                              <div key={idx} className="border rounded-lg p-4" data-testid="response-card">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <h3 className="font-semibold text-gray-900">{response.userName}</h3>
+                                    {response.surveyType === 'post_workshop' ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                        Post-Workshop
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Individual
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-500">
+                                    {new Date(response.date).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {response.responses.map((resp, respIdx) => (
+                                    <div key={respIdx} className="bg-gray-50 rounded p-3">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="text-sm font-medium text-gray-700">
+                                          {resp.dimensionName}
+                                        </span>
+                                        <span
+                                          className={`text-xs font-semibold px-2 py-1 rounded ${getScoreColor(resp.score)}`}
+                                          data-testid="score-indicator"
+                                        >
+                                          {getScoreLabel(resp.score)}
+                                        </span>
+                                      </div>
+                                      {resp.comment && (
+                                        <p className="text-xs text-gray-600 mt-2" data-testid="comment">
+                                          {resp.comment}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Dimension Matrix View */}
+                        {responseView === 'dimension' && (
+                          <div data-testid="dimension-matrix" className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
+                              <thead>
+                                <tr className="bg-gray-50">
+                                  <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-r">
+                                    Member
+                                  </th>
+                                  {HEALTH_DIMENSIONS.map((dim) => (
+                                    <th
+                                      key={dim.id}
+                                      data-testid={`matrix-header-${dim.id}`}
+                                      className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-b whitespace-nowrap"
+                                    >
+                                      {dim.name}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {individualResponses.map((response, idx) => {
+                                  const dimMap = new Map(
+                                    response.responses.map((r) => [r.dimensionId, r])
+                                  );
+                                  return (
+                                    <tr
+                                      key={idx}
+                                      data-testid={`matrix-row-${response.sessionId}`}
+                                      className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                                    >
+                                      <td className="sticky left-0 z-10 px-4 py-3 border-r whitespace-nowrap" style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f9fafb' }}>
+                                        <div className="font-medium text-sm text-gray-900">{response.userName}</div>
+                                        <div className="text-xs text-gray-500">{new Date(response.date).toLocaleDateString()}</div>
+                                      </td>
+                                      {HEALTH_DIMENSIONS.map((dim) => {
+                                        const resp = dimMap.get(dim.id);
+                                        if (!resp) {
+                                          return (
+                                            <td key={dim.id} className="px-3 py-3 text-center">
+                                              <span className="text-gray-300">—</span>
+                                            </td>
+                                          );
+                                        }
+                                        return (
+                                          <td
+                                            key={dim.id}
+                                            data-testid={`matrix-cell-${response.sessionId}-${dim.id}`}
+                                            className="px-3 py-3 text-center"
+                                            title={resp.comment || undefined}
+                                          >
+                                            <div className="flex items-center justify-center gap-1">
+                                              <span
+                                                data-testid={`matrix-score-${response.sessionId}-${dim.id}`}
+                                                className={`inline-flex items-center justify-center w-7 h-7 rounded text-white text-xs font-bold ${getScoreBgColor(resp.score)}`}
+                                              >
+                                                {getScoreLabel(resp.score).charAt(0)}
+                                              </span>
+                                              <span
+                                                data-testid={`matrix-trend-${response.sessionId}-${dim.id}`}
+                                                className={`text-sm font-bold ${getTrendColor(resp.trend)}`}
+                                              >
+                                                {getTrendSymbol(resp.trend)}
+                                              </span>
+                                              {resp.comment && (
+                                                <span
+                                                  data-testid={`matrix-comment-${response.sessionId}-${dim.id}`}
+                                                  className="text-xs cursor-help"
+                                                  title={resp.comment}
+                                                >
+                                                  💬
+                                                </span>
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No individual responses available</p>
                     )}
