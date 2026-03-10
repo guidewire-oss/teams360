@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -8,7 +8,18 @@ import { HealthCheckResponse } from '@/lib/types';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
 import { submitHealthCheck, formatDateForAPI, HealthCheckAPIError } from '@/lib/api/health-checks';
 import { getTeamInfoCached, TeamInfo, TeamsAPIError } from '@/lib/api/teams';
-import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle, Info, X } from 'lucide-react';
+
+interface SurveyDraft {
+  responses: HealthCheckResponse[];
+  currentDimension: number;
+  assessmentPeriod: string;
+  savedAt: string;
+}
+
+function getDraftKey(userId: string, teamId: string): string {
+  return `surveyDraft:${userId}:${teamId}`;
+}
 
 export default function SurveyPage() {
   return (
@@ -41,6 +52,9 @@ function SurveyPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftInitialized = useRef(false);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -55,6 +69,22 @@ function SurveyPageContent() {
         getTeamInfoCached(teamId)
           .then((teamInfo) => {
             setTeam(teamInfo);
+            // Restore draft after team info loaded
+            try {
+              const draftJson = localStorage.getItem(getDraftKey(currentUser.id, teamId));
+              if (draftJson) {
+                const draft: SurveyDraft = JSON.parse(draftJson);
+                const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+                if (draft.assessmentPeriod === currentPeriod && draft.responses.length > 0) {
+                  setResponses(draft.responses);
+                  setCurrentDimension(draft.currentDimension);
+                  setDraftRestored(true);
+                }
+              }
+            } catch {
+              // Ignore corrupt draft
+            }
+            draftInitialized.current = true;
             setTeamLoading(false);
           })
           .catch((err) => {
@@ -68,6 +98,37 @@ function SurveyPageContent() {
       }
     }
   }, [router]);
+
+  // Autosave draft to localStorage (debounced)
+  useEffect(() => {
+    if (!user || !team || !draftInitialized.current || submitted) return;
+    if (responses.length === 0) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const draft: SurveyDraft = {
+        responses,
+        currentDimension,
+        assessmentPeriod: getAssessmentPeriod(new Date(), toCadence(team.cadence)),
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(getDraftKey(user.id, team.id), JSON.stringify(draft));
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [responses, currentDimension, user, team, submitted]);
+
+  // beforeunload warning when survey has unsaved responses
+  useEffect(() => {
+    if (responses.length === 0 || submitted) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [responses.length, submitted]);
 
   const handleScoreSelect = (score: 1 | 2 | 3) => {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
@@ -191,6 +252,9 @@ function SurveyPageContent() {
         })),
         completed: true
       });
+
+      // Clear draft on successful submit
+      localStorage.removeItem(getDraftKey(user.id, team.id));
 
       // Store session ID and redirect
       setSessionId(session.id);
@@ -339,6 +403,25 @@ function SurveyPageContent() {
           </div>
 
           <div className="p-8">
+            {draftRestored && (
+              <div
+                data-testid="draft-restored-banner"
+                className="mb-6 flex items-center justify-between gap-2 text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  <span>Your previous progress has been restored from a saved draft.</span>
+                </div>
+                <button
+                  onClick={() => setDraftRestored(false)}
+                  className="text-blue-400 hover:text-blue-600 flex-shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">{dimension?.name}</h2>
               <p className="text-gray-600 text-lg">{dimension?.description}</p>
