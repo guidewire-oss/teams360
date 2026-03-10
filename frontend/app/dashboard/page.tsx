@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle, AlertCircle } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
@@ -62,6 +62,7 @@ export default function DashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -104,6 +105,7 @@ export default function DashboardPage() {
   const fetchDashboardData = async (teamId: string, assessmentPeriod: string) => {
     try {
       setLoading(true);
+      setError(null);
 
       // Build query string for assessment period filter
       const periodQuery = assessmentPeriod ? `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}` : '';
@@ -126,6 +128,8 @@ export default function DashboardPage() {
           });
           setHealthSummary(transformed);
         }
+      } else if (healthRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch response distribution
@@ -203,8 +207,9 @@ export default function DashboardPage() {
           setTrends(transformed);
         }
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Unable to load dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -407,6 +412,14 @@ export default function DashboardPage() {
               </button>
             </div>
           </div>
+
+          {/* Error Banner */}
+          {error && (
+            <div data-testid="dashboard-error-banner" className="mx-6 mt-4 flex items-center gap-2 text-red-700 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
 
           {/* Tab Content */}
           <div className="p-6">
