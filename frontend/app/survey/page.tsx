@@ -55,6 +55,7 @@ function SurveyPageContent() {
   const [draftRestored, setDraftRestored] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftInitialized = useRef(false);
+  const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -92,12 +93,59 @@ function SurveyPageContent() {
             setTeamError(err instanceof TeamsAPIError ? err.message : 'Failed to load team information');
             setTeamLoading(false);
           });
+        // Fetch team names for multi-team selector
+        if (currentUser.teamIds.length > 1) {
+          Promise.all(
+            currentUser.teamIds.map((tid: string) =>
+              getTeamInfoCached(tid).then(info => ({ id: info.id, name: info.name })).catch(() => ({ id: tid, name: tid }))
+            )
+          ).then(setTeamOptions);
+        }
       } else {
         setTeamLoading(false);
         setTeamError('No team assigned to this user');
       }
     }
   }, [router]);
+
+  const handleTeamSwitch = (newTeamId: string) => {
+    if (!user) return;
+    setTeamLoading(true);
+    setResponses([]);
+    setCurrentDimension(0);
+    setDraftRestored(false);
+    setSubmitted(false);
+    setError(null);
+    setValidationError(null);
+    draftInitialized.current = false;
+
+    getTeamInfoCached(newTeamId)
+      .then((teamInfo) => {
+        setTeam(teamInfo);
+        // Restore draft for the new team
+        try {
+          const draftJson = localStorage.getItem(getDraftKey(user.id, newTeamId));
+          if (draftJson) {
+            const draft: SurveyDraft = JSON.parse(draftJson);
+            const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+            if (draft.assessmentPeriod === currentPeriod && draft.responses.length > 0) {
+              setResponses(draft.responses);
+              setCurrentDimension(draft.currentDimension);
+              setDraftRestored(true);
+            }
+          }
+        } catch {
+          // Ignore corrupt draft
+        }
+        draftInitialized.current = true;
+        setTeamLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch team info:', err);
+        setTeamError(err instanceof TeamsAPIError ? err.message : 'Failed to load team information');
+        setTeamLoading(false);
+      });
+  };
 
   // Autosave draft to localStorage (debounced)
   useEffect(() => {
@@ -362,7 +410,20 @@ function SurveyPageContent() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h1 className="text-2xl font-bold">{isPostWorkshop ? 'Post-Workshop Survey' : 'Squad Health Check'}</h1>
-                <p className={isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}>Team: {team?.name || 'Unknown Team'}</p>
+                <p className={isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}>
+                  Team: {teamOptions.length > 1 ? (
+                    <select
+                      data-testid="team-selector"
+                      value={team?.id || ''}
+                      onChange={(e) => handleTeamSwitch(e.target.value)}
+                      className="ml-1 px-2 py-0.5 text-sm bg-white/20 border border-white/30 rounded text-white focus:ring-2 focus:ring-white/50"
+                    >
+                      {teamOptions.map((t) => (
+                        <option key={t.id} value={t.id} className="text-gray-900">{t.name}</option>
+                      ))}
+                    </select>
+                  ) : (team?.name || 'Unknown Team')}
+                </p>
                 <p className={`${isPostWorkshop ? 'text-amber-100' : 'text-indigo-100'} text-sm mt-1`}>
                   Period: {surveyPeriod}
                   {team?.cadence && ` • ${team.cadence.charAt(0).toUpperCase() + team.cadence.slice(1)} Check`}

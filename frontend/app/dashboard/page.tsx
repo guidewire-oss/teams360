@@ -64,6 +64,7 @@ export default function DashboardPage() {
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [responseView, setResponseView] = useState<'person' | 'dimension'>('person');
+  const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -91,6 +92,15 @@ export default function DashboardPage() {
         })
         .then(setSubmissionStatus)
         .catch((err) => console.error('Failed to fetch submission status:', err));
+
+      // Fetch team names for multi-team selector
+      if (currentUser.teamIds.length > 1) {
+        Promise.all(
+          currentUser.teamIds.map((tid: string) =>
+            getTeamInfoCached(tid).then(info => ({ id: info.id, name: info.name })).catch(() => ({ id: tid, name: tid }))
+          )
+        ).then(setTeamOptions);
+      }
     } else {
       setLoading(false);
     }
@@ -223,6 +233,24 @@ export default function DashboardPage() {
     }
   };
 
+  const handleTeamChange = (newTeamId: string) => {
+    setTeamId(newTeamId);
+    setSelectedPeriod('');
+    fetchDashboardData(newTeamId, '');
+    // Re-fetch submission status for the new team
+    getTeamInfoCached(newTeamId)
+      .then((teamInfo) => {
+        const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+        return getTeamSubmissionStatus(newTeamId, currentPeriod);
+      })
+      .catch(() => {
+        const currentPeriod = getAssessmentPeriod(new Date());
+        return getTeamSubmissionStatus(newTeamId, currentPeriod);
+      })
+      .then(setSubmissionStatus)
+      .catch((err) => console.error('Failed to fetch submission status:', err));
+  };
+
   const handleLogout = () => {
     logout();
     router.push('/login');
@@ -274,7 +302,21 @@ export default function DashboardPage() {
               <Building2 className="w-8 h-8 text-indigo-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Team Lead Dashboard</h1>
-                <p className="text-gray-500">{config.companyName} Health Metrics</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-gray-500">{config.companyName} Health Metrics</p>
+                  {teamOptions.length > 1 && (
+                    <select
+                      data-testid="team-selector"
+                      value={teamId}
+                      onChange={(e) => handleTeamChange(e.target.value)}
+                      className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {teamOptions.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
             </div>
 
