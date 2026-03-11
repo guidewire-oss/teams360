@@ -62,6 +62,7 @@ export default function AdminPage() {
     name: "",
     teamLeadId: "",
     cadence: "monthly",
+    distributionListEmail: "",
   });
   const [teamFormLoading, setTeamFormLoading] = useState(false);
   const [teamFormError, setTeamFormError] = useState<string | null>(null);
@@ -99,6 +100,7 @@ export default function AdminPage() {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [slackEnabled, setSlackEnabled] = useState(false);
   const [notifyOnSubmission, setNotifyOnSubmission] = useState(false);
+  const [smtpConfigured, setSmtpConfigured] = useState(false);
   const [retentionMonths, setRetentionMonths] = useState(12);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
@@ -131,10 +133,11 @@ export default function AdminPage() {
     }
   }, [activeTab]);
 
-  // Fetch settings when activeTab changes to 'settings'
+  // Fetch settings and teams when activeTab changes to 'settings'
   useEffect(() => {
     if (activeTab === "settings") {
       loadSettings();
+      if (teams.length === 0) fetchAdminTeams();
     }
   }, [activeTab]);
 
@@ -149,6 +152,7 @@ export default function AdminPage() {
       setEmailEnabled(notifSettings.emailEnabled);
       setSlackEnabled(notifSettings.slackEnabled);
       setNotifyOnSubmission(notifSettings.notifyOnSubmission);
+      setSmtpConfigured(notifSettings.smtpConfigured);
       setRetentionMonths(retention.keepSessionsMonths);
     } catch (err) {
       setSettingsError("Failed to load settings");
@@ -238,7 +242,7 @@ export default function AdminPage() {
   };
 
   const handleShowCreateTeamForm = () => {
-    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly" });
+    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly", distributionListEmail: "" });
     setTeamFormError(null);
     setShowNewTeamForm(true);
     setEditingTeam(null);
@@ -249,6 +253,7 @@ export default function AdminPage() {
       name: team.name,
       teamLeadId: team.teamLeadId || "",
       cadence: team.cadence,
+      distributionListEmail: team.distributionListEmail || "",
     });
     setTeamFormError(null);
     setEditingTeam(team);
@@ -258,7 +263,7 @@ export default function AdminPage() {
   const handleCancelTeamForm = () => {
     setShowNewTeamForm(false);
     setEditingTeam(null);
-    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly" });
+    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly", distributionListEmail: "" });
     setTeamFormError(null);
   };
 
@@ -275,6 +280,7 @@ export default function AdminPage() {
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
+        distributionListEmail: teamFormData.distributionListEmail.trim() || null,
       });
 
       // Clear cache and refresh teams list
@@ -306,6 +312,7 @@ export default function AdminPage() {
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
+        distributionListEmail: teamFormData.distributionListEmail.trim() || null,
       });
 
       // Clear cache and refresh teams list
@@ -750,6 +757,33 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                <div className="mt-4">
+                  <label
+                    htmlFor="distributionListEmail"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Distribution List Email
+                  </label>
+                  <input
+                    type="email"
+                    id="distributionListEmail"
+                    data-testid="team-dl-email-input"
+                    value={teamFormData.distributionListEmail}
+                    onChange={(e) =>
+                      setTeamFormData({
+                        ...teamFormData,
+                        distributionListEmail: e.target.value,
+                      })
+                    }
+                    placeholder="team-dl@company.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={teamFormLoading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Post-workshop survey summaries will be sent to this address.
+                  </p>
+                </div>
+
                 <div className="flex gap-4 mt-6">
                   <button
                     data-testid="save-team-btn"
@@ -869,6 +903,33 @@ export default function AdminPage() {
                       <option value="yearly">Yearly</option>
                     </select>
                   </div>
+                </div>
+
+                <div className="mt-4">
+                  <label
+                    htmlFor="edit-distributionListEmail"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Distribution List Email
+                  </label>
+                  <input
+                    type="email"
+                    id="edit-distributionListEmail"
+                    data-testid="team-dl-email-edit-input"
+                    value={teamFormData.distributionListEmail}
+                    onChange={(e) =>
+                      setTeamFormData({
+                        ...teamFormData,
+                        distributionListEmail: e.target.value,
+                      })
+                    }
+                    placeholder="team-dl@company.com"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    disabled={teamFormLoading}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Post-workshop survey summaries will be sent to this address.
+                  </p>
                 </div>
 
                 <div className="flex gap-4 mt-6">
@@ -1614,6 +1675,53 @@ export default function AdminPage() {
                   <div className="text-center py-4 text-gray-500">Loading settings...</div>
                 ) : (
                   <>
+                {!smtpConfigured && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800">SMTP Not Configured</p>
+                      <p className="text-sm text-amber-700 mt-1">
+                        Email notifications are disabled. Set <code className="bg-amber-100 px-1 rounded">SMTP_HOST</code> and related environment variables to enable email delivery.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div data-testid="team-dl-settings">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Team Distribution Lists
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Teams with a distribution list email will receive post-workshop survey summaries.
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-medium text-gray-600">Team</th>
+                          <th className="text-left px-4 py-2 font-medium text-gray-600">Distribution List Email</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {teams.length === 0 ? (
+                          <tr><td colSpan={2} className="px-4 py-3 text-gray-400 text-center">No teams configured</td></tr>
+                        ) : teams.map((t) => (
+                          <tr key={t.id}>
+                            <td className="px-4 py-2 font-medium text-gray-900">{t.name}</td>
+                            <td className="px-4 py-2">
+                              {t.distributionListEmail ? (
+                                <span className="text-gray-700">{t.distributionListEmail}</span>
+                              ) : (
+                                <span className="text-gray-400">Not set</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div data-testid="notifications-settings">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
                   Notification Settings

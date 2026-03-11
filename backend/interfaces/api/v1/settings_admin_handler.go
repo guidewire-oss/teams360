@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -210,6 +211,7 @@ func (h *SettingsAdminHandler) GetNotificationSettings(c *gin.Context) {
 		NotifyManagers:     false,
 		ReminderDaysBefore: 7,
 		ReminderRecipients: []string{},
+		SmtpConfigured:     os.Getenv("SMTP_HOST") != "",
 	}
 
 	c.JSON(http.StatusOK, settings)

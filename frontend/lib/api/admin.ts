@@ -105,6 +105,7 @@ export interface AdminTeam {
   teamLeadId: string | null;
   teamLeadName: string | null;
   cadence: string;
+  distributionListEmail?: string | null;
   memberCount: number;
   createdAt: string;
   updatedAt: string;
@@ -116,6 +117,7 @@ export interface CreateTeamRequest {
   name: string;
   teamLeadId?: string | null;
   cadence: string;
+  distributionListEmail?: string | null;
   memberIds?: string[];
   // Future OAuth/groups support
   externalGroupId?: string;
@@ -125,6 +127,7 @@ export interface UpdateTeamRequest {
   name?: string;
   teamLeadId?: string | null;
   cadence?: string;
+  distributionListEmail?: string | null;
   memberIds?: string[];
   // Future OAuth/groups support
   externalGroupId?: string;
@@ -208,6 +211,7 @@ export interface NotificationSettings {
   notifyManagers: boolean;
   reminderDaysBefore: number;
   reminderRecipients: string[];
+  smtpConfigured: boolean;
 }
 
 export interface UpdateNotificationSettingsRequest {

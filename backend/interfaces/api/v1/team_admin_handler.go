@@ -40,14 +40,15 @@ func (h *TeamAdminHandler) ListTeams(c *gin.Context) {
 	teamDTOs := make([]dto.AdminTeamDTO, len(teams))
 	for i, tm := range teams {
 		teamDTOs[i] = dto.AdminTeamDTO{
-			ID:           tm.ID,
-			Name:         tm.Name,
-			TeamLeadID:   tm.TeamLeadID,
-			TeamLeadName: tm.TeamLeadName,
-			Cadence:      tm.Cadence,
-			MemberCount:  tm.MemberCount,
-			CreatedAt:    tm.CreatedAt,
-			UpdatedAt:    tm.UpdatedAt,
+			ID:                    tm.ID,
+			Name:                  tm.Name,
+			TeamLeadID:            tm.TeamLeadID,
+			TeamLeadName:          tm.TeamLeadName,
+			Cadence:               tm.Cadence,
+			DistributionListEmail: tm.DistributionListEmail,
+			MemberCount:           tm.MemberCount,
+			CreatedAt:             tm.CreatedAt,
+			UpdatedAt:             tm.UpdatedAt,
 		}
 	}
 
@@ -73,11 +74,12 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 
 	// Create team domain model
 	tm := &team.Team{
-		ID:         teamID,
-		Name:       req.Name,
-		TeamLeadID: req.TeamLeadID,
-		Cadence:    req.Cadence,
-		Members:    []team.TeamMember{},
+		ID:                    teamID,
+		Name:                  req.Name,
+		TeamLeadID:            req.TeamLeadID,
+		Cadence:               req.Cadence,
+		DistributionListEmail: req.DistributionListEmail,
+		Members:               []team.TeamMember{},
 	}
 
 	// Save using repository
@@ -99,14 +101,15 @@ func (h *TeamAdminHandler) CreateTeam(c *gin.Context) {
 
 	// Convert to DTO and return
 	responseDTO := dto.AdminTeamDTO{
-		ID:           tm.ID,
-		Name:         tm.Name,
-		TeamLeadID:   tm.TeamLeadID,
-		TeamLeadName: teamLeadName,
-		Cadence:      tm.Cadence,
-		MemberCount:  0,
-		CreatedAt:    tm.CreatedAt,
-		UpdatedAt:    tm.UpdatedAt,
+		ID:                    tm.ID,
+		Name:                  tm.Name,
+		TeamLeadID:            tm.TeamLeadID,
+		TeamLeadName:          teamLeadName,
+		Cadence:               tm.Cadence,
+		DistributionListEmail: tm.DistributionListEmail,
+		MemberCount:           0,
+		CreatedAt:             tm.CreatedAt,
+		UpdatedAt:             tm.UpdatedAt,
 	}
 
 	// Auto-derive supervisor chain from team lead's reports_to hierarchy
@@ -150,6 +153,9 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 	if req.Cadence != nil {
 		tm.Cadence = *req.Cadence
 	}
+	if req.DistributionListEmail != nil {
+		tm.DistributionListEmail = req.DistributionListEmail
+	}
 
 	// Update using repository
 	if err := h.teamRepo.Update(c.Request.Context(), tm); err != nil {
@@ -188,14 +194,15 @@ func (h *TeamAdminHandler) UpdateTeam(c *gin.Context) {
 
 	// Convert to DTO and return
 	responseDTO := dto.AdminTeamDTO{
-		ID:           updatedTm.ID,
-		Name:         updatedTm.Name,
-		TeamLeadID:   updatedTm.TeamLeadID,
-		TeamLeadName: updatedTm.TeamLeadName,
-		Cadence:      updatedTm.Cadence,
-		MemberCount:  memberCount,
-		CreatedAt:    updatedTm.CreatedAt,
-		UpdatedAt:    updatedTm.UpdatedAt,
+		ID:                    updatedTm.ID,
+		Name:                  updatedTm.Name,
+		TeamLeadID:            updatedTm.TeamLeadID,
+		TeamLeadName:          updatedTm.TeamLeadName,
+		Cadence:               updatedTm.Cadence,
+		DistributionListEmail: updatedTm.DistributionListEmail,
+		MemberCount:           memberCount,
+		CreatedAt:             updatedTm.CreatedAt,
+		UpdatedAt:             updatedTm.UpdatedAt,
 	}
 
 	c.JSON(http.StatusOK, responseDTO)
