@@ -190,7 +190,7 @@ export default function ManagerPage() {
       const data: ManagerDashboardResponse = await response.json();
       setDashboardData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      setError('Unable to load team health data. Please refresh the page.');
       console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);

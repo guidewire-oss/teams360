@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, CheckCircle, AlertCircle, Grid3X3 } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
@@ -62,6 +62,9 @@ export default function DashboardPage() {
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
   const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
   const [submissionStatus, setSubmissionStatus] = useState<TeamSubmissionStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [responseView, setResponseView] = useState<'person' | 'dimension'>('person');
+  const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -89,6 +92,15 @@ export default function DashboardPage() {
         })
         .then(setSubmissionStatus)
         .catch((err) => console.error('Failed to fetch submission status:', err));
+
+      // Fetch team names for multi-team selector
+      if (currentUser.teamIds.length > 1) {
+        Promise.all(
+          currentUser.teamIds.map((tid: string) =>
+            getTeamInfoCached(tid).then(info => ({ id: info.id, name: info.name })).catch(() => ({ id: tid, name: tid }))
+          )
+        ).then(setTeamOptions);
+      }
     } else {
       setLoading(false);
     }
@@ -104,6 +116,7 @@ export default function DashboardPage() {
   const fetchDashboardData = async (teamId: string, assessmentPeriod: string) => {
     try {
       setLoading(true);
+      setError(null);
 
       // Build query string for assessment period filter
       const periodQuery = assessmentPeriod ? `?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}` : '';
@@ -126,6 +139,8 @@ export default function DashboardPage() {
           });
           setHealthSummary(transformed);
         }
+      } else if (healthRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch response distribution
@@ -147,6 +162,8 @@ export default function DashboardPage() {
           });
           setDistribution(transformed);
         }
+      } else if (distRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch individual responses
@@ -183,6 +200,8 @@ export default function DashboardPage() {
           }));
           setIndividualResponses(transformed);
         }
+      } else if (respRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch trends (trends don't filter by period - they show all periods)
@@ -202,9 +221,12 @@ export default function DashboardPage() {
           });
           setTrends(transformed);
         }
+      } else if (trendsRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
+    } catch (err) {
+      console.error('Error fetching dashboard data:', err);
+      setError('Unable to load dashboard data. Please refresh the page.');
     } finally {
       setLoading(false);
     }
@@ -215,6 +237,31 @@ export default function DashboardPage() {
     if (teamId) {
       fetchDashboardData(teamId, period);
     }
+  };
+
+  const handleTeamChange = (newTeamId: string) => {
+    // Clear stale data before switching so a failed reload doesn't show old team's data
+    setHealthSummary([]);
+    setDistribution([]);
+    setIndividualResponses([]);
+    setTrends([]);
+    setSubmissionStatus(null);
+    setError(null);
+    setTeamId(newTeamId);
+    setSelectedPeriod('');
+    fetchDashboardData(newTeamId, '');
+    // Re-fetch submission status for the new team
+    getTeamInfoCached(newTeamId)
+      .then((teamInfo) => {
+        const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+        return getTeamSubmissionStatus(newTeamId, currentPeriod);
+      })
+      .catch(() => {
+        const currentPeriod = getAssessmentPeriod(new Date());
+        return getTeamSubmissionStatus(newTeamId, currentPeriod);
+      })
+      .then(setSubmissionStatus)
+      .catch((err) => console.error('Failed to fetch submission status:', err));
   };
 
   const handleLogout = () => {
@@ -240,6 +287,24 @@ export default function DashboardPage() {
     return 'Red';
   };
 
+  const getScoreBgColor = (score: number) => {
+    if (score === 3) return 'bg-green-500';
+    if (score === 2) return 'bg-yellow-400';
+    return 'bg-red-500';
+  };
+
+  const getTrendSymbol = (trend: string) => {
+    if (trend === 'improving') return '↑';
+    if (trend === 'declining') return '↓';
+    return '→';
+  };
+
+  const getTrendColor = (trend: string) => {
+    if (trend === 'improving') return 'text-green-600';
+    if (trend === 'declining') return 'text-red-600';
+    return 'text-gray-500';
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -250,14 +315,28 @@ export default function DashboardPage() {
               <Building2 className="w-8 h-8 text-indigo-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Team Lead Dashboard</h1>
-                <p className="text-gray-500">{config.companyName} Health Metrics</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-gray-500">{config.companyName} Health Metrics</p>
+                  {teamOptions.length > 1 && (
+                    <select
+                      data-testid="team-selector"
+                      value={teamId}
+                      onChange={(e) => handleTeamChange(e.target.value)}
+                      className="ml-2 px-2 py-1 text-sm border border-gray-300 rounded-lg text-gray-700 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                    >
+                      {teamOptions.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
               </div>
             </div>
 
             <div className="flex items-center gap-4">
               {/* Take Survey Button */}
               <button
-                onClick={() => router.push('/survey')}
+                onClick={() => router.push(teamId ? `/survey?team=${teamId}` : '/survey')}
                 data-testid="take-survey-button"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
@@ -276,7 +355,7 @@ export default function DashboardPage() {
                 </span>
               ) : (
                 <button
-                  onClick={() => router.push('/survey?type=post_workshop')}
+                  onClick={() => router.push(teamId ? `/survey?type=post_workshop&team=${teamId}` : '/survey?type=post_workshop')}
                   data-testid="post-workshop-survey-button"
                   title="Record your team's workshop consensus"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-amber-500 text-white hover:bg-amber-600"
@@ -408,6 +487,14 @@ export default function DashboardPage() {
             </div>
           </div>
 
+          {/* Error Banner */}
+          {error && (
+            <div data-testid="dashboard-error-banner" className="mx-6 mt-4 flex items-center gap-2 text-red-700 text-sm bg-red-50 border border-red-200 p-3 rounded-lg">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Tab Content */}
           <div className="p-6">
             {loading ? (
@@ -473,53 +560,178 @@ export default function DashboardPage() {
                 {/* Individual Responses Tab */}
                 {activeTab === 'responses' && (
                   <div data-testid="responses-section">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Individual Team Responses</h2>
-                    {individualResponses.length > 0 ? (
-                      <div className="space-y-4">
-                        {individualResponses.map((response, idx) => (
-                          <div key={idx} className="border rounded-lg p-4" data-testid="response-card">
-                            <div className="flex justify-between items-start mb-4">
-                              <div className="flex items-center gap-3">
-                                <h3 className="font-semibold text-gray-900">{response.userName}</h3>
-                                {response.surveyType === 'post_workshop' ? (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
-                                    Post-Workshop
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                    Individual
-                                  </span>
-                                )}
-                              </div>
-                              <p className="text-sm text-gray-500">
-                                {new Date(response.date).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                              {response.responses.map((resp, respIdx) => (
-                                <div key={respIdx} className="bg-gray-50 rounded p-3">
-                                  <div className="flex justify-between items-start mb-2">
-                                    <span className="text-sm font-medium text-gray-700">
-                                      {resp.dimensionName}
-                                    </span>
-                                    <span
-                                      className={`text-xs font-semibold px-2 py-1 rounded ${getScoreColor(resp.score)}`}
-                                      data-testid="score-indicator"
-                                    >
-                                      {getScoreLabel(resp.score)}
-                                    </span>
-                                  </div>
-                                  {resp.comment && (
-                                    <p className="text-xs text-gray-600 mt-2" data-testid="comment">
-                                      {resp.comment}
-                                    </p>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        ))}
+                    <div className="flex justify-between items-center mb-6">
+                      <h2 className="text-xl font-semibold text-gray-900">Individual Team Responses</h2>
+                      <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+                        <button
+                          data-testid="view-by-person-btn"
+                          onClick={() => setResponseView('person')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            responseView === 'person'
+                              ? 'bg-white text-indigo-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <UsersIcon className="w-3.5 h-3.5" />
+                          By Person
+                        </button>
+                        <button
+                          data-testid="view-by-dimension-btn"
+                          onClick={() => setResponseView('dimension')}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors ${
+                            responseView === 'dimension'
+                              ? 'bg-white text-indigo-600 shadow-sm'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          <Grid3X3 className="w-3.5 h-3.5" />
+                          By Dimension
+                        </button>
                       </div>
+                    </div>
+
+                    {individualResponses.length > 0 ? (
+                      <>
+                        {/* Person View (existing card layout) */}
+                        {responseView === 'person' && (
+                          <div className="space-y-4">
+                            {individualResponses.map((response, idx) => (
+                              <div key={idx} className="border rounded-lg p-4" data-testid="response-card">
+                                <div className="flex justify-between items-start mb-4">
+                                  <div className="flex items-center gap-3">
+                                    <h3 className="font-semibold text-gray-900">{response.userName}</h3>
+                                    {response.surveyType === 'post_workshop' ? (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                        Post-Workshop
+                                      </span>
+                                    ) : (
+                                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                        Individual
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-gray-500">
+                                    {new Date(response.date).toLocaleDateString()}
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {response.responses.map((resp, respIdx) => (
+                                    <div key={respIdx} className="bg-gray-50 rounded p-3">
+                                      <div className="flex justify-between items-start mb-2">
+                                        <span className="text-sm font-medium text-gray-700">
+                                          {resp.dimensionName}
+                                        </span>
+                                        <span
+                                          className={`text-xs font-semibold px-2 py-1 rounded ${getScoreColor(resp.score)}`}
+                                          data-testid="score-indicator"
+                                        >
+                                          {getScoreLabel(resp.score)}
+                                        </span>
+                                      </div>
+                                      {resp.comment && (
+                                        <p className="text-xs text-gray-600 mt-2" data-testid="comment">
+                                          {resp.comment}
+                                        </p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Dimension Matrix View */}
+                        {responseView === 'dimension' && (
+                          <div data-testid="dimension-matrix" className="overflow-x-auto">
+                            <table className="min-w-full border-collapse">
+                              <thead>
+                                <tr className="bg-gray-50">
+                                  <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider border-b border-r">
+                                    Member
+                                  </th>
+                                  {HEALTH_DIMENSIONS.map((dim) => (
+                                    <th
+                                      key={dim.id}
+                                      data-testid={`matrix-header-${dim.id}`}
+                                      className="px-3 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider border-b whitespace-nowrap"
+                                    >
+                                      {dim.name}
+                                    </th>
+                                  ))}
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {individualResponses.map((response, idx) => {
+                                  const dimMap = new Map(
+                                    response.responses.map((r) => [r.dimensionId, r])
+                                  );
+                                  return (
+                                    <tr
+                                      key={idx}
+                                      data-testid={`matrix-row-${response.sessionId}`}
+                                      className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}
+                                    >
+                                      <td className="sticky left-0 z-10 px-4 py-3 border-r whitespace-nowrap" style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f9fafb' }}>
+                                        <div className="font-medium text-sm text-gray-900">{response.userName}</div>
+                                        <div className="text-xs text-gray-500">{new Date(response.date).toLocaleDateString()}</div>
+                                      </td>
+                                      {HEALTH_DIMENSIONS.map((dim) => {
+                                        const resp = dimMap.get(dim.id);
+                                        if (!resp) {
+                                          return (
+                                            <td key={dim.id} className="px-3 py-3 text-center">
+                                              <span className="text-gray-300">—</span>
+                                            </td>
+                                          );
+                                        }
+                                        return (
+                                          <td
+                                            key={dim.id}
+                                            data-testid={`matrix-cell-${response.sessionId}-${dim.id}`}
+                                            className="px-3 py-3 text-center"
+                                          >
+                                            <div className="relative flex items-center justify-center gap-1 group">
+                                              <span
+                                                data-testid={`matrix-score-${response.sessionId}-${dim.id}`}
+                                                className={`inline-flex items-center justify-center w-7 h-7 rounded text-white text-xs font-bold ${getScoreBgColor(resp.score)}`}
+                                              >
+                                                {getScoreLabel(resp.score).charAt(0)}
+                                              </span>
+                                              <span
+                                                data-testid={`matrix-trend-${response.sessionId}-${dim.id}`}
+                                                className={`text-sm font-bold ${getTrendColor(resp.trend)}`}
+                                              >
+                                                {getTrendSymbol(resp.trend)}
+                                              </span>
+                                              {resp.comment && (
+                                                <button
+                                                  type="button"
+                                                  data-testid={`matrix-comment-${response.sessionId}-${dim.id}`}
+                                                  className="text-xs cursor-help focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-500 rounded"
+                                                  aria-label="View comment"
+                                                >
+                                                  💬
+                                                </button>
+                                              )}
+                                              {resp.comment && (
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block z-50 w-56 p-2 text-xs text-left text-white bg-gray-800 rounded-lg shadow-lg whitespace-pre-wrap">
+                                                  {resp.comment}
+                                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                                </div>
+                                              )}
+                                            </div>
+                                          </td>
+                                        );
+                                      })}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <p className="text-gray-500 text-center py-12">No individual responses available</p>
                     )}

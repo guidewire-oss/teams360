@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { getOrgConfig } from '@/lib/org-config';
 import { setAuthData, LoginResponse } from '@/lib/auth';
 import { startSSOFlow, OAuthConfig } from '@/lib/sso';
@@ -9,7 +9,21 @@ import { API_BASE_URL } from '@/lib/api/client';
 import { Lock, User, AlertCircle, Users, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <p className="text-gray-500">Loading...</p>
+      </div>
+    }>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionExpired = searchParams.get('expired') === 'true';
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -69,7 +83,7 @@ export default function LoginPage() {
         router.push('/home');
       }
     } catch (err) {
-      setError('Network error. Please make sure the backend server is running.');
+      setError('Unable to connect. Please try again later.');
     }
   };
 
@@ -100,6 +114,16 @@ export default function LoginPage() {
                 <h1 className="text-3xl font-bold text-gray-900">Team Health Check</h1>
                 <p className="text-gray-500 mt-2">Sign in to continue</p>
               </div>
+
+              {sessionExpired && (
+                <div
+                  data-testid="session-expired-banner"
+                  className="mb-6 flex items-center gap-2 text-amber-700 text-sm bg-amber-50 border border-amber-200 p-3 rounded-lg"
+                >
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>Your session has expired. Please log in again.</span>
+                </div>
+              )}
 
               <form onSubmit={handleLogin} className="space-y-6">
                 <div>
@@ -141,7 +165,7 @@ export default function LoginPage() {
                 </div>
 
                 {error && (
-                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg">
+                  <div className="flex items-center gap-2 text-red-600 text-sm bg-red-50 p-3 rounded-lg" data-testid="login-error">
                     <AlertCircle className="w-4 h-4" />
                     <span>{error}</span>
                   </div>
@@ -168,7 +192,7 @@ export default function LoginPage() {
                     className="w-full mt-4 flex items-center justify-center gap-2 border border-gray-300 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-50 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                   >
                     <LogIn className="w-5 h-5" />
-                    {ssoLoading ? 'Redirecting…' : 'Sign in with SSO'}
+                    {ssoLoading ? 'Redirecting\u2026' : 'Sign in with SSO'}
                   </button>
                 </>
               )}
@@ -215,20 +239,20 @@ export default function LoginPage() {
                 <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
                   <p className="text-xs text-blue-700 leading-relaxed">
                     <strong className="block mb-2">All Accounts:</strong>
-                    • All passwords are <strong>&quot;demo&quot;</strong> except admin<br/>
-                    • Use director1, director2, manager1-3, teamlead1-5<br/>
-                    • Or team members: alice, bob, carol, david, eve<br/>
-                    • Admin password is <strong>&quot;admin&quot;</strong>
+                    {'\u2022'} All passwords are <strong>&quot;demo&quot;</strong> except admin<br/>
+                    {'\u2022'} Use director1, director2, manager1-3, teamlead1-5<br/>
+                    {'\u2022'} Or team members: alice, bob, carol, david, eve<br/>
+                    {'\u2022'} Admin password is <strong>&quot;admin&quot;</strong>
                   </p>
                 </div>
 
                 <div className="bg-green-50 rounded-lg p-4 border border-green-200">
                   <p className="text-xs text-green-700 leading-relaxed">
                     <strong className="block mb-1">What Each User Sees:</strong>
-                    • <strong>VP/Directors/Managers:</strong> Manager Dashboard<br/>
-                    • <strong>Team Leads:</strong> Team Dashboard<br/>
-                    • <strong>Team Members:</strong> Member Home (Survey History)<br/>
-                    • <strong>Admin:</strong> System Configuration
+                    {'\u2022'} <strong>VP/Directors/Managers:</strong> Manager Dashboard<br/>
+                    {'\u2022'} <strong>Team Leads:</strong> Team Dashboard<br/>
+                    {'\u2022'} <strong>Team Members:</strong> Member Home (Survey History)<br/>
+                    {'\u2022'} <strong>Admin:</strong> System Configuration
                   </p>
                 </div>
               </div>

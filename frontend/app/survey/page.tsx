@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -8,7 +8,18 @@ import { HealthCheckResponse } from '@/lib/types';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
 import { submitHealthCheck, formatDateForAPI, HealthCheckAPIError } from '@/lib/api/health-checks';
 import { getTeamInfoCached, TeamInfo, TeamsAPIError } from '@/lib/api/teams';
-import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, ChevronLeft, ChevronRight, Save, LogOut, CheckCircle, BarChart3, Loader2, AlertCircle, Info, X } from 'lucide-react';
+
+interface SurveyDraft {
+  responses: HealthCheckResponse[];
+  currentDimension: number;
+  assessmentPeriod: string;
+  savedAt: string;
+}
+
+function getDraftKey(userId: string, teamId: string): string {
+  return `surveyDraft:${userId}:${teamId}`;
+}
 
 export default function SurveyPage() {
   return (
@@ -30,6 +41,7 @@ function SurveyPageContent() {
   const searchParams = useSearchParams();
   const surveyType = searchParams.get('type') === 'post_workshop' ? 'post_workshop' : 'individual';
   const isPostWorkshop = surveyType === 'post_workshop';
+  const preferredTeamId = searchParams.get('team');
   const [user, setUser] = useState<any>(null);
   const [team, setTeam] = useState<TeamInfo | null>(null);
   const [teamLoading, setTeamLoading] = useState(true);
@@ -41,6 +53,10 @@ function SurveyPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [draftRestored, setDraftRestored] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const draftInitialized = useRef(false);
+  const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -48,13 +64,31 @@ function SurveyPageContent() {
       router.push('/login');
     } else {
       setUser(currentUser);
-      // Fetch team info from API
-      const teamId = currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null;
+      // Use preferred team from query param (e.g. navigating from dashboard) or fall back to first team
+      const teamId = (preferredTeamId && currentUser.teamIds?.includes(preferredTeamId))
+        ? preferredTeamId
+        : (currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null);
       if (teamId) {
         setTeamLoading(true);
         getTeamInfoCached(teamId)
           .then((teamInfo) => {
             setTeam(teamInfo);
+            // Restore draft after team info loaded
+            try {
+              const draftJson = localStorage.getItem(getDraftKey(currentUser.id, teamId));
+              if (draftJson) {
+                const draft: SurveyDraft = JSON.parse(draftJson);
+                const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+                if (draft.assessmentPeriod === currentPeriod && draft.responses.length > 0) {
+                  setResponses(draft.responses);
+                  setCurrentDimension(draft.currentDimension);
+                  setDraftRestored(true);
+                }
+              }
+            } catch {
+              // Ignore corrupt draft
+            }
+            draftInitialized.current = true;
             setTeamLoading(false);
           })
           .catch((err) => {
@@ -62,6 +96,14 @@ function SurveyPageContent() {
             setTeamError(err instanceof TeamsAPIError ? err.message : 'Failed to load team information');
             setTeamLoading(false);
           });
+        // Fetch team names for multi-team selector
+        if (currentUser.teamIds.length > 1) {
+          Promise.all(
+            currentUser.teamIds.map((tid: string) =>
+              getTeamInfoCached(tid).then(info => ({ id: info.id, name: info.name })).catch(() => ({ id: tid, name: tid }))
+            )
+          ).then(setTeamOptions);
+        }
       } else {
         setTeamLoading(false);
         setTeamError('No team assigned to this user');
@@ -69,23 +111,108 @@ function SurveyPageContent() {
     }
   }, [router]);
 
+  const handleTeamSwitch = (newTeamId: string) => {
+    if (!user || !team) return;
+
+    // Flush any pending draft save for the current team before switching
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (responses.length > 0 && draftInitialized.current && !submitted) {
+      const draft: SurveyDraft = {
+        responses,
+        currentDimension,
+        assessmentPeriod: getAssessmentPeriod(new Date(), toCadence(team.cadence)),
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(getDraftKey(user.id, team.id), JSON.stringify(draft));
+    }
+
+    setTeamLoading(true);
+    setResponses([]);
+    setCurrentDimension(0);
+    setDraftRestored(false);
+    setSubmitted(false);
+    setError(null);
+    setValidationError(null);
+    draftInitialized.current = false;
+
+    getTeamInfoCached(newTeamId)
+      .then((teamInfo) => {
+        setTeam(teamInfo);
+        // Restore draft for the new team
+        try {
+          const draftJson = localStorage.getItem(getDraftKey(user.id, newTeamId));
+          if (draftJson) {
+            const draft: SurveyDraft = JSON.parse(draftJson);
+            const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
+            if (draft.assessmentPeriod === currentPeriod && draft.responses.length > 0) {
+              setResponses(draft.responses);
+              setCurrentDimension(draft.currentDimension);
+              setDraftRestored(true);
+            }
+          }
+        } catch {
+          // Ignore corrupt draft
+        }
+        draftInitialized.current = true;
+        setTeamLoading(false);
+      })
+      .catch((err) => {
+        console.error('Failed to fetch team info:', err);
+        setTeamError(err instanceof TeamsAPIError ? err.message : 'Failed to load team information');
+        setTeamLoading(false);
+      });
+  };
+
+  // Autosave draft to localStorage (debounced)
+  useEffect(() => {
+    if (!user || !team || !draftInitialized.current || submitted) return;
+    if (responses.length === 0) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      const draft: SurveyDraft = {
+        responses,
+        currentDimension,
+        assessmentPeriod: getAssessmentPeriod(new Date(), toCadence(team.cadence)),
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(getDraftKey(user.id, team.id), JSON.stringify(draft));
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [responses, currentDimension, user, team, submitted]);
+
+  // beforeunload warning when survey has unsaved responses
+  useEffect(() => {
+    if (responses.length === 0 || submitted) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [responses.length, submitted]);
+
   const handleScoreSelect = (score: 1 | 2 | 3) => {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
     const existingIndex = responses.findIndex(r => r.dimensionId === dimension.id);
 
-    const newResponse: HealthCheckResponse = {
-      dimensionId: dimension.id,
-      score,
-      trend: 'stable',
-      comment: ''
-    };
-
     if (existingIndex >= 0) {
       const newResponses = [...responses];
-      newResponses[existingIndex] = newResponse;
+      newResponses[existingIndex] = { ...newResponses[existingIndex], score };
       setResponses(newResponses);
     } else {
-      setResponses([...responses, newResponse]);
+      setResponses([...responses, {
+        dimensionId: dimension.id,
+        score,
+        trend: 'stable',
+        comment: ''
+      }]);
     }
 
     // Clear validation error when user makes a selection
@@ -191,6 +318,9 @@ function SurveyPageContent() {
         })),
         completed: true
       });
+
+      // Clear draft on successful submit
+      localStorage.removeItem(getDraftKey(user.id, team.id));
 
       // Store session ID and redirect
       setSessionId(session.id);
@@ -298,7 +428,20 @@ function SurveyPageContent() {
             <div className="flex justify-between items-center mb-4">
               <div>
                 <h1 className="text-2xl font-bold">{isPostWorkshop ? 'Post-Workshop Survey' : 'Squad Health Check'}</h1>
-                <p className={isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}>Team: {team?.name || 'Unknown Team'}</p>
+                <p className={isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'}>
+                  Team: {teamOptions.length > 1 ? (
+                    <select
+                      data-testid="team-selector"
+                      value={team?.id || ''}
+                      onChange={(e) => handleTeamSwitch(e.target.value)}
+                      className="ml-1 px-2 py-0.5 text-sm bg-white/20 border border-white/30 rounded text-white focus:ring-2 focus:ring-white/50"
+                    >
+                      {teamOptions.map((t) => (
+                        <option key={t.id} value={t.id} className="text-gray-900">{t.name}</option>
+                      ))}
+                    </select>
+                  ) : (team?.name || 'Unknown Team')}
+                </p>
                 <p className={`${isPostWorkshop ? 'text-amber-100' : 'text-indigo-100'} text-sm mt-1`}>
                   Period: {surveyPeriod}
                   {team?.cadence && ` • ${team.cadence.charAt(0).toUpperCase() + team.cadence.slice(1)} Check`}
@@ -339,6 +482,25 @@ function SurveyPageContent() {
           </div>
 
           <div className="p-8">
+            {draftRestored && (
+              <div
+                data-testid="draft-restored-banner"
+                className="mb-6 flex items-center justify-between gap-2 text-blue-700 text-sm bg-blue-50 border border-blue-200 p-3 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <Info className="w-4 h-4 flex-shrink-0" />
+                  <span>Your previous progress has been restored from a saved draft.</span>
+                </div>
+                <button
+                  onClick={() => setDraftRestored(false)}
+                  className="text-blue-400 hover:text-blue-600 flex-shrink-0"
+                  aria-label="Dismiss"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">{dimension?.name}</h2>
               <p className="text-gray-600 text-lg">{dimension?.description}</p>
@@ -442,12 +604,20 @@ function SurveyPageContent() {
                   </label>
                   <textarea
                     value={currentResponse?.comment || ''}
-                    onChange={(e) => handleCommentChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 1000) {
+                        handleCommentChange(e.target.value);
+                      }
+                    }}
+                    maxLength={1000}
                     data-dimension={dimension.id}
                     className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-400"
                     rows={3}
                     placeholder="Add any additional context..."
                   />
+                  <p className={`text-xs mt-1 text-right ${(currentResponse?.comment?.length || 0) >= 950 ? 'text-red-500' : 'text-gray-400'}`}>
+                    {currentResponse?.comment?.length || 0}/1000
+                  </p>
                 </div>
               </div>
             )}

@@ -63,7 +63,8 @@ export const setAuthData = (loginResponse: LoginResponse) => {
 
   // Also store user in cookie for middleware access (URL encoded)
   const userJson = JSON.stringify(loginResponse.user);
-  document.cookie = `${USER_KEY}=${encodeURIComponent(userJson)}; path=/; max-age=${loginResponse.expiresIn * 100}`; // Extended expiry for refresh
+  // Cookie must outlive the refresh token (7 days = 604800s)
+  document.cookie = `${USER_KEY}=${encodeURIComponent(userJson)}; path=/; max-age=604800`;
 };
 
 /**
@@ -136,6 +137,12 @@ export const authenticatedFetch = async (
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`);
       response = await fetch(url, { ...options, headers });
+    } else {
+      // Refresh failed — session is expired; redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?expired=true';
+      }
+      return response;
     }
   }
 
