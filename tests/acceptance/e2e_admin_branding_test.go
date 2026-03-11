@@ -19,7 +19,8 @@ var _ = Describe("E2E: Admin Branding Settings", Label("e2e", "admin", "branding
 
 	AfterEach(func() {
 		// Reset branding to defaults after each test
-		db.Exec("UPDATE app_settings SET company_name = 'My Company', logo_url = NULL WHERE id = 1")
+		_, err := db.Exec("UPDATE app_settings SET company_name = 'My Company', logo_url = NULL WHERE id = 1")
+		Expect(err).NotTo(HaveOccurred())
 		if page != nil {
 			page.Close()
 		}
@@ -123,11 +124,6 @@ var _ = Describe("E2E: Admin Branding Settings", Label("e2e", "admin", "branding
 
 				// Verify the custom company name appears on the dashboard
 				By("Verifying company name appears on dashboard")
-				Eventually(func() bool {
-					content, _ := page2.Content()
-					return content != "" && page2.Locator("text=Acme Corporation").First() != nil
-				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
-
 				acmeText := page2.Locator("text=Acme Corporation").First()
 				Eventually(func() bool {
 					visible, _ := acmeText.IsVisible()

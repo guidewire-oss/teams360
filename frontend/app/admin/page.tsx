@@ -204,8 +204,9 @@ export default function AdminPage() {
       return;
     }
 
-    if (!file.type.startsWith("image/")) {
-      setSettingsError("Please select an image file");
+    const allowedLogoTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedLogoTypes.includes(file.type)) {
+      setSettingsError("Please upload a PNG, JPEG, or WebP image file");
       return;
     }
 

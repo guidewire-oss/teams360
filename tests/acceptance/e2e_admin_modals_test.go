@@ -99,11 +99,12 @@ var _ = Describe("E2E: Admin Modal Forms & Search/Filter", Label("e2e", "admin",
 			It("should display a modal popup for editing the user", func() {
 				// Create a test user
 				testUserID := fmt.Sprintf("modal-edit-user-%d", time.Now().UnixNano())
+				testUsername := fmt.Sprintf("modaledituser%d", time.Now().UnixNano())
 				testFullName := "Modal Edit Test User"
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 					VALUES ($1, $2, $3, $4, 'level-5', $5)
-				`, testUserID, "modaledituser", "modaledituser@test.com", testFullName, DemoPasswordHash)
+				`, testUserID, testUsername, testUsername+"@test.com", testFullName, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 
 				// Refresh to see new user
