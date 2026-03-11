@@ -17,6 +17,7 @@ type Team struct {
 	Members         []TeamMember     `json:"members"`
 	MemberCount     int              `json:"memberCount"`
 	SupervisorChain []SupervisorLink `json:"supervisorChain"`
+	DistributionListEmail *string          `json:"distributionListEmail,omitempty"`
 	Department      string           `json:"department,omitempty"`
 	Division        string           `json:"division,omitempty"`
 	Tags            []string         `json:"tags,omitempty"`

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/agopalakrishnan/teams360/backend/application/commands"
 	"github.com/agopalakrishnan/teams360/backend/application/queries"
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -39,15 +41,17 @@ type HealthCheckHandler struct {
 	dimensionsHandler   *queries.GetHealthDimensionsHandler
 	teamSessionsHandler *queries.GetTeamSessionsHandler
 	repository          healthcheck.Repository
+	notificationService *services.NotificationService
 }
 
 // NewHealthCheckHandler creates a new handler
-func NewHealthCheckHandler(repository healthcheck.Repository, orgRepo organization.Repository) *HealthCheckHandler {
+func NewHealthCheckHandler(repository healthcheck.Repository, orgRepo organization.Repository, notificationService *services.NotificationService) *HealthCheckHandler {
 	return &HealthCheckHandler{
 		submitHandler:       commands.NewSubmitHealthCheckHandler(repository),
 		dimensionsHandler:   queries.NewGetHealthDimensionsHandler(orgRepo),
 		teamSessionsHandler: queries.NewGetTeamSessionsHandler(repository),
 		repository:          repository,
+		notificationService: notificationService,
 	}
 }
 
@@ -176,6 +180,20 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 		"assessment_period": req.AssessmentPeriod,
 		"dimension_count":   len(req.Responses),
 	}).Info("health check submitted successfully")
+
+	// Fire async email notification (never blocks the response)
+	if h.notificationService != nil {
+		go func() {
+			bgCtx := context.Background()
+			if session.SurveyType == "individual" || session.SurveyType == "" {
+				h.notificationService.SendIndividualSurveyEmail(bgCtx, session)
+			}
+			if session.SurveyType == "post_workshop" {
+				h.notificationService.SendIndividualSurveyEmail(bgCtx, session)
+				h.notificationService.SendTeamSummaryEmail(bgCtx, session)
+			}
+		}()
+	}
 
 	// Convert to response DTO
 	response := convertSessionToDTO(session)
