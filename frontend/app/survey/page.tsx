@@ -182,19 +182,17 @@ function SurveyPageContent() {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
     const existingIndex = responses.findIndex(r => r.dimensionId === dimension.id);
 
-    const newResponse: HealthCheckResponse = {
-      dimensionId: dimension.id,
-      score,
-      trend: 'stable',
-      comment: ''
-    };
-
     if (existingIndex >= 0) {
       const newResponses = [...responses];
-      newResponses[existingIndex] = newResponse;
+      newResponses[existingIndex] = { ...newResponses[existingIndex], score };
       setResponses(newResponses);
     } else {
-      setResponses([...responses, newResponse]);
+      setResponses([...responses, {
+        dimensionId: dimension.id,
+        score,
+        trend: 'stable',
+        comment: ''
+      }]);
     }
 
     // Clear validation error when user makes a selection
@@ -586,12 +584,20 @@ function SurveyPageContent() {
                   </label>
                   <textarea
                     value={currentResponse?.comment || ''}
-                    onChange={(e) => handleCommentChange(e.target.value)}
+                    onChange={(e) => {
+                      if (e.target.value.length <= 1000) {
+                        handleCommentChange(e.target.value);
+                      }
+                    }}
+                    maxLength={1000}
                     data-dimension={dimension.id}
                     className="w-full p-3 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent placeholder:text-gray-400"
                     rows={3}
                     placeholder="Add any additional context..."
                   />
+                  <p className={`text-xs mt-1 text-right ${(currentResponse?.comment?.length || 0) >= 950 ? 'text-red-500' : 'text-gray-400'}`}>
+                    {currentResponse?.comment?.length || 0}/1000
+                  </p>
                 </div>
               </div>
             )}

@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -186,6 +187,79 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 
 			visible, _ := banner.IsVisible()
 			Expect(visible).To(BeFalse())
+		})
+	})
+
+	Describe("Comment preserved on score change", func() {
+		It("should not clear comment when changing score color", func() {
+			loginAndGoToSurvey()
+
+			By("Selecting a score for Mission")
+			fillDimension("mission", 3, "improving")
+
+			By("Typing a comment")
+			commentBox := page.Locator("textarea[data-dimension='mission']")
+			err := commentBox.WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(5000),
+			})
+			Expect(err).NotTo(HaveOccurred())
+			err = commentBox.Fill("This is my important comment")
+			Expect(err).NotTo(HaveOccurred())
+			time.Sleep(300 * time.Millisecond)
+
+			By("Changing score from Green to Red")
+			scoreSelector := "[data-dimension='mission'][data-score='1']"
+			err = page.Locator(scoreSelector).Click()
+			Expect(err).NotTo(HaveOccurred())
+			time.Sleep(300 * time.Millisecond)
+
+			By("Verifying comment is still there")
+			commentValue, err := commentBox.InputValue()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(commentValue).To(Equal("This is my important comment"))
+
+			By("Verifying trend is still set to improving")
+			trendBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
+			trendClass, err := trendBtn.GetAttribute("class")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(trendClass).To(ContainSubstring("border-green-500"))
+		})
+	})
+
+	Describe("Comment character limit", func() {
+		It("should show character count and enforce 1000 char limit", func() {
+			loginAndGoToSurvey()
+
+			By("Selecting a score for Mission")
+			fillDimension("mission", 3, "improving")
+
+			By("Verifying character counter is visible")
+			counter := page.Locator("text=/\\/1000/")
+			Eventually(func() bool {
+				visible, _ := counter.IsVisible()
+				return visible
+			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
+
+			By("Typing a long comment near the limit")
+			commentBox := page.Locator("textarea[data-dimension='mission']")
+			// Type 960 chars to get near the warning threshold
+			longText := strings.Repeat("abcdefghij", 96)
+			err := commentBox.Fill(longText)
+			Expect(err).NotTo(HaveOccurred())
+			time.Sleep(300 * time.Millisecond)
+
+			By("Verifying counter shows warning color (960/1000)")
+			warningCounter := page.Locator("p.text-red-500:text-matches('960/1000')")
+			Eventually(func() bool {
+				visible, _ := warningCounter.IsVisible()
+				return visible
+			}, 3*time.Second, 300*time.Millisecond).Should(BeTrue())
+
+			By("Verifying the maxLength attribute prevents exceeding 1000 chars")
+			maxLen, err := commentBox.GetAttribute("maxlength")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(maxLen).To(Equal("1000"))
 		})
 	})
 
