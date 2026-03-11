@@ -569,6 +569,39 @@ export async function deleteDimension(dimensionId: string): Promise<void> {
 }
 
 // ============================================================================
+// BRANDING SETTINGS API METHODS
+// ============================================================================
+
+export interface BrandingSettings {
+  companyName: string;
+  logoURL: string;
+}
+
+/**
+ * Fetches branding settings
+ */
+export async function getBrandingSettings(): Promise<BrandingSettings> {
+  return createApiClient<BrandingSettings>(
+    `${API_BASE_URL}/api/v1/admin/settings/branding`
+  );
+}
+
+/**
+ * Updates branding settings (company name and optional logo)
+ */
+export async function updateBrandingSettings(
+  request: BrandingSettings
+): Promise<BrandingSettings> {
+  return createApiClient<BrandingSettings>(
+    `${API_BASE_URL}/api/v1/admin/settings/branding`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
 // NOTIFICATION SETTINGS API METHODS
 // ============================================================================
 

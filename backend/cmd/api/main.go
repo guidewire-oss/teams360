@@ -191,7 +191,7 @@ func main() {
 	// Setup API routes with repository injection
 	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
 	v1.SetupAuthRoutes(router, userRepo, jwtService)
-	v1.SetupSSORoutes(router, userRepo, jwtService)
+	v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
 	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	v1.SetupTeamDashboardRoutes(router, db, jwtService) // Dashboard routes with JWT + team membership

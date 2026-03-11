@@ -43,10 +43,12 @@ type HealthDimension struct {
 
 // AppSettings represents application-wide settings (singleton row)
 type AppSettings struct {
-	EmailNotifications bool `json:"emailNotifications"`
-	SlackNotifications bool `json:"slackNotifications"`
-	WeeklyDigest       bool `json:"weeklyDigest"`
-	RetentionMonths    int  `json:"retentionMonths"`
+	EmailNotifications bool   `json:"emailNotifications"`
+	SlackNotifications bool   `json:"slackNotifications"`
+	WeeklyDigest       bool   `json:"weeklyDigest"`
+	RetentionMonths    int    `json:"retentionMonths"`
+	CompanyName        string `json:"companyName"`
+	LogoURL            string `json:"logoURL"`
 }
 
 // OrganizationConfig represents the organization configuration

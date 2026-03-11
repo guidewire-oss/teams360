@@ -65,6 +65,8 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [responseView, setResponseView] = useState<'person' | 'dimension'>('person');
   const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
+  const [brandingName, setBrandingName] = useState<string>('');
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -73,6 +75,15 @@ export default function DashboardPage() {
       return;
     }
     setUser(currentUser);
+
+    // Fetch branding from public config endpoint
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.companyName) setBrandingName(data.companyName);
+        if (data.logoURL) setBrandingLogo(data.logoURL);
+      })
+      .catch(() => {});
 
     // Get the team ID from user's first team
     if (currentUser.teamIds && currentUser.teamIds.length > 0) {
@@ -312,11 +323,15 @@ export default function DashboardPage() {
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <Building2 className="w-8 h-8 text-indigo-600" />
+              {brandingLogo ? (
+                <img src={brandingLogo} alt="Company logo" className="w-8 h-8 object-contain rounded" />
+              ) : (
+                <Building2 className="w-8 h-8 text-indigo-600" />
+              )}
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Team Lead Dashboard</h1>
                 <div className="flex items-center gap-2">
-                  <p className="text-gray-500">{config.companyName} Health Metrics</p>
+                  <p className="text-gray-500">{brandingName || config.companyName} Health Metrics</p>
                   {teamOptions.length > 1 && (
                     <select
                       data-testid="team-selector"

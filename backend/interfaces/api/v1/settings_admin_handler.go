@@ -195,6 +195,54 @@ func (h *SettingsAdminHandler) DeleteDimension(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Dimension deleted successfully"})
 }
 
+// GetBrandingSettings handles GET /api/v1/admin/settings/branding
+func (h *SettingsAdminHandler) GetBrandingSettings(c *gin.Context) {
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch branding settings", Message: err.Error()})
+		return
+	}
+
+	settings := dto.BrandingSettings{
+		CompanyName: appSettings.CompanyName,
+		LogoURL:     appSettings.LogoURL,
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
+// UpdateBrandingSettings handles PUT /api/v1/admin/settings/branding
+func (h *SettingsAdminHandler) UpdateBrandingSettings(c *gin.Context) {
+	var settings dto.BrandingSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body", Message: err.Error()})
+		return
+	}
+
+	// Validate logo size (base64 data URLs can be large)
+	if len(settings.LogoURL) > 700000 {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Logo is too large. Maximum size is 500KB."})
+		return
+	}
+
+	// Read current settings to preserve other fields
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
+		return
+	}
+
+	appSettings.CompanyName = settings.CompanyName
+	appSettings.LogoURL = settings.LogoURL
+
+	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save branding settings", Message: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
 // GetNotificationSettings handles GET /api/v1/admin/settings/notifications
 func (h *SettingsAdminHandler) GetNotificationSettings(c *gin.Context) {
 	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())

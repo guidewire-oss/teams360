@@ -698,32 +698,42 @@ func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string)
 // GetAppSettings reads the singleton app_settings row
 func (r *OrganizationRepository) GetAppSettings(ctx context.Context) (*organization.AppSettings, error) {
 	var s organization.AppSettings
+	var logoURL sql.NullString
 	err := r.db.QueryRowContext(ctx, `
-		SELECT email_notifications, slack_notifications, weekly_digest, retention_months
+		SELECT email_notifications, slack_notifications, weekly_digest, retention_months, company_name, logo_url
 		FROM app_settings WHERE id = 1
-	`).Scan(&s.EmailNotifications, &s.SlackNotifications, &s.WeeklyDigest, &s.RetentionMonths)
+	`).Scan(&s.EmailNotifications, &s.SlackNotifications, &s.WeeklyDigest, &s.RetentionMonths, &s.CompanyName, &logoURL)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// Return defaults if row doesn't exist yet
-			return &organization.AppSettings{RetentionMonths: 12}, nil
+			return &organization.AppSettings{RetentionMonths: 12, CompanyName: "My Company"}, nil
 		}
 		return nil, fmt.Errorf("failed to query app settings: %w", err)
+	}
+	if logoURL.Valid {
+		s.LogoURL = logoURL.String
 	}
 	return &s, nil
 }
 
 // UpdateAppSettings persists app settings to the singleton row
 func (r *OrganizationRepository) UpdateAppSettings(ctx context.Context, s *organization.AppSettings) error {
+	var logoURL *string
+	if s.LogoURL != "" {
+		logoURL = &s.LogoURL
+	}
 	_, err := r.db.ExecContext(ctx, `
-		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, retention_months, updated_at)
-		VALUES (1, $1, $2, $3, $4, NOW())
+		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, retention_months, company_name, logo_url, updated_at)
+		VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
 		ON CONFLICT (id) DO UPDATE SET
 			email_notifications = EXCLUDED.email_notifications,
 			slack_notifications = EXCLUDED.slack_notifications,
 			weekly_digest = EXCLUDED.weekly_digest,
 			retention_months = EXCLUDED.retention_months,
+			company_name = EXCLUDED.company_name,
+			logo_url = EXCLUDED.logo_url,
 			updated_at = NOW()
-	`, s.EmailNotifications, s.SlackNotifications, s.WeeklyDigest, s.RetentionMonths)
+	`, s.EmailNotifications, s.SlackNotifications, s.WeeklyDigest, s.RetentionMonths, s.CompanyName, logoURL)
 	if err != nil {
 		return fmt.Errorf("failed to update app settings: %w", err)
 	}

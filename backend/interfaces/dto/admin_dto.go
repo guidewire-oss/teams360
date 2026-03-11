@@ -218,6 +218,12 @@ type DimensionsResponse struct {
 	Dimensions []HealthDimensionDTO `json:"dimensions"`
 }
 
+// BrandingSettings represents company branding configuration
+type BrandingSettings struct {
+	CompanyName string `json:"companyName" binding:"required,max=100"`
+	LogoURL     string `json:"logoURL"`
+}
+
 // NotificationSettings represents notification configuration
 type NotificationSettings struct {
 	EmailEnabled       bool     `json:"emailEnabled"`

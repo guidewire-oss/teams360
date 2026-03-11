@@ -153,6 +153,8 @@ export default function ManagerPage() {
   const [trendsData, setTrendsData] = useState<TrendData[]>([]);
   const [radarLoading, setRadarLoading] = useState(false);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [brandingName, setBrandingName] = useState<string>('');
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -163,6 +165,15 @@ export default function ManagerPage() {
       fetchDashboardData(currentUser.id, '');
       fetchSubordinates(currentUser.id);
     }
+
+    // Fetch branding from public config endpoint
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.companyName) setBrandingName(data.companyName);
+        if (data.logoURL) setBrandingLogo(data.logoURL);
+      })
+      .catch(() => {});
   }, [router]);
 
   // Fetch assessment period options from database
@@ -317,9 +328,16 @@ export default function ManagerPage() {
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
-              <p className="text-gray-500">Team Health Overview</p>
+            <div className="flex items-center gap-4">
+              {brandingLogo ? (
+                <img src={brandingLogo} alt="Company logo" className="w-8 h-8 object-contain rounded" />
+              ) : (
+                <Users className="w-8 h-8 text-indigo-600" />
+              )}
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+                <p className="text-gray-500">{brandingName ? `${brandingName} Health Overview` : 'Team Health Overview'}</p>
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
