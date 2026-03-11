@@ -118,7 +118,7 @@ type CreateTeamRequest struct {
 	Name                  string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
 	TeamLeadID            *string `json:"teamLeadId"`
 	Cadence               string  `json:"cadence" binding:"required,oneof=monthly quarterly half-yearly yearly"`
-	DistributionListEmail *string `json:"distributionListEmail"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // UpdateTeamRequest represents request to update a team
@@ -126,7 +126,7 @@ type UpdateTeamRequest struct {
 	Name                  *string `json:"name"`
 	TeamLeadID            *string `json:"teamLeadId"`
 	Cadence               *string `json:"cadence" binding:"omitempty,oneof=monthly quarterly half-yearly yearly"`
-	DistributionListEmail *string `json:"distributionListEmail"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // TeamsResponse represents response with list of teams
