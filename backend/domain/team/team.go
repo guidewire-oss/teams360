@@ -8,21 +8,21 @@ import (
 // Team represents a team in the organization
 // This is an aggregate root in DDD terms
 type Team struct {
-	ID              string           `json:"id"`
-	Name            string           `json:"name"`
-	Cadence         string           `json:"cadence"` // monthly, quarterly, half-yearly, yearly
-	NextCheckDate   string           `json:"nextCheckDate"`
-	TeamLeadID      *string          `json:"teamLeadId,omitempty"`
-	TeamLeadName    *string          `json:"teamLeadName,omitempty"`
-	Members         []TeamMember     `json:"members"`
-	MemberCount     int              `json:"memberCount"`
-	SupervisorChain []SupervisorLink `json:"supervisorChain"`
+	ID                    string           `json:"id"`
+	Name                  string           `json:"name"`
+	Cadence               string           `json:"cadence"` // monthly, quarterly, half-yearly, yearly
+	NextCheckDate         string           `json:"nextCheckDate"`
+	TeamLeadID            *string          `json:"teamLeadId,omitempty"`
+	TeamLeadName          *string          `json:"teamLeadName,omitempty"`
+	Members               []TeamMember     `json:"members"`
+	MemberCount           int              `json:"memberCount"`
+	SupervisorChain       []SupervisorLink `json:"supervisorChain"`
 	DistributionListEmail *string          `json:"distributionListEmail,omitempty"`
-	Department      string           `json:"department,omitempty"`
-	Division        string           `json:"division,omitempty"`
-	Tags            []string         `json:"tags,omitempty"`
-	CreatedAt       time.Time        `json:"createdAt,omitempty"`
-	UpdatedAt       time.Time        `json:"updatedAt,omitempty"`
+	Department            string           `json:"department,omitempty"`
+	Division              string           `json:"division,omitempty"`
+	Tags                  []string         `json:"tags,omitempty"`
+	CreatedAt             time.Time        `json:"createdAt,omitempty"`
+	UpdatedAt             time.Time        `json:"updatedAt,omitempty"`
 }
 
 // TeamMember represents a member of a team

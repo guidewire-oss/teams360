@@ -13,7 +13,7 @@ import (
 
 // NotificationService orchestrates email notifications for survey submissions.
 type NotificationService struct {
-	smtp    *email.SMTPEmailService // nil when SMTP is not configured
+	smtp     *email.SMTPEmailService // nil when SMTP is not configured
 	teamRepo team.Repository
 	userRepo user.Repository
 	orgRepo  organization.Repository
