@@ -677,9 +677,8 @@ export default function DashboardPage() {
                                             key={dim.id}
                                             data-testid={`matrix-cell-${response.sessionId}-${dim.id}`}
                                             className="px-3 py-3 text-center"
-                                            title={resp.comment || undefined}
                                           >
-                                            <div className="flex items-center justify-center gap-1">
+                                            <div className="relative flex items-center justify-center gap-1 group">
                                               <span
                                                 data-testid={`matrix-score-${response.sessionId}-${dim.id}`}
                                                 className={`inline-flex items-center justify-center w-7 h-7 rounded text-white text-xs font-bold ${getScoreBgColor(resp.score)}`}
@@ -696,10 +695,15 @@ export default function DashboardPage() {
                                                 <span
                                                   data-testid={`matrix-comment-${response.sessionId}-${dim.id}`}
                                                   className="text-xs cursor-help"
-                                                  title={resp.comment}
                                                 >
                                                   💬
                                                 </span>
+                                              )}
+                                              {resp.comment && (
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-56 p-2 text-xs text-left text-white bg-gray-800 rounded-lg shadow-lg whitespace-pre-wrap">
+                                                  {resp.comment}
+                                                  <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
+                                                </div>
                                               )}
                                             </div>
                                           </td>
