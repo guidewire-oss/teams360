@@ -110,14 +110,13 @@ func SeedDemoData(db *sql.DB) error {
 	}
 
 	// --- Team members ---
-	// Note: demo is in both Phoenix and Dragon squads to demonstrate multi-team switching
-	// teamlead1 is also added to Dragon squad so they see the team selector on the dashboard
+	// Note: demo and teamlead1 are in both Phoenix and Titan squads to demonstrate multi-team switching
+	// We use Titan (not Dragon) because authorization tests assert demo cannot access team-dragon
 	_, err = tx.Exec(`
 		INSERT INTO team_members (team_id, user_id) VALUES
 		('team-phoenix', 'teamlead1'), ('team-phoenix', 'alice'), ('team-phoenix', 'bob'), ('team-phoenix', 'demo'),
 		('team-dragon', 'teamlead2'), ('team-dragon', 'carol'), ('team-dragon', 'david'),
-		('team-dragon', 'demo'), ('team-dragon', 'teamlead1'),
-		('team-titan', 'teamlead3'), ('team-titan', 'eve'),
+		('team-titan', 'teamlead3'), ('team-titan', 'eve'), ('team-titan', 'demo'), ('team-titan', 'teamlead1'),
 		('team-falcon', 'teamlead4'),
 		('team-eagle', 'teamlead5'),
 		('team-nova', 'test-lead'), ('team-nova', 'test-member1'), ('team-nova', 'test-member2')
