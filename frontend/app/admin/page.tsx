@@ -1572,7 +1572,7 @@ export default function AdminPage() {
                         data-testid="branding-company-name"
                         value={brandingCompanyName}
                         onChange={(e) => setBrandingCompanyName(e.target.value)}
-                        className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                         placeholder="Enter company name"
                         maxLength={100}
                       />
@@ -1605,7 +1605,7 @@ export default function AdminPage() {
                         )}
                         <label
                           data-testid="branding-logo-upload"
-                          className="cursor-pointer px-4 py-2 text-sm bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          className="cursor-pointer px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
                         >
                           {brandingLogoURL ? "Change Logo" : "Upload Logo"}
                           <input
@@ -1615,7 +1615,7 @@ export default function AdminPage() {
                             onChange={handleLogoUpload}
                           />
                         </label>
-                        <span className="text-xs text-gray-400">Max 500KB</span>
+                        <span className="text-xs text-gray-500">Max 500KB</span>
                       </div>
                     </div>
                   </div>
@@ -1634,7 +1634,7 @@ export default function AdminPage() {
                       checked={emailEnabled}
                       onChange={(e) => setEmailEnabled(e.target.checked)}
                     />
-                    <span>Send email reminders for upcoming health checks</span>
+                    <span className="text-gray-700">Send email reminders for upcoming health checks</span>
                   </label>
                   <label className="flex items-center gap-3">
                     <input
@@ -1644,7 +1644,7 @@ export default function AdminPage() {
                       checked={slackEnabled}
                       onChange={(e) => setSlackEnabled(e.target.checked)}
                     />
-                    <span>Notify managers when team health declines</span>
+                    <span className="text-gray-700">Notify managers when team health declines</span>
                   </label>
                   <label className="flex items-center gap-3">
                     <input
@@ -1654,7 +1654,7 @@ export default function AdminPage() {
                       checked={notifyOnSubmission}
                       onChange={(e) => setNotifyOnSubmission(e.target.checked)}
                     />
-                    <span>Send weekly summary reports</span>
+                    <span className="text-gray-700">Send weekly summary reports</span>
                   </label>
                 </div>
               </div>
@@ -1669,7 +1669,7 @@ export default function AdminPage() {
                       Keep health check data for
                     </label>
                     <select
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
                       data-testid="retention-months-select"
                       value={retentionMonths}
                       onChange={(e) => setRetentionMonths(Number(e.target.value))}
@@ -1684,7 +1684,7 @@ export default function AdminPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Export format
                     </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                       <option>CSV</option>
                       <option>JSON</option>
                       <option>Excel</option>

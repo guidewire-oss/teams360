@@ -38,6 +38,8 @@ export default function MemberHomePage() {
   const [surveyHistory, setSurveyHistory] = useState<SurveyHistoryEntry[]>([]);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
   const [loading, setLoading] = useState(true);
+  const [brandingName, setBrandingName] = useState<string>('');
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
 
   const currentPeriod = ''; // Period is team-specific; shown on survey page after team selection
 
@@ -49,6 +51,14 @@ export default function MemberHomePage() {
     }
     setUser(currentUser);
     fetchSurveyHistory(currentUser.id);
+
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.companyName) setBrandingName(data.companyName);
+        if (data.logoURL) setBrandingLogo(data.logoURL);
+      })
+      .catch(() => {});
   }, [router]);
 
   const fetchSurveyHistory = async (userId: string) => {
@@ -150,9 +160,13 @@ export default function MemberHomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              <Building2 className="h-8 w-8 text-blue-600" />
+              {brandingLogo ? (
+                <img src={brandingLogo} alt="Company logo" className="w-8 h-8 object-contain rounded" />
+              ) : (
+                <Building2 className="h-8 w-8 text-blue-600" />
+              )}
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Team360</h1>
+                <h1 className="text-xl font-bold text-gray-900">{brandingName || 'Team360'}</h1>
                 <p className="text-sm text-gray-500">Member Home</p>
               </div>
             </div>
