@@ -160,13 +160,19 @@ var _ = Describe("E2E: Multi-Team Switcher", Label("e2e"), func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for data to reload")
-			time.Sleep(2 * time.Second)
+			By("Waiting for data to reload with new team")
+			Eventually(func() string {
+				val, _ := selector.InputValue()
+				return val
+			}, 5*time.Second, 500*time.Millisecond).Should(Equal(teamBID))
 
-			By("Verifying selector now shows second team")
-			newValue, err := selector.InputValue()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(newValue).To(Equal(teamBID))
+			By("Verifying dashboard re-fetched data for team B")
+			// The loading indicator should disappear, confirming new data loaded
+			Eventually(func() bool {
+				loading := page.Locator("text=Loading...")
+				visible, _ := loading.IsVisible()
+				return visible
+			}, 5*time.Second, 500*time.Millisecond).Should(BeFalse())
 		})
 	})
 
@@ -208,14 +214,25 @@ var _ = Describe("E2E: Multi-Team Switcher", Label("e2e"), func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Waiting for team info to reload")
-			time.Sleep(2 * time.Second)
+			By("Waiting for survey to reload after team switch")
+			// After switching, the survey reloads with the new team — wait for the loading to finish
+			Eventually(func() bool {
+				loading := page.Locator("text=Fetching your team information")
+				visible, _ := loading.IsVisible()
+				return visible
+			}, 5*time.Second, 500*time.Millisecond).Should(BeFalse())
 
 			By("Verifying survey resets (back to first dimension)")
-			heading := page.Locator("h2")
-			text, err := heading.TextContent()
+			err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(10000),
+			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(text).To(ContainSubstring("Mission"))
+
+			By("Verifying the team selector now shows team B")
+			newVal, err := selector.InputValue()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(newVal).To(Equal(teamBID))
 		})
 	})
 })

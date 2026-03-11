@@ -174,9 +174,10 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			err = personBtn.Click()
 			Expect(err).NotTo(HaveOccurred())
 
-			time.Sleep(500 * time.Millisecond)
-			matrixVisible, _ := matrix.IsVisible()
-			Expect(matrixVisible).To(BeFalse())
+			Eventually(func() bool {
+				visible, _ := matrix.IsVisible()
+				return visible
+			}, 3*time.Second, 300*time.Millisecond).Should(BeFalse())
 		})
 	})
 

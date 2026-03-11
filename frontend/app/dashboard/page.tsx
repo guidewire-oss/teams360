@@ -162,6 +162,8 @@ export default function DashboardPage() {
           });
           setDistribution(transformed);
         }
+      } else if (distRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch individual responses
@@ -198,6 +200,8 @@ export default function DashboardPage() {
           }));
           setIndividualResponses(transformed);
         }
+      } else if (respRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
 
       // Fetch trends (trends don't filter by period - they show all periods)
@@ -217,6 +221,8 @@ export default function DashboardPage() {
           });
           setTrends(transformed);
         }
+      } else if (trendsRes.status >= 500) {
+        setError('Unable to load dashboard data. Please refresh the page.');
       }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
@@ -234,6 +240,13 @@ export default function DashboardPage() {
   };
 
   const handleTeamChange = (newTeamId: string) => {
+    // Clear stale data before switching so a failed reload doesn't show old team's data
+    setHealthSummary([]);
+    setDistribution([]);
+    setIndividualResponses([]);
+    setTrends([]);
+    setSubmissionStatus(null);
+    setError(null);
     setTeamId(newTeamId);
     setSelectedPeriod('');
     fetchDashboardData(newTeamId, '');
@@ -323,7 +336,7 @@ export default function DashboardPage() {
             <div className="flex items-center gap-4">
               {/* Take Survey Button */}
               <button
-                onClick={() => router.push('/survey')}
+                onClick={() => router.push(teamId ? `/survey?team=${teamId}` : '/survey')}
                 data-testid="take-survey-button"
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
               >
@@ -342,7 +355,7 @@ export default function DashboardPage() {
                 </span>
               ) : (
                 <button
-                  onClick={() => router.push('/survey?type=post_workshop')}
+                  onClick={() => router.push(teamId ? `/survey?type=post_workshop&team=${teamId}` : '/survey?type=post_workshop')}
                   data-testid="post-workshop-survey-button"
                   title="Record your team's workshop consensus"
                   className="flex items-center gap-2 px-4 py-2 rounded-lg transition-colors bg-amber-500 text-white hover:bg-amber-600"
@@ -692,15 +705,17 @@ export default function DashboardPage() {
                                                 {getTrendSymbol(resp.trend)}
                                               </span>
                                               {resp.comment && (
-                                                <span
+                                                <button
+                                                  type="button"
                                                   data-testid={`matrix-comment-${response.sessionId}-${dim.id}`}
-                                                  className="text-xs cursor-help"
+                                                  className="text-xs cursor-help focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-indigo-500 rounded"
+                                                  aria-label="View comment"
                                                 >
                                                   💬
-                                                </span>
+                                                </button>
                                               )}
                                               {resp.comment && (
-                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-50 w-56 p-2 text-xs text-left text-white bg-gray-800 rounded-lg shadow-lg whitespace-pre-wrap">
+                                                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block group-focus-within:block z-50 w-56 p-2 text-xs text-left text-white bg-gray-800 rounded-lg shadow-lg whitespace-pre-wrap">
                                                   {resp.comment}
                                                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-800" />
                                                 </div>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getCurrentUser, logout } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
@@ -41,6 +41,7 @@ function SurveyPageContent() {
   const searchParams = useSearchParams();
   const surveyType = searchParams.get('type') === 'post_workshop' ? 'post_workshop' : 'individual';
   const isPostWorkshop = surveyType === 'post_workshop';
+  const preferredTeamId = searchParams.get('team');
   const [user, setUser] = useState<any>(null);
   const [team, setTeam] = useState<TeamInfo | null>(null);
   const [teamLoading, setTeamLoading] = useState(true);
@@ -63,8 +64,10 @@ function SurveyPageContent() {
       router.push('/login');
     } else {
       setUser(currentUser);
-      // Fetch team info from API
-      const teamId = currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null;
+      // Use preferred team from query param (e.g. navigating from dashboard) or fall back to first team
+      const teamId = (preferredTeamId && currentUser.teamIds?.includes(preferredTeamId))
+        ? preferredTeamId
+        : (currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null);
       if (teamId) {
         setTeamLoading(true);
         getTeamInfoCached(teamId)
@@ -109,7 +112,23 @@ function SurveyPageContent() {
   }, [router]);
 
   const handleTeamSwitch = (newTeamId: string) => {
-    if (!user) return;
+    if (!user || !team) return;
+
+    // Flush any pending draft save for the current team before switching
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    if (responses.length > 0 && draftInitialized.current && !submitted) {
+      const draft: SurveyDraft = {
+        responses,
+        currentDimension,
+        assessmentPeriod: getAssessmentPeriod(new Date(), toCadence(team.cadence)),
+        savedAt: new Date().toISOString(),
+      };
+      localStorage.setItem(getDraftKey(user.id, team.id), JSON.stringify(draft));
+    }
+
     setTeamLoading(true);
     setResponses([]);
     setCurrentDimension(0);
@@ -173,6 +192,7 @@ function SurveyPageContent() {
     if (responses.length === 0 || submitted) return;
     const handler = (e: BeforeUnloadEvent) => {
       e.preventDefault();
+      e.returnValue = '';
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);

@@ -24,6 +24,7 @@ var _ = Describe("E2E: Session Timeout", Label("e2e"), func() {
 	})
 
 	AfterEach(func() {
+		_, _ = db.Exec(`DELETE FROM users WHERE id = 'e2e_timeout_user'`)
 		if page != nil {
 			page.Close()
 		}
@@ -75,9 +76,10 @@ var _ = Describe("E2E: Session Timeout", Label("e2e"), func() {
 
 				By("Verifying the session expired banner is NOT visible")
 				banner := page.Locator("[data-testid='session-expired-banner']")
-				time.Sleep(1 * time.Second) // Give time for any async rendering
-				visible, _ := banner.IsVisible()
-				Expect(visible).To(BeFalse())
+				Consistently(func() bool {
+					visible, _ := banner.IsVisible()
+					return visible
+				}, 2*time.Second, 500*time.Millisecond).Should(BeFalse())
 			})
 		})
 	})
@@ -89,7 +91,7 @@ var _ = Describe("E2E: Session Timeout", Label("e2e"), func() {
 				_, err := db.Exec(`
 					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 					VALUES ('e2e_timeout_user', 'e2e_timeout', 'e2e_timeout@test.com', 'Timeout Test User', 'level-5', $1)
-					ON CONFLICT (id) DO NOTHING
+					ON CONFLICT (id) DO UPDATE SET password_hash = EXCLUDED.password_hash
 				`, DemoPasswordHash)
 				Expect(err).NotTo(HaveOccurred())
 

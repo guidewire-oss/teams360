@@ -134,13 +134,19 @@ var _ = Describe("E2E: Error Messages", Label("e2e"), func() {
 					return page.URL()
 				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("/dashboard"))
 
-				By("Waiting for dashboard to load")
-				time.Sleep(3 * time.Second)
+				By("Waiting for dashboard data to load")
+				err = page.Locator("[data-testid='radar-chart-section']").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
 
 				By("Verifying error banner is NOT visible")
 				banner := page.Locator("[data-testid='dashboard-error-banner']")
-				visible, _ := banner.IsVisible()
-				Expect(visible).To(BeFalse())
+				Consistently(func() bool {
+					visible, _ := banner.IsVisible()
+					return visible
+				}, 2*time.Second, 500*time.Millisecond).Should(BeFalse())
 			})
 		})
 	})
