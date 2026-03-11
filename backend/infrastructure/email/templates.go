@@ -2,6 +2,7 @@ package email
 
 import (
 	"fmt"
+	"html"
 	"strings"
 )
 
@@ -76,9 +77,11 @@ func TrendToIcon(trend string) string {
 func RenderIndividualSurveyEmail(data IndividualSurveyEmailData) string {
 	var rows strings.Builder
 	for _, d := range data.Dimensions {
+		escapedName := html.EscapeString(d.Name)
+		escapedComment := html.EscapeString(d.Comment)
 		commentCell := ""
 		if d.Comment != "" {
-			commentCell = fmt.Sprintf(`<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#4B5563;">%s</td>`, d.Comment)
+			commentCell = fmt.Sprintf(`<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#4B5563;">%s</td>`, escapedComment)
 		} else {
 			commentCell = `<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#9CA3AF;">-</td>`
 		}
@@ -90,13 +93,17 @@ func RenderIndividualSurveyEmail(data IndividualSurveyEmailData) string {
   </td>
   <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:center;font-size:16px;">%s</td>
   %s
-</tr>`, d.Name, ScoreToColor(d.Score), ScoreToLabel(d.Score), TrendToIcon(d.Trend), commentCell))
+</tr>`, escapedName, ScoreToColor(d.Score), ScoreToLabel(d.Score), TrendToIcon(d.Trend), commentCell))
 	}
 
 	surveyLabel := "Health Check"
 	if data.SurveyType == "post_workshop" {
 		surveyLabel = "Post-Workshop Survey"
 	}
+
+	escapedUserName := html.EscapeString(data.UserName)
+	escapedTeamName := html.EscapeString(data.TeamName)
+	escapedPeriod := html.EscapeString(data.AssessmentPeriod)
 
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -136,16 +143,18 @@ func RenderIndividualSurveyEmail(data IndividualSurveyEmailData) string {
 </td></tr>
 </table>
 </body>
-</html>`, surveyLabel, data.UserName, strings.ToLower(surveyLabel), data.TeamName, data.AssessmentPeriod, rows.String())
+</html>`, surveyLabel, escapedUserName, strings.ToLower(surveyLabel), escapedTeamName, escapedPeriod, rows.String())
 }
 
 // RenderTeamSummaryEmail renders the HTML email for a team DL summary.
 func RenderTeamSummaryEmail(data TeamSummaryEmailData) string {
 	var rows strings.Builder
 	for _, d := range data.Dimensions {
+		escapedName := html.EscapeString(d.Name)
+		escapedComment := html.EscapeString(d.Comment)
 		commentCell := ""
 		if d.Comment != "" {
-			commentCell = fmt.Sprintf(`<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#4B5563;">%s</td>`, d.Comment)
+			commentCell = fmt.Sprintf(`<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#4B5563;">%s</td>`, escapedComment)
 		} else {
 			commentCell = `<td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;font-size:13px;color:#9CA3AF;">-</td>`
 		}
@@ -157,8 +166,12 @@ func RenderTeamSummaryEmail(data TeamSummaryEmailData) string {
   </td>
   <td style="padding:8px 12px;border-bottom:1px solid #E5E7EB;text-align:center;font-size:16px;">%s</td>
   %s
-</tr>`, d.Name, ScoreToColor(d.Score), ScoreToLabel(d.Score), TrendToIcon(d.Trend), commentCell))
+</tr>`, escapedName, ScoreToColor(d.Score), ScoreToLabel(d.Score), TrendToIcon(d.Trend), commentCell))
 	}
+
+	escapedTeamName := html.EscapeString(data.TeamName)
+	escapedPeriod := html.EscapeString(data.AssessmentPeriod)
+	escapedSubmittedBy := html.EscapeString(data.SubmittedBy)
 
 	return fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -198,5 +211,5 @@ func RenderTeamSummaryEmail(data TeamSummaryEmailData) string {
 </td></tr>
 </table>
 </body>
-</html>`, data.TeamName, data.AssessmentPeriod, data.SubmittedBy, rows.String())
+</html>`, escapedTeamName, escapedPeriod, escapedSubmittedBy, rows.String())
 }

@@ -7,6 +7,7 @@ import (
 	"net/smtp"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 )
@@ -62,6 +63,10 @@ func NewSMTPEmailService(config *Config) *SMTPEmailService {
 // SendHTML sends an HTML email to the specified recipient.
 func (s *SMTPEmailService) SendHTML(ctx context.Context, to, subject, htmlBody string) error {
 	log := logger.Get()
+
+	// Sanitize to and subject to prevent header injection
+	to = strings.NewReplacer("\r", "", "\n", "").Replace(to)
+	subject = strings.NewReplacer("\r", "", "\n", "").Replace(subject)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Host, s.config.Port)
 
