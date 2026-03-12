@@ -275,8 +275,8 @@ export default function DashboardPage() {
       .catch((err) => console.error('Failed to fetch submission status:', err));
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 
