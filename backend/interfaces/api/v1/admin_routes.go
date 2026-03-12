@@ -61,6 +61,10 @@ func SetupAdminRoutes(router *gin.Engine, orgRepo organization.Repository, userR
 			settings.PUT("/dimensions/:id", handler.UpdateDimension)
 			settings.DELETE("/dimensions/:id", handler.DeleteDimension)
 
+			// Branding
+			settings.GET("/branding", handler.GetBrandingSettings)
+			settings.PUT("/branding", handler.UpdateBrandingSettings)
+
 			// Notifications
 			settings.GET("/notifications", handler.GetNotificationSettings)
 			settings.PUT("/notifications", handler.UpdateNotificationSettings)

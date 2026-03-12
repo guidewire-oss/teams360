@@ -236,7 +236,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Verifying create team form appears")
-				createForm := page.Locator("[data-testid='create-team-form'], [role='dialog'], form:has(input)")
+				createForm := page.Locator("[data-testid='create-team-form'], [data-testid='team-create-modal'], [role='dialog'], form:has(input)")
 				err = createForm.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),
@@ -345,7 +345,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Verifying create user form appears")
-				createForm := page.Locator("[data-testid='create-user-form'], [role='dialog'], form:has(input)")
+				createForm := page.Locator("[data-testid='create-user-form'], [data-testid='user-create-modal'], [role='dialog'], form:has(input)")
 				err = createForm.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),
@@ -393,8 +393,7 @@ var _ = Describe("E2E: Admin Dashboard", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Verifying edit form appears")
-				// Note: The edit form uses the same testid as create form: 'create-user-form'
-				editForm := page.Locator("[data-testid='create-user-form']").Filter(playwright.LocatorFilterOptions{HasText: "Edit User"})
+				editForm := page.Locator("[data-testid='create-user-form'], [data-testid='user-edit-modal']").Filter(playwright.LocatorFilterOptions{HasText: "Edit User"})
 				err = editForm.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),

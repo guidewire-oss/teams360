@@ -104,7 +104,6 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = page.Locator(scoreSelector).Click()
 		Expect(err).NotTo(HaveOccurred())
-		time.Sleep(500 * time.Millisecond)
 
 		trendSelector := fmt.Sprintf("[data-dimension='%s'][data-trend='%s']", dimensionID, trend)
 		err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
@@ -114,7 +113,6 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 		Expect(err).NotTo(HaveOccurred())
 		err = page.Locator(trendSelector).Click()
 		Expect(err).NotTo(HaveOccurred())
-		time.Sleep(500 * time.Millisecond)
 	}
 
 	clickNext := func() {

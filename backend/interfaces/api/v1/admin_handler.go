@@ -129,6 +129,14 @@ func (h *AdminHandler) DeleteDimension(c *gin.Context) {
 	h.SettingsHandler.DeleteDimension(c)
 }
 
+func (h *AdminHandler) GetBrandingSettings(c *gin.Context) {
+	h.SettingsHandler.GetBrandingSettings(c)
+}
+
+func (h *AdminHandler) UpdateBrandingSettings(c *gin.Context) {
+	h.SettingsHandler.UpdateBrandingSettings(c)
+}
+
 func (h *AdminHandler) GetNotificationSettings(c *gin.Context) {
 	h.SettingsHandler.GetNotificationSettings(c)
 }

@@ -57,7 +57,7 @@ var _ = Describe("E2E: Error Messages", Label("e2e"), func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				err = page.Route("**/api/v1/teams/*/dashboard/individual-responses*", func(route playwright.Route) {
-					route.Fulfill(playwright.RouteFulfillOptions{
+					_ = route.Fulfill(playwright.RouteFulfillOptions{
 						Status:      playwright.Int(500),
 						ContentType: playwright.String("application/json"),
 						Body:        []byte(`{"error":"Internal Server Error"}`),
@@ -66,7 +66,7 @@ var _ = Describe("E2E: Error Messages", Label("e2e"), func() {
 				Expect(err).NotTo(HaveOccurred())
 
 				err = page.Route("**/api/v1/teams/*/dashboard/trends*", func(route playwright.Route) {
-					route.Fulfill(playwright.RouteFulfillOptions{
+					_ = route.Fulfill(playwright.RouteFulfillOptions{
 						Status:      playwright.Int(500),
 						ContentType: playwright.String("application/json"),
 						Body:        []byte(`{"error":"Internal Server Error"}`),

@@ -43,10 +43,12 @@ type HealthDimension struct {
 
 // AppSettings represents application-wide settings (singleton row)
 type AppSettings struct {
-	EmailNotifications bool `json:"emailNotifications"`
-	SlackNotifications bool `json:"slackNotifications"`
-	WeeklyDigest       bool `json:"weeklyDigest"`
-	RetentionMonths    int  `json:"retentionMonths"`
+	EmailNotifications bool   `json:"emailNotifications"`
+	SlackNotifications bool   `json:"slackNotifications"`
+	WeeklyDigest       bool   `json:"weeklyDigest"`
+	RetentionMonths    int    `json:"retentionMonths"`
+	CompanyName        string `json:"companyName"`
+	LogoURL            string `json:"logoURL"`
 }
 
 // OrganizationConfig represents the organization configuration
@@ -90,4 +92,7 @@ type Repository interface {
 	// App settings (singleton)
 	GetAppSettings(ctx context.Context) (*AppSettings, error)
 	UpdateAppSettings(ctx context.Context, settings *AppSettings) error
+	UpdateBrandingSettings(ctx context.Context, companyName string, logoURL string) error
+	UpdateNotificationSettings(ctx context.Context, email, slack, digest bool) error
+	UpdateRetentionSettings(ctx context.Context, months int) error
 }

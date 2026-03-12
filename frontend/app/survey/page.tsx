@@ -109,7 +109,7 @@ function SurveyPageContent() {
         setTeamError('No team assigned to this user');
       }
     }
-  }, [router]);
+  }, [router, preferredTeamId]);
 
   const handleTeamSwitch = (newTeamId: string) => {
     if (!user || !team) return;
