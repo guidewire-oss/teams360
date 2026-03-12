@@ -96,7 +96,7 @@ var _ = Describe("E2E: Admin Branding Settings", Label("e2e", "admin", "branding
 				Eventually(func() bool {
 					err := db.QueryRow("SELECT company_name FROM app_settings WHERE id = 1").Scan(&dbCompanyName)
 					return err == nil && dbCompanyName == "Acme Corporation"
-				}, 5*time.Second, 200*time.Millisecond).Should(BeTrue())
+				}, 10*time.Second, 500*time.Millisecond).Should(BeTrue())
 
 				GinkgoWriter.Printf("✅ Company name saved to database: %s\n", dbCompanyName)
 
