@@ -85,27 +85,35 @@ func (n *NotificationService) SendIndividualSurveyEmail(ctx context.Context, ses
 	}
 }
 
-// SendTeamSummaryEmail sends a post-workshop summary to the team's distribution list.
-// Errors are logged but never returned (fire-and-forget).
-func (n *NotificationService) SendTeamSummaryEmail(ctx context.Context, session *healthcheck.HealthCheckSession) {
+// SendPostWorkshopEmails handles email routing for post-workshop surveys.
+// If the team has a distribution list configured, the summary goes to the DL only.
+// Otherwise, falls back to sending an individual copy to the submitter's email.
+func (n *NotificationService) SendPostWorkshopEmails(ctx context.Context, session *healthcheck.HealthCheckSession) {
 	log := logger.Get()
 
 	if n.smtp == nil {
-		log.Debug("SMTP not configured, skipping team summary email")
+		log.Debug("SMTP not configured, skipping post-workshop emails")
 		return
 	}
 
-	// Look up team
+	// Check if team has a DL configured
 	tm, err := n.teamRepo.FindByID(ctx, session.TeamID)
 	if err != nil {
-		log.WithField("team_id", session.TeamID).Warn("notification: failed to find team for summary email")
+		log.WithField("team_id", session.TeamID).Warn("notification: failed to find team for post-workshop emails")
 		return
 	}
 
-	if tm.DistributionListEmail == nil || *tm.DistributionListEmail == "" {
-		log.WithField("team_id", session.TeamID).Debug("notification: team has no DL email, skipping")
-		return
+	if tm.DistributionListEmail != nil && *tm.DistributionListEmail != "" {
+		n.sendTeamSummaryEmail(ctx, session, tm)
+	} else {
+		n.SendIndividualSurveyEmail(ctx, session)
 	}
+}
+
+// sendTeamSummaryEmail sends a post-workshop summary to the team's distribution list.
+// Errors are logged but never returned (fire-and-forget).
+func (n *NotificationService) sendTeamSummaryEmail(ctx context.Context, session *healthcheck.HealthCheckSession, tm *team.Team) {
+	log := logger.Get()
 
 	// Look up submitter name
 	submittedBy := session.UserID

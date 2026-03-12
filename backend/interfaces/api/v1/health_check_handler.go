@@ -189,8 +189,7 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 				h.notificationService.SendIndividualSurveyEmail(bgCtx, session)
 			}
 			if session.SurveyType == "post_workshop" {
-				h.notificationService.SendIndividualSurveyEmail(bgCtx, session)
-				h.notificationService.SendTeamSummaryEmail(bgCtx, session)
+				h.notificationService.SendPostWorkshopEmails(bgCtx, session)
 			}
 		}()
 	}
