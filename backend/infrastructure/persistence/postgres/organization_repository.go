@@ -740,6 +740,58 @@ func (r *OrganizationRepository) UpdateAppSettings(ctx context.Context, s *organ
 	return nil
 }
 
+// UpdateBrandingSettings updates only the branding columns (company_name, logo_url)
+func (r *OrganizationRepository) UpdateBrandingSettings(ctx context.Context, companyName string, logoURL string) error {
+	var logo *string
+	if logoURL != "" {
+		logo = &logoURL
+	}
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, company_name, logo_url, updated_at)
+		VALUES (1, $1, $2, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			company_name = EXCLUDED.company_name,
+			logo_url = EXCLUDED.logo_url,
+			updated_at = NOW()
+	`, companyName, logo)
+	if err != nil {
+		return fmt.Errorf("failed to update branding settings: %w", err)
+	}
+	return nil
+}
+
+// UpdateNotificationSettings updates only the notification columns
+func (r *OrganizationRepository) UpdateNotificationSettings(ctx context.Context, email, slack, digest bool) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, updated_at)
+		VALUES (1, $1, $2, $3, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			email_notifications = EXCLUDED.email_notifications,
+			slack_notifications = EXCLUDED.slack_notifications,
+			weekly_digest = EXCLUDED.weekly_digest,
+			updated_at = NOW()
+	`, email, slack, digest)
+	if err != nil {
+		return fmt.Errorf("failed to update notification settings: %w", err)
+	}
+	return nil
+}
+
+// UpdateRetentionSettings updates only the retention_months column
+func (r *OrganizationRepository) UpdateRetentionSettings(ctx context.Context, months int) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, retention_months, updated_at)
+		VALUES (1, $1, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			retention_months = EXCLUDED.retention_months,
+			updated_at = NOW()
+	`, months)
+	if err != nil {
+		return fmt.Errorf("failed to update retention settings: %w", err)
+	}
+	return nil
+}
+
 // Helper methods
 
 // saveHierarchyLevelTx saves a hierarchy level within a transaction

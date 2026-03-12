@@ -225,17 +225,7 @@ func (h *SettingsAdminHandler) UpdateBrandingSettings(c *gin.Context) {
 		return
 	}
 
-	// Read current settings to preserve other fields
-	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
-		return
-	}
-
-	appSettings.CompanyName = settings.CompanyName
-	appSettings.LogoURL = settings.LogoURL
-
-	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+	if err := h.orgRepo.UpdateBrandingSettings(c.Request.Context(), settings.CompanyName, settings.LogoURL); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save branding settings", Message: err.Error()})
 		return
 	}
@@ -271,18 +261,7 @@ func (h *SettingsAdminHandler) UpdateNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	// Read current settings to preserve retention
-	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
-		return
-	}
-
-	appSettings.EmailNotifications = settings.EmailEnabled
-	appSettings.SlackNotifications = settings.SlackEnabled
-	appSettings.WeeklyDigest = settings.NotifyOnSubmission
-
-	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+	if err := h.orgRepo.UpdateNotificationSettings(c.Request.Context(), settings.EmailEnabled, settings.SlackEnabled, settings.NotifyOnSubmission); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save settings", Message: err.Error()})
 		return
 	}
@@ -320,23 +299,12 @@ func (h *SettingsAdminHandler) UpdateRetentionPolicy(c *gin.Context) {
 		return
 	}
 
-	// Read current settings to preserve notifications
-	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read settings", Message: err.Error()})
-		return
-	}
-
-	appSettings.RetentionMonths = policy.KeepSessionsMonths
-
-	if err := h.orgRepo.UpdateAppSettings(c.Request.Context(), appSettings); err != nil {
+	if err := h.orgRepo.UpdateRetentionSettings(c.Request.Context(), policy.KeepSessionsMonths); err != nil {
 		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save retention policy", Message: err.Error()})
 		return
 	}
 
-	// Recompute derived field before responding
-	policy.KeepSessionsMonths = appSettings.RetentionMonths
-	policy.AnonymizeAfterDays = appSettings.RetentionMonths * 30
+	policy.AnonymizeAfterDays = policy.KeepSessionsMonths * 30
 
 	c.JSON(http.StatusOK, policy)
 }

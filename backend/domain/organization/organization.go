@@ -92,4 +92,7 @@ type Repository interface {
 	// App settings (singleton)
 	GetAppSettings(ctx context.Context) (*AppSettings, error)
 	UpdateAppSettings(ctx context.Context, settings *AppSettings) error
+	UpdateBrandingSettings(ctx context.Context, companyName string, logoURL string) error
+	UpdateNotificationSettings(ctx context.Context, email, slack, digest bool) error
+	UpdateRetentionSettings(ctx context.Context, months int) error
 }
