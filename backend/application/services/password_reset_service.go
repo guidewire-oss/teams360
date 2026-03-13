@@ -249,6 +249,11 @@ func NewMockEmailService() *MockEmailService {
 	}
 }
 
+// SendHTML mock implementation
+func (m *MockEmailService) SendHTML(ctx context.Context, to, subject, htmlBody string) error {
+	return nil
+}
+
 // SendPasswordResetEmail mock implementation
 func (m *MockEmailService) SendPasswordResetEmail(ctx context.Context, email, resetToken string) error {
 	m.SentEmails = append(m.SentEmails, struct {
