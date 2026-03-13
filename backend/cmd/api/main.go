@@ -163,25 +163,28 @@ func main() {
 	trendsService := trends.NewService(db)
 	jwtService := services.NewJWTService()
 
-	// Initialize SMTP email service (nil if SMTP_HOST not set)
-	var smtpService *email.SMTPEmailService
-	var emailService services.EmailService
-	smtpConfig := email.LoadConfig()
-	if smtpConfig != nil {
-		smtpService = email.NewSMTPEmailService(smtpConfig)
-		emailService = smtpService
-		log.WithField("host", smtpConfig.Host).Info("SMTP email service configured")
+	// Initialize email service: SES > SMTP > mock
+	var emailSender email.Sender
+	if sesCfg := email.LoadSESConfig(); sesCfg != nil {
+		ses, err := email.NewSESEmailService(sesCfg)
+		if err != nil {
+			log.WithError(err).Fatal("failed to initialize SES email service")
+		}
+		emailSender = ses
+		log.WithField("region", sesCfg.Region).Info("AWS SES email service configured")
+	} else if smtpCfg := email.LoadConfig(); smtpCfg != nil {
+		emailSender = email.NewSMTPEmailService(smtpCfg)
+		log.WithField("host", smtpCfg.Host).Info("SMTP email service configured")
 	} else {
-		emailService = services.NewMockEmailService()
-		log.Info("SMTP not configured, using mock email service")
+		log.Info("No email service configured, email notifications disabled")
 	}
 
 	// Initialize notification service
-	notificationService := services.NewNotificationService(smtpService, teamRepo, userRepo, orgRepo)
+	notificationService := services.NewNotificationService(emailSender, teamRepo, userRepo, orgRepo)
 
 	// Initialize password reset service
 	passwordResetRepo := postgres.NewPasswordResetRepository(db)
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, emailService)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, emailSender)
 
 	// Initialize router (use gin.New() instead of gin.Default() to disable default logger)
 	router := gin.New()

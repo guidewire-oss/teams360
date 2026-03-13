@@ -13,22 +13,22 @@ import (
 
 // NotificationService orchestrates email notifications for survey submissions.
 type NotificationService struct {
-	smtp     *email.SMTPEmailService // nil when SMTP is not configured
+	sender   email.Sender // nil when email is not configured
 	teamRepo team.Repository
 	userRepo user.Repository
 	orgRepo  organization.Repository
 }
 
 // NewNotificationService creates a new notification service.
-// smtp may be nil (email disabled).
+// sender may be nil (email disabled).
 func NewNotificationService(
-	smtp *email.SMTPEmailService,
+	sender email.Sender,
 	teamRepo team.Repository,
 	userRepo user.Repository,
 	orgRepo organization.Repository,
 ) *NotificationService {
 	return &NotificationService{
-		smtp:     smtp,
+		sender:   sender,
 		teamRepo: teamRepo,
 		userRepo: userRepo,
 		orgRepo:  orgRepo,
@@ -40,8 +40,8 @@ func NewNotificationService(
 func (n *NotificationService) SendIndividualSurveyEmail(ctx context.Context, session *healthcheck.HealthCheckSession) {
 	log := logger.Get()
 
-	if n.smtp == nil {
-		log.Debug("SMTP not configured, skipping individual survey email")
+	if n.sender == nil {
+		log.Debug("email not configured, skipping individual survey email")
 		return
 	}
 
@@ -78,7 +78,7 @@ func (n *NotificationService) SendIndividualSurveyEmail(ctx context.Context, ses
 	htmlBody := email.RenderIndividualSurveyEmail(data)
 	subject := "Teams360 — Your Health Check Submission (" + tm.Name + ")"
 
-	if err := n.smtp.SendHTML(ctx, usr.Email, subject, htmlBody); err != nil {
+	if err := n.sender.SendHTML(ctx, usr.Email, subject, htmlBody); err != nil {
 		log.WithError(err).WithField("to", usr.Email).Warn("notification: failed to send individual survey email")
 	} else {
 		log.WithField("to", usr.Email).Info("notification: individual survey email sent")
@@ -91,8 +91,8 @@ func (n *NotificationService) SendIndividualSurveyEmail(ctx context.Context, ses
 func (n *NotificationService) SendPostWorkshopEmails(ctx context.Context, session *healthcheck.HealthCheckSession) {
 	log := logger.Get()
 
-	if n.smtp == nil {
-		log.Debug("SMTP not configured, skipping post-workshop emails")
+	if n.sender == nil {
+		log.Debug("email not configured, skipping post-workshop emails")
 		return
 	}
 
@@ -134,7 +134,7 @@ func (n *NotificationService) sendTeamSummaryEmail(ctx context.Context, session 
 	htmlBody := email.RenderTeamSummaryEmail(data)
 	subject := "Teams360 — Post-Workshop Summary (" + tm.Name + ", " + session.AssessmentPeriod + ")"
 
-	if err := n.smtp.SendHTML(ctx, *tm.DistributionListEmail, subject, htmlBody); err != nil {
+	if err := n.sender.SendHTML(ctx, *tm.DistributionListEmail, subject, htmlBody); err != nil {
 		log.WithError(err).WithField("to", *tm.DistributionListEmail).Warn("notification: failed to send team summary email")
 	} else {
 		log.WithField("to", *tm.DistributionListEmail).Info("notification: team summary email sent")
