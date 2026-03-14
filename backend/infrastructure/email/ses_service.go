@@ -32,7 +32,7 @@ func LoadSESConfig() *SESConfig {
 
 	fromAddress := os.Getenv("SES_FROM_ADDRESS")
 	if fromAddress == "" {
-		fromAddress = "noreply@teams360.example.com"
+		return nil
 	}
 
 	return &SESConfig{
