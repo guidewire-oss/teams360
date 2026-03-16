@@ -24,7 +24,7 @@ Team360 enables teams to regularly assess their working environment across multi
 | **Dimension Matrix View** | Team leads can toggle between per-person and per-dimension views of individual responses |
 | **Survey Autosave** | Draft responses are saved to localStorage automatically and restored on page reload |
 | **Session Timeout UX** | Expired sessions redirect to login with a clear "session expired" banner |
-| **Cadence-Driven Periods** | Assessment periods adapt to each team's cadence (weekly, biweekly, monthly, quarterly) |
+| **Cadence-Driven Periods** | Assessment periods adapt to each team's cadence (monthly, quarterly, half-yearly, yearly) |
 | **SSO (OIDC / OAuth 2.0)** | Single sign-on with any OIDC provider, plus admin SSO user provisioning |
 | **Org Hierarchy Tree** | Visual tree view of the organization structure in the manager dashboard |
 | **Trend Analysis** | Track health metrics over assessment periods with historical trend lines |
@@ -199,10 +199,10 @@ Team360 automatically determines assessment periods based on each team's configu
 
 | Cadence | Period Format | Example |
 |---------|--------------|---------|
-| **Weekly** | "YYYY - Week WW" | "2025 - Week 10" |
-| **Biweekly** | "YYYY - Biweek BB" | "2025 - Biweek 05" |
-| **Monthly** | "YYYY - Month" | "2025 - March" |
-| **Quarterly** | "YYYY - QN" | "2025 - Q1" |
+| **Monthly** | "YYYY Mon" | "2025 Mar" |
+| **Quarterly** | "YYYY QN" | "2025 Q1" |
+| **Half-Yearly** | "YYYY HN" | "2025 H1" |
+| **Yearly** | "YYYY" | "2025" |
 
 The period is derived from the survey submission date and the team's cadence setting. This ensures trend analysis aligns with each team's check-in rhythm rather than using a one-size-fits-all calendar split.
 
@@ -233,7 +233,7 @@ Health checks work best as structured team discussions, not just individual surv
    - Optionally add a comment for context (up to 1,000 characters)
 5. Submit the survey
 
-Your progress is **automatically saved** as a draft. If you close the browser or navigate away, your responses will be restored when you return. A "Draft restored" banner confirms when a previous draft has been loaded.
+Your progress is **automatically saved** as a draft. If you close the browser or navigate away, your responses will be restored when you return. A "Your previous progress has been restored from a saved draft" banner confirms when a previous draft has been loaded.
 
 **Tips for honest assessment:**
 - Compare your current state to both the ideal ("Good") and worst case ("Bad")
