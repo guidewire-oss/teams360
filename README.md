@@ -174,10 +174,10 @@ Teams are the core unit for health assessments. Each team has members and a desi
    - **Team Name**: A descriptive name (e.g., "Platform Squad", "Mobile Team")
    - **Team Lead**: Assign a user responsible for the team (optional)
    - **Cadence**: How often the team should complete health checks:
-     - Weekly (high-velocity teams)
-     - Biweekly (most common)
-     - Monthly (stable teams)
-     - Quarterly (strategic reviews)
+     - Monthly (high-velocity teams)
+     - Quarterly (most common)
+     - Half-Yearly (stable teams)
+     - Yearly (strategic reviews)
 
 #### Add Users
 
@@ -279,7 +279,7 @@ The goal isn't perfect scores—it's continuous improvement:
 | Practice | Description |
 |----------|-------------|
 | **Start small** | Pilot with 2-3 teams before organization-wide rollout |
-| **Consistent cadence** | Stick to your chosen frequency (biweekly works for most) |
+| **Consistent cadence** | Stick to your chosen frequency (quarterly works for most) |
 | **Psychological safety** | Emphasize that red scores lead to support, not punishment |
 | **Action-oriented** | Always end sessions with specific improvement actions |
 | **Celebrate progress** | Highlight teams that improve, regardless of absolute scores |
