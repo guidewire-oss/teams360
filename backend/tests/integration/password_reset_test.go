@@ -45,7 +45,7 @@ var _ = Describe("Password Reset API Integration Tests", func() {
 		jwtService = services.NewJWTService()
 
 		// Create email service (mock for testing - doesn't actually send emails)
-		emailService := services.NewMockEmailService()
+		emailService := testhelpers.NewMockEmailService()
 		passwordResetService = services.NewPasswordResetService(passwordResetRepo, userRepo, emailService)
 
 		// Setup auth routes with password reset

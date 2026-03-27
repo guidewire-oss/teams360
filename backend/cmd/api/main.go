@@ -13,6 +13,7 @@ import (
 	"github.com/XSAM/otelsql"
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
+	"github.com/agopalakrishnan/teams360/backend/infrastructure/email"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
@@ -162,10 +163,28 @@ func main() {
 	trendsService := trends.NewService(db)
 	jwtService := services.NewJWTService()
 
+	// Initialize email service: SES > SMTP > mock
+	var emailSender email.Sender
+	if sesCfg := email.LoadSESConfig(); sesCfg != nil {
+		ses, err := email.NewSESEmailService(sesCfg)
+		if err != nil {
+			log.WithError(err).Fatal("failed to initialize SES email service")
+		}
+		emailSender = ses
+		log.WithField("region", sesCfg.Region).Info("AWS SES email service configured")
+	} else if smtpCfg := email.LoadConfig(); smtpCfg != nil {
+		emailSender = email.NewSMTPEmailService(smtpCfg)
+		log.WithField("host", smtpCfg.Host).Info("SMTP email service configured")
+	} else {
+		log.Info("No email service configured, email notifications disabled")
+	}
+
+	// Initialize notification service
+	notificationService := services.NewNotificationService(emailSender, teamRepo, userRepo, orgRepo)
+
 	// Initialize password reset service
 	passwordResetRepo := postgres.NewPasswordResetRepository(db)
-	mockEmailService := services.NewMockEmailService() // Use mock for now
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, mockEmailService)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, emailSender)
 
 	// Initialize router (use gin.New() instead of gin.Default() to disable default logger)
 	router := gin.New()
@@ -189,7 +208,7 @@ func main() {
 	})
 
 	// Setup API routes with repository injection
-	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
+	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, notificationService)
 	v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 	v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
 	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
