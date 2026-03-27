@@ -22,8 +22,9 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id = $1`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
 
+		// Create team lead
 		_, err := db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 			VALUES ($1, $2, $3, 'E2E Matrix Lead', 'level-4', $4)
@@ -31,11 +32,30 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		`, matrixLead, matrixLead, matrixLead+"@teams360.demo", DemoPasswordHash)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Create team members
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash) VALUES
+			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member 1', 'level-5', $1),
+			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member 2', 'level-5', $1)
+			ON CONFLICT (id) DO NOTHING
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create team
 		_, err = db.Exec(`
 			INSERT INTO teams (id, name, team_lead_id)
 			VALUES ($1, 'E2E Matrix Team', $2)
 			ON CONFLICT (id) DO NOTHING
 		`, matrixTeam, matrixLead)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Add members to team
+		_, err = db.Exec(`
+			INSERT INTO team_members (team_id, user_id) VALUES
+			($1, 'e2e_member1'),
+			($1, 'e2e_member2')
+			ON CONFLICT DO NOTHING
+		`, matrixTeam)
 		Expect(err).NotTo(HaveOccurred())
 
 		_, err = db.Exec(`
@@ -85,7 +105,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id = $1`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
 		if page != nil {
 			page.Close()
 		}
