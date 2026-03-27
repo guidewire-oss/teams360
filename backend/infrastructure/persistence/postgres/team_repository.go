@@ -25,10 +25,11 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 	var teamLeadID sql.NullString
 	var teamLeadName sql.NullString
 	var cadence sql.NullString
+	var distributionListEmail sql.NullString
 	var createdAt, updatedAt sql.NullTime
 
 	err := r.db.QueryRowContext(ctx, `
-		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, t.distribution_list_email, u.full_name
 		FROM teams t
 		LEFT JOIN users u ON t.team_lead_id = u.id
 		WHERE t.id = $1
@@ -39,6 +40,7 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 		&cadence,
 		&createdAt,
 		&updatedAt,
+		&distributionListEmail,
 		&teamLeadName,
 	)
 
@@ -60,6 +62,9 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 		t.Cadence = cadence.String
 	} else {
 		t.Cadence = "monthly" // default
+	}
+	if distributionListEmail.Valid {
+		t.DistributionListEmail = &distributionListEmail.String
 	}
 	if createdAt.Valid {
 		t.CreatedAt = createdAt.Time
@@ -100,7 +105,7 @@ func (r *TeamRepository) FindByID(ctx context.Context, id string) (*team.Team, e
 // FindAll retrieves all teams
 func (r *TeamRepository) FindAll(ctx context.Context) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, t.distribution_list_email, u.full_name
 		FROM teams t
 		LEFT JOIN users u ON t.team_lead_id = u.id
 		ORDER BY t.name
@@ -132,7 +137,7 @@ func (r *TeamRepository) FindAllWithDetails(ctx context.Context) ([]team.Team, e
 // FindByLeadID retrieves all teams led by a specific user
 func (r *TeamRepository) FindByLeadID(ctx context.Context, leadID string) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		SELECT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, t.distribution_list_email, u.full_name
 		FROM teams t
 		LEFT JOIN users u ON t.team_lead_id = u.id
 		WHERE t.team_lead_id = $1
@@ -150,7 +155,7 @@ func (r *TeamRepository) FindByLeadID(ctx context.Context, leadID string) ([]*te
 // FindBySupervisorID retrieves all teams where a user is in the supervisor chain
 func (r *TeamRepository) FindBySupervisorID(ctx context.Context, supervisorID string) ([]*team.Team, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT DISTINCT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, u.full_name
+		SELECT DISTINCT t.id, t.name, t.team_lead_id, t.cadence, t.created_at, t.updated_at, t.distribution_list_email, u.full_name
 		FROM teams t
 		INNER JOIN team_supervisors ts ON t.id = ts.team_id
 		LEFT JOIN users u ON t.team_lead_id = u.id
@@ -299,7 +304,7 @@ func (r *TeamRepository) Save(ctx context.Context, t *team.Team) error {
 	defer tx.Rollback()
 
 	// Convert optional fields to NULL
-	var teamLeadID, cadence sql.NullString
+	var teamLeadID, cadence, distributionListEmail sql.NullString
 	if t.TeamLeadID != nil && *t.TeamLeadID != "" {
 		teamLeadID = sql.NullString{String: *t.TeamLeadID, Valid: true}
 	}
@@ -307,6 +312,9 @@ func (r *TeamRepository) Save(ctx context.Context, t *team.Team) error {
 		cadence = sql.NullString{String: t.Cadence, Valid: true}
 	} else {
 		cadence = sql.NullString{String: "monthly", Valid: true}
+	}
+	if t.DistributionListEmail != nil && *t.DistributionListEmail != "" {
+		distributionListEmail = sql.NullString{String: *t.DistributionListEmail, Valid: true}
 	}
 
 	// Set timestamps
@@ -318,9 +326,9 @@ func (r *TeamRepository) Save(ctx context.Context, t *team.Team) error {
 
 	// Insert team
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO teams (id, name, team_lead_id, cadence, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
-	`, t.ID, t.Name, teamLeadID, cadence, t.CreatedAt, t.UpdatedAt)
+		INSERT INTO teams (id, name, team_lead_id, cadence, distribution_list_email, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+	`, t.ID, t.Name, teamLeadID, cadence, distributionListEmail, t.CreatedAt, t.UpdatedAt)
 
 	if err != nil {
 		return fmt.Errorf("failed to save team: %w", err)
@@ -363,7 +371,7 @@ func (r *TeamRepository) Update(ctx context.Context, t *team.Team) error {
 	defer tx.Rollback()
 
 	// Convert optional fields to NULL
-	var teamLeadID, cadence sql.NullString
+	var teamLeadID, cadence, distributionListEmail sql.NullString
 	if t.TeamLeadID != nil && *t.TeamLeadID != "" {
 		teamLeadID = sql.NullString{String: *t.TeamLeadID, Valid: true}
 	}
@@ -371,6 +379,9 @@ func (r *TeamRepository) Update(ctx context.Context, t *team.Team) error {
 		cadence = sql.NullString{String: t.Cadence, Valid: true}
 	} else {
 		cadence = sql.NullString{String: "monthly", Valid: true}
+	}
+	if t.DistributionListEmail != nil && *t.DistributionListEmail != "" {
+		distributionListEmail = sql.NullString{String: *t.DistributionListEmail, Valid: true}
 	}
 
 	// Update timestamp
@@ -382,9 +393,10 @@ func (r *TeamRepository) Update(ctx context.Context, t *team.Team) error {
 			name = $1,
 			team_lead_id = $2,
 			cadence = $3,
-			updated_at = $4
-		WHERE id = $5
-	`, t.Name, teamLeadID, cadence, t.UpdatedAt, t.ID)
+			distribution_list_email = $4,
+			updated_at = $5
+		WHERE id = $6
+	`, t.Name, teamLeadID, cadence, distributionListEmail, t.UpdatedAt, t.ID)
 
 	if err != nil {
 		return fmt.Errorf("failed to update team: %w", err)
@@ -522,6 +534,7 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 		var teamLeadID sql.NullString
 		var teamLeadName sql.NullString
 		var cadence sql.NullString
+		var distributionListEmail sql.NullString
 		var createdAt, updatedAt sql.NullTime
 
 		err := rows.Scan(
@@ -531,6 +544,7 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 			&cadence,
 			&createdAt,
 			&updatedAt,
+			&distributionListEmail,
 			&teamLeadName,
 		)
 		if err != nil {
@@ -548,6 +562,9 @@ func (r *TeamRepository) scanTeams(ctx context.Context, rows *sql.Rows) ([]*team
 			t.Cadence = cadence.String
 		} else {
 			t.Cadence = "monthly"
+		}
+		if distributionListEmail.Valid {
+			t.DistributionListEmail = &distributionListEmail.String
 		}
 		if createdAt.Valid {
 			t.CreatedAt = createdAt.Time

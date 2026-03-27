@@ -49,7 +49,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 		orgRepo := postgres.NewOrganizationRepository(db)
 		trendsService := trends.NewService(db)
 
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
 		userRepo := postgres.NewUserRepository(db)
 		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	})

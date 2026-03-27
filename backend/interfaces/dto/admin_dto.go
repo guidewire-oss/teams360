@@ -101,29 +101,32 @@ type UsersResponse struct {
 
 // AdminTeamDTO represents detailed team information for admin
 type AdminTeamDTO struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	TeamLeadID   *string   `json:"teamLeadId"`
-	TeamLeadName *string   `json:"teamLeadName"`
-	Cadence      string    `json:"cadence"`
-	MemberCount  int       `json:"memberCount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	Name                  string    `json:"name"`
+	TeamLeadID            *string   `json:"teamLeadId"`
+	TeamLeadName          *string   `json:"teamLeadName"`
+	Cadence               string    `json:"cadence"`
+	DistributionListEmail *string   `json:"distributionListEmail,omitempty"`
+	MemberCount           int       `json:"memberCount"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 // CreateTeamRequest represents request to create a team
 type CreateTeamRequest struct {
-	ID         string  `json:"id"`                      // Optional - will be auto-generated from name if not provided
-	Name       string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
-	TeamLeadID *string `json:"teamLeadId"`
-	Cadence    string  `json:"cadence" binding:"required,oneof=monthly quarterly half-yearly yearly"`
+	ID                    string  `json:"id"`                      // Optional - will be auto-generated from name if not provided
+	Name                  string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
+	TeamLeadID            *string `json:"teamLeadId"`
+	Cadence               string  `json:"cadence" binding:"required,oneof=monthly quarterly half-yearly yearly"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // UpdateTeamRequest represents request to update a team
 type UpdateTeamRequest struct {
-	Name       *string `json:"name"`
-	TeamLeadID *string `json:"teamLeadId"`
-	Cadence    *string `json:"cadence" binding:"omitempty,oneof=monthly quarterly half-yearly yearly"`
+	Name                  *string `json:"name"`
+	TeamLeadID            *string `json:"teamLeadId"`
+	Cadence               *string `json:"cadence" binding:"omitempty,oneof=monthly quarterly half-yearly yearly"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // TeamsResponse represents response with list of teams
@@ -232,6 +235,7 @@ type NotificationSettings struct {
 	NotifyManagers     bool     `json:"notifyManagers"`
 	ReminderDaysBefore int      `json:"reminderDaysBefore"`
 	ReminderRecipients []string `json:"reminderRecipients"`
+	SmtpConfigured     bool     `json:"smtpConfigured"`
 }
 
 // RetentionPolicy represents data retention configuration
