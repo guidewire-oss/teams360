@@ -179,6 +179,17 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
+				// Click the "Chart" button to switch from breakdown view to chart view
+				By("Switching to chart view")
+				chartViewBtn := page.Locator("button:has-text('Chart')")
+				// Only click if there's data (button will only exist if there's data)
+				chartBtnVisible, _ := chartViewBtn.IsVisible()
+				if chartBtnVisible {
+					err = chartViewBtn.Click()
+					Expect(err).NotTo(HaveOccurred())
+					time.Sleep(500 * time.Millisecond) // Wait for view transition
+				}
+
 				// Either the chart or the "no data" message should be visible
 				chartOrNoData := page.Locator("[data-testid='distribution-chart'], .recharts-bar, svg:has(.recharts-bar-rectangle)").
 				Or(page.Locator("text=No distribution data available"))
@@ -320,8 +331,9 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='trends-chart'], .recharts-line, svg:has(.recharts-line)").
+				// The trends tab now defaults to "dimensions" view (sparkline cards)
+				// Either sparkline cards, line chart, or the "no data" message should be visible
+				chartOrNoData := page.Locator(".recharts-line, .recharts-line-chart, .recharts-responsive-container").
 				Or(page.Locator("text=No trend data available"))
 				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,

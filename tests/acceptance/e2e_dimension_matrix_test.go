@@ -136,48 +136,40 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		It("should toggle between person and dimension views", func() {
 			loginAndGoToResponses()
 
-			By("Verifying default view is By Person")
-			personBtn := page.Locator("[data-testid='view-by-person-btn']")
-			personClass, err := personBtn.GetAttribute("class")
+			By("Verifying default view is Matrix (not Cards)")
+			// The new UI defaults to matrix view, with Matrix/Cards toggle buttons
+			matrixBtn := page.Locator("button:has-text('Matrix')")
+			matrixClass, err := matrixBtn.GetAttribute("class")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(personClass).To(ContainSubstring("text-indigo-600"))
+			Expect(matrixClass).To(ContainSubstring("text-indigo-600"))
 
-			By("Verifying response cards are visible (person view)")
+			By("Verifying matrix table is visible by default")
+			matrixTable := page.Locator("table")
+			Eventually(func() bool {
+				visible, _ := matrixTable.IsVisible()
+				return visible
+			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
+
+			By("Clicking Cards button to switch view")
+			cardsBtn := page.Locator("button:has-text('Cards')")
+			err = cardsBtn.Click()
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying response cards are visible (cards view)")
 			cards := page.Locator("[data-testid='response-card']")
 			Eventually(func() int {
 				count, _ := cards.Count()
 				return count
 			}, 5*time.Second, 500*time.Millisecond).Should(BeNumerically(">", 0))
 
-			By("Clicking By Dimension button")
-			dimBtn := page.Locator("[data-testid='view-by-dimension-btn']")
-			err = dimBtn.Click()
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Verifying dimension matrix is visible")
-			matrix := page.Locator("[data-testid='dimension-matrix']")
-			Eventually(func() bool {
-				visible, _ := matrix.IsVisible()
-				return visible
-			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
-
-			By("Verifying dimension column headers exist")
-			missionHeader := page.Locator("[data-testid='matrix-header-mission']")
-			visible, _ := missionHeader.IsVisible()
-			Expect(visible).To(BeTrue())
-
-			funHeader := page.Locator("[data-testid='matrix-header-fun']")
-			visible, _ = funHeader.IsVisible()
-			Expect(visible).To(BeTrue())
-
-			By("Switching back to person view")
-			err = personBtn.Click()
+			By("Switching back to matrix view")
+			err = matrixBtn.Click()
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() bool {
-				visible, _ := matrix.IsVisible()
+				visible, _ := matrixTable.IsVisible()
 				return visible
-			}, 3*time.Second, 300*time.Millisecond).Should(BeFalse())
+			}, 3*time.Second, 300*time.Millisecond).Should(BeTrue())
 		})
 	})
 
@@ -185,12 +177,10 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		It("should display score boxes with color coding and trend arrows", func() {
 			loginAndGoToResponses()
 
-			By("Switching to dimension view")
-			err := page.Locator("[data-testid='view-by-dimension-btn']").Click()
-			Expect(err).NotTo(HaveOccurred())
-
-			matrix := page.Locator("[data-testid='dimension-matrix']")
-			err = matrix.WaitFor(playwright.LocatorWaitForOptions{
+			// Matrix is default view, no need to switch
+			By("Verifying matrix is visible by default")
+			matrixTable := page.Locator("table")
+			err := matrixTable.WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
 				Timeout: playwright.Float(5000),
 			})
