@@ -638,6 +638,7 @@ export default function DashboardPage() {
                       {distribution.length > 0 && (
                         <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
                           <button
+                            data-testid="distribution-breakdown-btn"
                             onClick={() => setDistributionView('breakdown')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               distributionView === 'breakdown'
@@ -649,6 +650,7 @@ export default function DashboardPage() {
                             By Dimension
                           </button>
                           <button
+                            data-testid="distribution-chart-btn"
                             onClick={() => setDistributionView('chart')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               distributionView === 'chart'
@@ -766,6 +768,7 @@ export default function DashboardPage() {
                       {individualResponses.length > 0 && (
                         <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
                           <button
+                            data-testid="matrix-view-btn"
                             onClick={() => setResponseView('matrix')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'matrix'
@@ -777,6 +780,7 @@ export default function DashboardPage() {
                             Matrix
                           </button>
                           <button
+                            data-testid="cards-view-btn"
                             onClick={() => setResponseView('cards')}
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'cards'

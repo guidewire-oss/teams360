@@ -181,7 +181,7 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 
 				// Click the "Chart" button to switch from breakdown view to chart view
 				By("Switching to chart view")
-				chartViewBtn := page.Locator("button:has-text('Chart')")
+				chartViewBtn := page.Locator("[data-testid='distribution-chart-btn']")
 				err = chartViewBtn.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(5000),

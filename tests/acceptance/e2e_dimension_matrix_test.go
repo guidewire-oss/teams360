@@ -165,7 +165,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 
 			By("Verifying Matrix button is active (default view)")
 			// The Matrix button should have the active class (text-indigo-600)
-			matrixBtn := page.Locator("button:has-text('Matrix')")
+			matrixBtn := page.Locator("[data-testid='matrix-view-btn']")
 			err := matrixBtn.WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
 				Timeout: playwright.Float(5000),
@@ -177,7 +177,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			Expect(matrixClass).To(ContainSubstring("text-indigo-600"))
 
 			By("Clicking Cards button to switch view")
-			cardsBtn := page.Locator("button:has-text('Cards')")
+			cardsBtn := page.Locator("[data-testid='cards-view-btn']")
 			err = cardsBtn.Click()
 			Expect(err).NotTo(HaveOccurred())
 
