@@ -326,15 +326,17 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 				By("Verifying only 2024 - 1st Half data is shown")
 				teamCard := page.Locator("[data-testid='team-health-card']").First()
 
-				// Health score should be 3.0 (only session2)
-				healthScore, err := teamCard.Locator("[data-testid='team-health-score']").TextContent()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(healthScore).To(ContainSubstring("3.0"))
+				// Health score should be 3.0 (only session2) — wait for API response after filter change
+				Eventually(func() string {
+					text, _ := teamCard.Locator("[data-testid='team-health-score']").TextContent()
+					return text
+				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("3.0"))
 
 				// Submission count should be 1 (only session2)
-				submissionCount, err := teamCard.Locator("[data-testid='submission-count']").TextContent()
-				Expect(err).NotTo(HaveOccurred())
-				Expect(submissionCount).To(ContainSubstring("1"))
+				Eventually(func() string {
+					text, _ := teamCard.Locator("[data-testid='submission-count']").TextContent()
+					return text
+				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("1"))
 			})
 		})
 
