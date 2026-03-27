@@ -136,19 +136,25 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		It("should toggle between person and dimension views", func() {
 			loginAndGoToResponses()
 
-			By("Verifying default view is Matrix (not Cards)")
-			// The new UI defaults to matrix view, with Matrix/Cards toggle buttons
-			matrixBtn := page.Locator("button:has-text('Matrix')")
-			matrixClass, err := matrixBtn.GetAttribute("class")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(matrixClass).To(ContainSubstring("text-indigo-600"))
-
 			By("Verifying matrix table is visible by default")
 			matrixTable := page.Locator("table")
 			Eventually(func() bool {
 				visible, _ := matrixTable.IsVisible()
 				return visible
 			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
+
+			By("Verifying Matrix button is active (default view)")
+			// The Matrix button should have the active class (text-indigo-600)
+			matrixBtn := page.Locator("button:has-text('Matrix')")
+			err := matrixBtn.WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(5000),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			matrixClass, err := matrixBtn.GetAttribute("class")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matrixClass).To(ContainSubstring("text-indigo-600"))
 
 			By("Clicking Cards button to switch view")
 			cardsBtn := page.Locator("button:has-text('Cards')")
@@ -161,6 +167,12 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 				count, _ := cards.Count()
 				return count
 			}, 5*time.Second, 500*time.Millisecond).Should(BeNumerically(">", 0))
+
+			By("Verifying matrix table is hidden in cards view")
+			Eventually(func() bool {
+				visible, _ := matrixTable.IsVisible()
+				return !visible
+			}, 3*time.Second, 300*time.Millisecond).Should(BeTrue())
 
 			By("Switching back to matrix view")
 			err = matrixBtn.Click()
@@ -188,6 +200,12 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 
 			By("Verifying score cell for e2e_member1 - mission (Green, Improving)")
 			scoreEl := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-mission']")
+			err = scoreEl.WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(5000),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
 			scoreText, err := scoreEl.TextContent()
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scoreText).To(Equal("G"))

@@ -182,18 +182,19 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				// Click the "Chart" button to switch from breakdown view to chart view
 				By("Switching to chart view")
 				chartViewBtn := page.Locator("button:has-text('Chart')")
-				// Only click if there's data (button will only exist if there's data)
-				chartBtnVisible, _ := chartViewBtn.IsVisible()
-				if chartBtnVisible {
-					err = chartViewBtn.Click()
-					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(500 * time.Millisecond) // Wait for view transition
-				}
+				err = chartViewBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
 
-				// Either the chart or the "no data" message should be visible
-				chartOrNoData := page.Locator("[data-testid='distribution-chart'], .recharts-bar, svg:has(.recharts-bar-rectangle)").
-				Or(page.Locator("text=No distribution data available"))
-				err = chartOrNoData.First().WaitFor(playwright.LocatorWaitForOptions{
+				err = chartViewBtn.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				// Wait for the chart to be visible after clicking
+				By("Verifying bar chart is displayed")
+				chartElement := page.Locator("[data-testid='distribution-chart']")
+				err = chartElement.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
 				})
