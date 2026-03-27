@@ -327,15 +327,13 @@ var _ = Describe("E2E: Manager Dashboard", Label("e2e"), func() {
 				teamCard := page.Locator("[data-testid='team-health-card']").First()
 
 				// Health score should be 3.0 (only session2) — wait for API response after filter change
-				Eventually(func() string {
-					text, _ := teamCard.Locator("[data-testid='team-health-score']").TextContent()
-					return text
+				Eventually(func() (string, error) {
+					return teamCard.Locator("[data-testid='team-health-score']").TextContent()
 				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("3.0"))
 
 				// Submission count should be 1 (only session2)
-				Eventually(func() string {
-					text, _ := teamCard.Locator("[data-testid='submission-count']").TextContent()
-					return text
+				Eventually(func() (string, error) {
+					return teamCard.Locator("[data-testid='submission-count']").TextContent()
 				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("1"))
 			})
 		})
