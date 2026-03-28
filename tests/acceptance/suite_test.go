@@ -89,6 +89,9 @@ var _ = SynchronizedBeforeSuite(
 		// Seed test data
 		By("Seeding test users, teams, and health check data")
 
+		// Clean up any existing e2e test users from previous runs to ensure fresh state
+		_, _ = db.Exec(`DELETE FROM users WHERE id LIKE 'e2e_%'`)
+
 		// Insert test-specific users to avoid conflicts with seed migration
 		// Using test-specific IDs (e2e_*) to avoid conflicts with existing seed data
 		// Schema: id, username, email, full_name, hierarchy_level_id, reports_to, password_hash
