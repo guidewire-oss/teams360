@@ -339,7 +339,8 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 
 				// Check that the trends section has some content rendered
 				// We don't need to be too specific about what - just verify it's not empty
-				hasContent, _ := trendsSection.Evaluate("el => el.children.length > 0")
+				hasContent, err := trendsSection.Evaluate("el => el.children.length > 0", nil)
+				Expect(err).NotTo(HaveOccurred())
 				Expect(hasContent).To(BeTrue(), "Trends section should have content rendered")
 
 				GinkgoWriter.Printf("Trends chart section displayed successfully\n")
