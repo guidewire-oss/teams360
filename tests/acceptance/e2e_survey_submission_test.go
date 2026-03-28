@@ -22,7 +22,7 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			// Reset user's team assignment to e2e_team1 (may have been changed by other tests)
 			_, err := db.Exec("DELETE FROM team_members WHERE user_id = $1", testUserID)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
+			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT (team_id, user_id) DO NOTHING", testTeamID, testUserID)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Clean up ONLY sessions created by THIS test (identified by being in current assessment period for this team/user)

@@ -69,7 +69,7 @@ var _ = Describe("E2E: Team Member Management", func() {
 
 		Context("when team has members", func() {
 			BeforeEach(func() {
-				_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT DO NOTHING`, testTeamID)
+				_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
 				Expect(err).NotTo(HaveOccurred())
 			})
 
@@ -145,7 +145,7 @@ var _ = Describe("E2E: Team Member Management", func() {
 
 	Describe("DELETE /api/v1/admin/teams/:id/members/:userId", func() {
 		BeforeEach(func() {
-			_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member3') ON CONFLICT DO NOTHING`, testTeamID)
+			_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member3') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
