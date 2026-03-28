@@ -347,6 +347,7 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 				_, err := db.Exec(`
 					INSERT INTO teams (id, name, team_lead_id, cadence)
 					VALUES ($1, 'Aggregation Test Team', $2, 'monthly')
+					ON CONFLICT (id) DO NOTHING
 				`, testTeamID, testLeadID)
 				Expect(err).NotTo(HaveOccurred())
 
@@ -364,6 +365,7 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 				_, err = db.Exec(`
 					INSERT INTO team_supervisors (team_id, user_id, hierarchy_level_id, position)
 					VALUES ($1, $2, 'level-3', 1)
+					ON CONFLICT (team_id, user_id) DO NOTHING
 				`, testTeamID, testManagerID)
 				Expect(err).NotTo(HaveOccurred())
 
