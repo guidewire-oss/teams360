@@ -353,12 +353,12 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 
 				// Add members to team
 				for _, memberID := range memberIDs {
-					_, err = db.Exec(`
+					_, insertErr := db.Exec(`
 						INSERT INTO team_members (team_id, user_id)
 						VALUES ($1, $2)
-					ON CONFLICT (team_id, user_id) DO NOTHING
+						ON CONFLICT (team_id, user_id) DO NOTHING
 					`, testTeamID, memberID)
-					Expect(err).NotTo(HaveOccurred())
+					Expect(insertErr).NotTo(HaveOccurred(), "Failed to add member %s to team %s", memberID, testTeamID)
 				}
 
 				// Assign manager to supervise team
