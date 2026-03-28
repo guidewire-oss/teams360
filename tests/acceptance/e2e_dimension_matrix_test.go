@@ -231,10 +231,14 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scoreClass).To(ContainSubstring("rounded-full"))
 
-			// Verify green color via inline style (score 3 = #10B981)
+			// Verify green color via inline style (score 3 = #10B981 or rgb(16, 185, 129))
 			scoreStyle, err := scoreEl.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scoreStyle).To(ContainSubstring("10B981")) // Green color
+			// Browser may convert hex to rgb, so check for either format
+			isGreen := ContainSubstring("10b981").Match(scoreStyle) ||
+			           ContainSubstring("10B981").Match(scoreStyle) ||
+			           ContainSubstring("rgb(16, 185, 129)").Match(scoreStyle)
+			Expect(isGreen).To(BeTrue(), "Expected green color (hex or rgb format)")
 
 			// Verify aria-label says "Green"
 			ariaLabel, err := scoreEl.GetAttribute("aria-label")
@@ -250,7 +254,11 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			speedScore := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-speed']")
 			speedStyle, err := speedScore.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(speedStyle).To(ContainSubstring("EF4444")) // Red color (score 1 = #EF4444)
+			// Browser may convert hex to rgb, so check for either format (score 1 = #EF4444 or rgb(239, 68, 68))
+			isRed := ContainSubstring("ef4444").Match(speedStyle) ||
+			         ContainSubstring("EF4444").Match(speedStyle) ||
+			         ContainSubstring("rgb(239, 68, 68)").Match(speedStyle)
+			Expect(isRed).To(BeTrue(), "Expected red color (hex or rgb format)")
 
 			speedLabel, err := speedScore.GetAttribute("aria-label")
 			Expect(err).NotTo(HaveOccurred())
