@@ -1,6 +1,7 @@
 package acceptance_test
 
 import (
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -235,10 +236,10 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			scoreStyle, err := scoreEl.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
 			// Browser may convert hex to rgb, so check for either format
-			isGreen := ContainSubstring("10b981").Match(scoreStyle) ||
-			           ContainSubstring("10B981").Match(scoreStyle) ||
-			           ContainSubstring("rgb(16, 185, 129)").Match(scoreStyle)
-			Expect(isGreen).To(BeTrue(), "Expected green color (hex or rgb format)")
+			styleLower := strings.ToLower(scoreStyle)
+			isGreen := strings.Contains(styleLower, "10b981") ||
+			           strings.Contains(styleLower, "rgb(16, 185, 129)")
+			Expect(isGreen).To(BeTrue(), "Expected green color (hex or rgb format), got: %s", scoreStyle)
 
 			// Verify aria-label says "Green"
 			ariaLabel, err := scoreEl.GetAttribute("aria-label")
@@ -255,10 +256,10 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			speedStyle, err := speedScore.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
 			// Browser may convert hex to rgb, so check for either format (score 1 = #EF4444 or rgb(239, 68, 68))
-			isRed := ContainSubstring("ef4444").Match(speedStyle) ||
-			         ContainSubstring("EF4444").Match(speedStyle) ||
-			         ContainSubstring("rgb(239, 68, 68)").Match(speedStyle)
-			Expect(isRed).To(BeTrue(), "Expected red color (hex or rgb format)")
+			speedStyleLower := strings.ToLower(speedStyle)
+			isRed := strings.Contains(speedStyleLower, "ef4444") ||
+			         strings.Contains(speedStyleLower, "rgb(239, 68, 68)")
+			Expect(isRed).To(BeTrue(), "Expected red color (hex or rgb format), got: %s", speedStyle)
 
 			speedLabel, err := speedScore.GetAttribute("aria-label")
 			Expect(err).NotTo(HaveOccurred())
