@@ -28,7 +28,13 @@ var _ = Describe("E2E: Team Member Management", func() {
 			INSERT INTO teams (id, name, team_lead_id) VALUES ($1, 'E2E Members Test Team', 'e2e_lead1')
 			ON CONFLICT (id) DO NOTHING
 		`, testTeamID)
-		Expect(err).NotTo(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred(), "Failed to create test team")
+
+		// Verify team was actually created
+		var teamExists bool
+		err = db.QueryRow(`SELECT EXISTS(SELECT 1 FROM teams WHERE id = $1)`, testTeamID).Scan(&teamExists)
+		Expect(err).NotTo(HaveOccurred(), "Failed to verify team exists")
+		Expect(teamExists).To(BeTrue(), "Team should exist after creation")
 	})
 
 	AfterEach(func() {
@@ -69,8 +75,14 @@ var _ = Describe("E2E: Team Member Management", func() {
 
 		Context("when team has members", func() {
 			BeforeEach(func() {
-				_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
-				Expect(err).NotTo(HaveOccurred())
+				// Verify user exists before adding
+				var userExists bool
+				err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = 'e2e_member1')`).Scan(&userExists)
+				Expect(err).NotTo(HaveOccurred(), "Failed to check if e2e_member1 exists")
+				Expect(userExists).To(BeTrue(), "User e2e_member1 should exist")
+
+				_, err = db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
+				Expect(err).NotTo(HaveOccurred(), "Failed to add e2e_member1 to team")
 			})
 
 			It("should return member list with user details", func() {
