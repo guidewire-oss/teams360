@@ -895,12 +895,23 @@ export default function DashboardPage() {
                                                     className="inline-block w-5 h-5 rounded-full"
                                                     style={{ backgroundColor: getScoreDotColor(score) }}
                                                     aria-label={getScoreLabel(score)}
-                                                    data-testid="score-indicator"
+                                                    data-testid={`matrix-score-${response.sessionId}-${dim.dimensionId}`}
                                                   />
-                                                  <TrendIcon className={`w-3 h-3 ${trendColor}`} />
+                                                  <TrendIcon
+                                                    className={`w-3 h-3 ${trendColor}`}
+                                                    data-testid={`matrix-trend-${response.sessionId}-${dim.dimensionId}`}
+                                                  />
                                                 </div>
                                               ) : (
                                                 <span className="text-gray-300 text-xs">—</span>
+                                              )}
+                                              {comment && (
+                                                <span
+                                                  className="sr-only"
+                                                  data-testid={`matrix-comment-${response.sessionId}-${dim.dimensionId}`}
+                                                >
+                                                  Has comment
+                                                </span>
                                               )}
                                             </td>
                                           );

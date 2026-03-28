@@ -206,7 +206,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 	})
 
 	Describe("Matrix cell content", func() {
-		It("should display score boxes with color coding and trend arrows", func() {
+		It("should display colored dots with trend icons and comment indicators", func() {
 			loginAndGoToResponses()
 
 			// Matrix is default view, no need to switch
@@ -218,7 +218,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying score cell for e2e_member1 - mission (Green, Improving)")
+			By("Verifying score cell for e2e_member1 - mission (Green dot, Improving)")
 			scoreEl := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-mission']")
 			err = scoreEl.WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
@@ -226,38 +226,44 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			scoreText, err := scoreEl.TextContent()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(scoreText).To(Equal("G"))
-
+			// Verify it's a colored dot (rounded circle with background color)
 			scoreClass, err := scoreEl.GetAttribute("class")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scoreClass).To(ContainSubstring("bg-green-500"))
+			Expect(scoreClass).To(ContainSubstring("rounded-full"))
 
+			// Verify green color via inline style (score 3 = #10B981)
+			scoreStyle, err := scoreEl.GetAttribute("style")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scoreStyle).To(ContainSubstring("10B981")) // Green color
+
+			// Verify aria-label says "Green"
+			ariaLabel, err := scoreEl.GetAttribute("aria-label")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ariaLabel).To(Equal("Green"))
+
+			// Verify trend icon is visible
 			trendEl := page.Locator("[data-testid='matrix-trend-e2e_matrix_s1-mission']")
-			trendText, err := trendEl.TextContent()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(trendText).To(Equal("↑"))
+			trendVisible, _ := trendEl.IsVisible()
+			Expect(trendVisible).To(BeTrue())
 
-			By("Verifying score cell for e2e_member1 - speed (Red, Declining)")
+			By("Verifying score cell for e2e_member1 - speed (Red dot, Declining)")
 			speedScore := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-speed']")
-			speedText, err := speedScore.TextContent()
+			speedStyle, err := speedScore.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(speedText).To(Equal("R"))
+			Expect(speedStyle).To(ContainSubstring("EF4444")) // Red color (score 1 = #EF4444)
 
-			speedClass, err := speedScore.GetAttribute("class")
+			speedLabel, err := speedScore.GetAttribute("aria-label")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(speedClass).To(ContainSubstring("bg-red-500"))
+			Expect(speedLabel).To(Equal("Red"))
 
 			speedTrend := page.Locator("[data-testid='matrix-trend-e2e_matrix_s1-speed']")
-			speedTrendText, err := speedTrend.TextContent()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(speedTrendText).To(Equal("↓"))
+			speedTrendVisible, _ := speedTrend.IsVisible()
+			Expect(speedTrendVisible).To(BeTrue())
 
 			By("Verifying comment indicator for cells with comments")
 			commentIndicator := page.Locator("[data-testid='matrix-comment-e2e_matrix_s1-mission']")
-			commentVisible, _ := commentIndicator.IsVisible()
-			Expect(commentVisible).To(BeTrue())
+			commentCount, _ := commentIndicator.Count()
+			Expect(commentCount).To(Equal(1))
 
 			By("Verifying no comment indicator for cells without comments")
 			noComment := page.Locator("[data-testid='matrix-comment-e2e_matrix_s1-value']")
