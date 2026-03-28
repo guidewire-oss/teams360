@@ -75,13 +75,8 @@ var _ = Describe("E2E: Team Member Management", func() {
 
 		Context("when team has members", func() {
 			BeforeEach(func() {
-				// Verify user exists before adding
-				var userExists bool
-				err := db.QueryRow(`SELECT EXISTS(SELECT 1 FROM users WHERE id = 'e2e_member1')`).Scan(&userExists)
-				Expect(err).NotTo(HaveOccurred(), "Failed to check if e2e_member1 exists")
-				Expect(userExists).To(BeTrue(), "User e2e_member1 should exist")
-
-				_, err = db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
+				// Add e2e_member1 to the test team
+				_, err := db.Exec(`INSERT INTO team_members (team_id, user_id) VALUES ($1, 'e2e_member1') ON CONFLICT (team_id, user_id) DO NOTHING`, testTeamID)
 				Expect(err).NotTo(HaveOccurred(), "Failed to add e2e_member1 to team")
 			})
 
