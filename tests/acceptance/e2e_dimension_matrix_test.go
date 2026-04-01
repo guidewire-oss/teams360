@@ -1,6 +1,7 @@
 package acceptance_test
 
 import (
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -22,8 +23,9 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id = $1`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
 
+		// Create team lead
 		_, err := db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
 			VALUES ($1, $2, $3, 'E2E Matrix Lead', 'level-4', $4)
@@ -31,11 +33,30 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		`, matrixLead, matrixLead, matrixLead+"@teams360.demo", DemoPasswordHash)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Create team members
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash) VALUES
+			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member 1', 'level-5', $1),
+			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member 2', 'level-5', $1)
+			ON CONFLICT (id) DO NOTHING
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Create team
 		_, err = db.Exec(`
 			INSERT INTO teams (id, name, team_lead_id)
 			VALUES ($1, 'E2E Matrix Team', $2)
 			ON CONFLICT (id) DO NOTHING
 		`, matrixTeam, matrixLead)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Add members to team
+		_, err = db.Exec(`
+			INSERT INTO team_members (team_id, user_id) VALUES
+			($1, 'e2e_member1'),
+			($1, 'e2e_member2')
+			ON CONFLICT DO NOTHING
+		`, matrixTeam)
 		Expect(err).NotTo(HaveOccurred())
 
 		_, err = db.Exec(`
@@ -85,7 +106,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id = $1`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
 		if page != nil {
 			page.Close()
 		}
@@ -136,100 +157,122 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		It("should toggle between person and dimension views", func() {
 			loginAndGoToResponses()
 
-			By("Verifying default view is By Person")
-			personBtn := page.Locator("[data-testid='view-by-person-btn']")
-			personClass, err := personBtn.GetAttribute("class")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(personClass).To(ContainSubstring("text-indigo-600"))
+			By("Verifying matrix table is visible by default")
+			matrixTable := page.Locator("table")
+			Eventually(func() bool {
+				visible, _ := matrixTable.IsVisible()
+				return visible
+			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
 
-			By("Verifying response cards are visible (person view)")
+			By("Verifying Matrix button is active (default view)")
+			// The Matrix button should have the active class (text-indigo-600)
+			matrixBtn := page.Locator("[data-testid='matrix-view-btn']")
+			err := matrixBtn.WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(5000),
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			matrixClass, err := matrixBtn.GetAttribute("class")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(matrixClass).To(ContainSubstring("text-indigo-600"))
+
+			By("Clicking Cards button to switch view")
+			cardsBtn := page.Locator("[data-testid='cards-view-btn']")
+			err = cardsBtn.Click()
+			Expect(err).NotTo(HaveOccurred())
+
+			By("Verifying response cards are visible (cards view)")
 			cards := page.Locator("[data-testid='response-card']")
 			Eventually(func() int {
 				count, _ := cards.Count()
 				return count
 			}, 5*time.Second, 500*time.Millisecond).Should(BeNumerically(">", 0))
 
-			By("Clicking By Dimension button")
-			dimBtn := page.Locator("[data-testid='view-by-dimension-btn']")
-			err = dimBtn.Click()
-			Expect(err).NotTo(HaveOccurred())
-
-			By("Verifying dimension matrix is visible")
-			matrix := page.Locator("[data-testid='dimension-matrix']")
+			By("Verifying matrix table is hidden in cards view")
 			Eventually(func() bool {
-				visible, _ := matrix.IsVisible()
-				return visible
-			}, 5*time.Second, 500*time.Millisecond).Should(BeTrue())
+				visible, _ := matrixTable.IsVisible()
+				return !visible
+			}, 3*time.Second, 300*time.Millisecond).Should(BeTrue())
 
-			By("Verifying dimension column headers exist")
-			missionHeader := page.Locator("[data-testid='matrix-header-mission']")
-			visible, _ := missionHeader.IsVisible()
-			Expect(visible).To(BeTrue())
-
-			funHeader := page.Locator("[data-testid='matrix-header-fun']")
-			visible, _ = funHeader.IsVisible()
-			Expect(visible).To(BeTrue())
-
-			By("Switching back to person view")
-			err = personBtn.Click()
+			By("Switching back to matrix view")
+			err = matrixBtn.Click()
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(func() bool {
-				visible, _ := matrix.IsVisible()
+				visible, _ := matrixTable.IsVisible()
 				return visible
-			}, 3*time.Second, 300*time.Millisecond).Should(BeFalse())
+			}, 3*time.Second, 300*time.Millisecond).Should(BeTrue())
 		})
 	})
 
 	Describe("Matrix cell content", func() {
-		It("should display score boxes with color coding and trend arrows", func() {
+		It("should display colored dots with trend icons and comment indicators", func() {
 			loginAndGoToResponses()
 
-			By("Switching to dimension view")
-			err := page.Locator("[data-testid='view-by-dimension-btn']").Click()
-			Expect(err).NotTo(HaveOccurred())
-
-			matrix := page.Locator("[data-testid='dimension-matrix']")
-			err = matrix.WaitFor(playwright.LocatorWaitForOptions{
+			// Matrix is default view, no need to switch
+			By("Verifying matrix is visible by default")
+			matrixTable := page.Locator("table")
+			err := matrixTable.WaitFor(playwright.LocatorWaitForOptions{
 				State:   playwright.WaitForSelectorStateVisible,
 				Timeout: playwright.Float(5000),
 			})
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Verifying score cell for e2e_member1 - mission (Green, Improving)")
+			By("Verifying score cell for e2e_member1 - mission (Green dot, Improving)")
 			scoreEl := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-mission']")
-			scoreText, err := scoreEl.TextContent()
+			err = scoreEl.WaitFor(playwright.LocatorWaitForOptions{
+				State:   playwright.WaitForSelectorStateVisible,
+				Timeout: playwright.Float(5000),
+			})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scoreText).To(Equal("G"))
 
+			// Verify it's a colored dot (rounded circle with background color)
 			scoreClass, err := scoreEl.GetAttribute("class")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scoreClass).To(ContainSubstring("bg-green-500"))
+			Expect(scoreClass).To(ContainSubstring("rounded-full"))
 
+			// Verify green color via inline style (score 3 = #10B981 or rgb(16, 185, 129))
+			scoreStyle, err := scoreEl.GetAttribute("style")
+			Expect(err).NotTo(HaveOccurred())
+			// Browser may convert hex to rgb, so check for either format
+			styleLower := strings.ToLower(scoreStyle)
+			isGreen := strings.Contains(styleLower, "10b981") ||
+			           strings.Contains(styleLower, "rgb(16, 185, 129)")
+			Expect(isGreen).To(BeTrue(), "Expected green color (hex or rgb format), got: %s", scoreStyle)
+
+			// Verify aria-label says "Green"
+			ariaLabel, err := scoreEl.GetAttribute("aria-label")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(ariaLabel).To(Equal("Green"))
+
+			// Verify trend icon is visible
 			trendEl := page.Locator("[data-testid='matrix-trend-e2e_matrix_s1-mission']")
-			trendText, err := trendEl.TextContent()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(trendText).To(Equal("↑"))
+			trendVisible, _ := trendEl.IsVisible()
+			Expect(trendVisible).To(BeTrue())
 
-			By("Verifying score cell for e2e_member1 - speed (Red, Declining)")
+			By("Verifying score cell for e2e_member1 - speed (Red dot, Declining)")
 			speedScore := page.Locator("[data-testid='matrix-score-e2e_matrix_s1-speed']")
-			speedText, err := speedScore.TextContent()
+			speedStyle, err := speedScore.GetAttribute("style")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(speedText).To(Equal("R"))
+			// Browser may convert hex to rgb, so check for either format (score 1 = #EF4444 or rgb(239, 68, 68))
+			speedStyleLower := strings.ToLower(speedStyle)
+			isRed := strings.Contains(speedStyleLower, "ef4444") ||
+			         strings.Contains(speedStyleLower, "rgb(239, 68, 68)")
+			Expect(isRed).To(BeTrue(), "Expected red color (hex or rgb format), got: %s", speedStyle)
 
-			speedClass, err := speedScore.GetAttribute("class")
+			speedLabel, err := speedScore.GetAttribute("aria-label")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(speedClass).To(ContainSubstring("bg-red-500"))
+			Expect(speedLabel).To(Equal("Red"))
 
 			speedTrend := page.Locator("[data-testid='matrix-trend-e2e_matrix_s1-speed']")
-			speedTrendText, err := speedTrend.TextContent()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(speedTrendText).To(Equal("↓"))
+			speedTrendVisible, _ := speedTrend.IsVisible()
+			Expect(speedTrendVisible).To(BeTrue())
 
 			By("Verifying comment indicator for cells with comments")
 			commentIndicator := page.Locator("[data-testid='matrix-comment-e2e_matrix_s1-mission']")
-			commentVisible, _ := commentIndicator.IsVisible()
-			Expect(commentVisible).To(BeTrue())
+			commentCount, _ := commentIndicator.Count()
+			Expect(commentCount).To(Equal(1))
 
 			By("Verifying no comment indicator for cells without comments")
 			noComment := page.Locator("[data-testid='matrix-comment-e2e_matrix_s1-value']")

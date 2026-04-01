@@ -43,7 +43,7 @@ var _ = Describe("Integration: User Admin SSO", func() {
 		userRepo := postgres.NewUserRepository(db)
 		teamRepo := postgres.NewTeamRepository(db)
 		v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 	})
 
 	AfterEach(func() {

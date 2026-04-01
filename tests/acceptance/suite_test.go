@@ -89,23 +89,46 @@ var _ = SynchronizedBeforeSuite(
 		// Seed test data
 		By("Seeding test users, teams, and health check data")
 
+		// Clean up any existing e2e test users from previous runs to ensure fresh state
+		// Delete by ID, username, and email patterns to handle all potential conflicts
+		_, _ = db.Exec(`DELETE FROM users WHERE id LIKE 'e2e_%' OR username LIKE 'e2e_%' OR email LIKE 'e2e_%@%'`)
+
 		// Insert test-specific users to avoid conflicts with seed migration
 		// Using test-specific IDs (e2e_*) to avoid conflicts with existing seed data
 		// Schema: id, username, email, full_name, hierarchy_level_id, reports_to, password_hash
+		// Insert users in order to respect reports_to foreign key constraints
+		// First: managers (no reports_to)
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
+			('e2e_manager1', 'e2e_manager1', 'e2e_manager1@teams360.demo', 'E2E Manager One', 'level-3', NULL, $1),
+			('e2e_testmanager1', 'e2e_testmanager1', 'e2e_testmanager@teams360.demo', 'E2E Test Manager', 'level-3', NULL, $1)
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e managers")
+
+		// Second: team leads (reports_to managers)
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
+			('e2e_lead1', 'e2e_lead1', 'e2e_lead1@teams360.demo', 'E2E Lead One', 'level-4', 'e2e_manager1', $1),
+			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1)
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e team leads")
+
+		// Third: team members (reports_to team leads)
 		_, err = db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
 			('e2e_demo', 'e2e_demo', 'e2e_demo@teams360.demo', 'E2E Demo User', 'level-5', 'e2e_lead1', $1),
-			('e2e_manager1', 'e2e_manager1', 'e2e_manager1@teams360.demo', 'E2E Manager One', 'level-3', NULL, $1),
-			('e2e_testmanager1', 'e2e_testmanager1', 'e2e_testmanager@teams360.demo', 'E2E Test Manager', 'level-3', NULL, $1),
-			('e2e_lead1', 'e2e_lead1', 'e2e_lead1@teams360.demo', 'E2E Lead One', 'level-4', 'e2e_manager1', $1),
-			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1),
 			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member One', 'level-5', 'e2e_lead1', $1),
 			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member Two', 'level-5', 'e2e_lead2', $1),
 			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1),
 			('e2e_fresh_member', 'e2e_fresh_member', 'e2e_fresh_member@teams360.demo', 'E2E Fresh Member', 'level-5', 'e2e_lead1', $1)
-			ON CONFLICT (id) DO NOTHING
 		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e team members")
+
+		// Verify that e2e users were actually inserted
+		var userCount int
+		err = db.QueryRow(`SELECT COUNT(*) FROM users WHERE id LIKE 'e2e_%'`).Scan(&userCount)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(userCount).To(Equal(9), "Expected 9 e2e_ users to be inserted (2 managers + 2 leads + 5 members)")
 
 		// Insert E2E test teams (schema: id, name, team_lead_id)
 		// Note: No manager_id column - managers tracked via team_supervisors table

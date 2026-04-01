@@ -209,7 +209,7 @@ func main() {
 
 	// Setup API routes with repository injection
 	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, notificationService)
-	v1.SetupAuthRoutes(router, userRepo, jwtService)
+	v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 	v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
 	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)

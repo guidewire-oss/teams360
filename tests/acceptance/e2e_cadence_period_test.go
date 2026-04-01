@@ -32,7 +32,7 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				db.Exec("DELETE FROM teams WHERE id = $1", cadenceTeamID)
 			}
 			// Restore user's original team membership
-			db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ('e2e_team1', $1) ON CONFLICT DO NOTHING", testUserID)
+			db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ('e2e_team1', $1) ON CONFLICT (team_id, user_id) DO NOTHING", testUserID)
 		})
 
 		Context("when team has quarterly cadence", func() {

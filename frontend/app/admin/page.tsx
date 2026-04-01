@@ -362,7 +362,7 @@ export default function AdminPage() {
       handleCancelTeamForm();
     } catch (err: any) {
       console.error("Failed to update team:", err);
-      setTeamFormError(err.message || "Failed to update team");
+      setTeamFormError("Failed to save team changes. Please try again or contact support if the issue persists.");
     } finally {
       setTeamFormLoading(false);
     }
@@ -452,6 +452,7 @@ export default function AdminPage() {
     setUserFormError(null);
     setEditingUser(userToEdit);
     setShowNewUserForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle user form submit
