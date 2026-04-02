@@ -25,7 +25,7 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 				// Ensure user is assigned to e2e_team1 (in case other tests changed the assignment)
 				_, err := db.Exec("DELETE FROM team_members WHERE user_id = $1", testUserID)
 				Expect(err).NotTo(HaveOccurred())
-				_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
+				_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT (team_id, user_id) DO NOTHING", testTeamID, testUserID)
 				Expect(err).NotTo(HaveOccurred())
 			})
 

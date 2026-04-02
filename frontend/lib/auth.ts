@@ -14,6 +14,7 @@ export interface APIUser {
   fullName: string;
   hierarchyLevel: string;
   teamIds: string[];
+  canTakeSurvey?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ export interface AuthUser extends Omit<DomainUser, 'password'> {
   // API-aligned field names (aliases for backwards compatibility)
   fullName: string;
   hierarchyLevel: string;
+  canTakeSurvey?: boolean;
 }
 
 // For backwards compatibility - components can still import "User" from auth.ts
@@ -184,6 +186,7 @@ export const getCurrentUser = (): AuthUser | null => {
         // API-aligned names
         fullName,
         hierarchyLevel,
+        canTakeSurvey: apiUser.canTakeSurvey || false,
         // Backwards-compatible aliases
         name: fullName,
         hierarchyLevelId: hierarchyLevel,
