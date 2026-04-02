@@ -652,6 +652,7 @@ export default function DashboardPage() {
                           <button
                             data-testid="distribution-chart-btn"
                             onClick={() => setDistributionView('chart')}
+                            data-testid="distribution-chart-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               distributionView === 'chart'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -770,6 +771,7 @@ export default function DashboardPage() {
                           <button
                             data-testid="matrix-view-btn"
                             onClick={() => setResponseView('matrix')}
+                            data-testid="matrix-view-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'matrix'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -782,6 +784,7 @@ export default function DashboardPage() {
                           <button
                             data-testid="cards-view-btn"
                             onClick={() => setResponseView('cards')}
+                            data-testid="cards-view-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'cards'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -890,7 +893,7 @@ export default function DashboardPage() {
                                               onMouseLeave={() => setTooltip(null)}
                                             >
                                               {score > 0 ? (
-                                                <div className="flex flex-col items-center gap-0.5">
+                                                <div className="flex flex-col items-center gap-0.5 relative">
                                                   <span
                                                     className="inline-block w-5 h-5 rounded-full"
                                                     style={{ backgroundColor: getScoreDotColor(score) }}
@@ -901,6 +904,12 @@ export default function DashboardPage() {
                                                     className={`w-3 h-3 ${trendColor}`}
                                                     data-testid={`matrix-trend-${response.sessionId}-${dim.dimensionId}`}
                                                   />
+                                                  {comment && (
+                                                    <span
+                                                      className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-indigo-400"
+                                                      data-testid={`matrix-comment-${response.sessionId}-${dim.dimensionId}`}
+                                                    />
+                                                  )}
                                                 </div>
                                               ) : (
                                                 <span className="text-gray-300 text-xs">—</span>

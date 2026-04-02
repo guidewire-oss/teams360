@@ -163,7 +163,7 @@ func main() {
 	trendsService := trends.NewService(db)
 	jwtService := services.NewJWTService()
 
-	// Initialize email service: SES > SMTP > mock
+	// Initialize email service: SES > SMTP > disabled
 	var emailSender email.Sender
 	if sesCfg := email.LoadSESConfig(); sesCfg != nil {
 		ses, err := email.NewSESEmailService(sesCfg)
