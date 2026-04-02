@@ -74,7 +74,7 @@ var _ = Describe("Health Check API", func() {
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
 	})
 
 	AfterEach(func() {

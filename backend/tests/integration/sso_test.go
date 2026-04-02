@@ -63,7 +63,7 @@ var _ = Describe("SSO Authentication Integration Tests", func() {
 		userRepo := postgres.NewUserRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
 		jwtService := services.NewJWTService()
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 		v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
 	})
 

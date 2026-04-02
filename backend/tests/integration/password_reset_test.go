@@ -45,11 +45,12 @@ var _ = Describe("Password Reset API Integration Tests", func() {
 		jwtService = services.NewJWTService()
 
 		// Create email service (mock for testing - doesn't actually send emails)
-		emailService := services.NewMockEmailService()
+		emailService := testhelpers.NewMockEmailService()
 		passwordResetService = services.NewPasswordResetService(passwordResetRepo, userRepo, emailService)
 
 		// Setup auth routes with password reset
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
+		orgRepo := postgres.NewOrganizationRepository(db)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
 		v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 	})
 

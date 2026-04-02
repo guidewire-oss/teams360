@@ -48,7 +48,7 @@ var _ = Describe("Integration: Team Results API", func() {
 		teamRepo := postgres.NewTeamRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
 
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
 		v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	})
 
