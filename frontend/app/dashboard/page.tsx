@@ -890,7 +890,7 @@ export default function DashboardPage() {
                                               onMouseLeave={() => setTooltip(null)}
                                             >
                                               {score > 0 ? (
-                                                <div className="flex flex-col items-center gap-0.5">
+                                                <div className="flex flex-col items-center gap-0.5 relative">
                                                   <span
                                                     className="inline-block w-5 h-5 rounded-full"
                                                     style={{ backgroundColor: getScoreDotColor(score) }}
@@ -901,17 +901,15 @@ export default function DashboardPage() {
                                                     className={`w-3 h-3 ${trendColor}`}
                                                     data-testid={`matrix-trend-${response.sessionId}-${dim.dimensionId}`}
                                                   />
+                                                  {comment && (
+                                                    <span
+                                                      className="absolute -top-1 -right-1 w-1.5 h-1.5 rounded-full bg-indigo-400"
+                                                      data-testid={`matrix-comment-${response.sessionId}-${dim.dimensionId}`}
+                                                    />
+                                                  )}
                                                 </div>
                                               ) : (
                                                 <span className="text-gray-300 text-xs">—</span>
-                                              )}
-                                              {comment && (
-                                                <span
-                                                  className="sr-only"
-                                                  data-testid={`matrix-comment-${response.sessionId}-${dim.dimensionId}`}
-                                                >
-                                                  Has comment
-                                                </span>
                                               )}
                                             </td>
                                           );
