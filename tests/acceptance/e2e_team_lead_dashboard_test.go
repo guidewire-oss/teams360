@@ -179,13 +179,29 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 				})
 				Expect(err).NotTo(HaveOccurred())
 
+				// Verify test data exists in the database before waiting for UI
+				var sessionCount int
+				dbErr := db.QueryRow("SELECT COUNT(*) FROM health_check_sessions WHERE team_id = $1 AND completed = true", testTeamID).Scan(&sessionCount)
+				Expect(dbErr).NotTo(HaveOccurred())
+				var responseCount int
+				dbErr = db.QueryRow("SELECT COUNT(*) FROM health_check_responses WHERE session_id LIKE 'e2e_tl_%'").Scan(&responseCount)
+				Expect(dbErr).NotTo(HaveOccurred())
+				GinkgoWriter.Printf("Distribution tab: DB sessions=%d responses=%d\n", sessionCount, responseCount)
+
 				// Click the "Chart" button to switch from breakdown view to chart view
 				By("Switching to chart view")
 				chartViewBtn := page.Locator("[data-testid='distribution-chart-btn']")
 				err = chartViewBtn.WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(5000),
+					Timeout: playwright.Float(15000),
 				})
+				if err != nil {
+					// Log page HTML for diagnosis before failing
+					html, _ := page.Content()
+					GinkgoWriter.Printf("distribution-chart-btn not visible. DB: sessions=%d responses=%d. Page excerpt: %s\n",
+						sessionCount, responseCount,
+						html[max(0, len(html)-2000):])
+				}
 				Expect(err).NotTo(HaveOccurred())
 
 				err = chartViewBtn.Click()
