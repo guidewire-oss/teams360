@@ -306,9 +306,16 @@ export default function AdminPage() {
     setTeamFormError(null);
   };
 
+  const isValidEmail = (email: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
+
   const handleCreateTeam = async () => {
     if (!teamFormData.name.trim()) {
       setTeamFormError("Team name is required");
+      return;
+    }
+    const dlEmail = teamFormData.distributionListEmail.trim();
+    if (dlEmail && !isValidEmail(dlEmail)) {
+      setTeamFormError("Invalid email format for distribution list");
       return;
     }
 
@@ -319,7 +326,7 @@ export default function AdminPage() {
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
-        distributionListEmail: teamFormData.distributionListEmail.trim() || null,
+        distributionListEmail: dlEmail || null,
       });
 
       // Clear cache and refresh teams list
@@ -343,6 +350,11 @@ export default function AdminPage() {
       setTeamFormError("Team name is required");
       return;
     }
+    const dlEmail = teamFormData.distributionListEmail.trim();
+    if (dlEmail && !isValidEmail(dlEmail)) {
+      setTeamFormError("Invalid email format for distribution list");
+      return;
+    }
 
     setTeamFormLoading(true);
     setTeamFormError(null);
@@ -351,7 +363,7 @@ export default function AdminPage() {
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
-        distributionListEmail: teamFormData.distributionListEmail.trim() || null,
+        distributionListEmail: dlEmail || null,
       });
 
       // Clear cache and refresh teams list
