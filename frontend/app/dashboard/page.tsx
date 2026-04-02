@@ -652,7 +652,6 @@ export default function DashboardPage() {
                           <button
                             data-testid="distribution-chart-btn"
                             onClick={() => setDistributionView('chart')}
-                            data-testid="distribution-chart-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               distributionView === 'chart'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -771,7 +770,6 @@ export default function DashboardPage() {
                           <button
                             data-testid="matrix-view-btn"
                             onClick={() => setResponseView('matrix')}
-                            data-testid="matrix-view-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'matrix'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -784,7 +782,6 @@ export default function DashboardPage() {
                           <button
                             data-testid="cards-view-btn"
                             onClick={() => setResponseView('cards')}
-                            data-testid="cards-view-btn"
                             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
                               responseView === 'cards'
                                 ? 'bg-white text-indigo-600 shadow-sm'
@@ -913,14 +910,6 @@ export default function DashboardPage() {
                                                 </div>
                                               ) : (
                                                 <span className="text-gray-300 text-xs">—</span>
-                                              )}
-                                              {comment && (
-                                                <span
-                                                  className="sr-only"
-                                                  data-testid={`matrix-comment-${response.sessionId}-${dim.dimensionId}`}
-                                                >
-                                                  Has comment
-                                                </span>
                                               )}
                                             </td>
                                           );
