@@ -11,19 +11,21 @@ import (
 
 var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 	var (
-		page        playwright.Page
-		matrixTeam  = "e2e_matrix_team"
-		matrixLead  = "e2e_matrix_lead"
+		page          playwright.Page
+		matrixTeam    = "e2e_matrix_team"
+		matrixLead    = "e2e_matrix_lead"
+		matrixMember1 = "e2e_matrix_member1"
+		matrixMember2 = "e2e_matrix_member2"
 	)
 
 	BeforeEach(func() {
-		// Create an isolated user and team for matrix tests to avoid interference from admin tests
+		// Create an isolated user and team for matrix tests to avoid interference from other tests
 		_, _ = db.Exec(`DELETE FROM health_check_responses WHERE session_id IN ('e2e_matrix_s1', 'e2e_matrix_s2')`)
 		_, _ = db.Exec(`DELETE FROM health_check_sessions WHERE id IN ('e2e_matrix_s1', 'e2e_matrix_s2')`)
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, $2, $3)`, matrixLead, matrixMember1, matrixMember2)
 
 		// Create team lead
 		_, err := db.Exec(`
@@ -33,13 +35,13 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		`, matrixLead, matrixLead, matrixLead+"@teams360.demo", DemoPasswordHash)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Create team members
+		// Create team members (isolated IDs to avoid interfering with suite-seeded e2e_member1/e2e_member2)
 		_, err = db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash) VALUES
-			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member 1', 'level-5', $1),
-			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member 2', 'level-5', $1)
+			($1, $1, $2, 'E2E Matrix Member 1', 'level-5', $3),
+			($4, $4, $5, 'E2E Matrix Member 2', 'level-5', $3)
 			ON CONFLICT (id) DO NOTHING
-		`, DemoPasswordHash)
+		`, matrixMember1, matrixMember1+"@teams360.demo", DemoPasswordHash, matrixMember2, matrixMember2+"@teams360.demo")
 		Expect(err).NotTo(HaveOccurred())
 
 		// Create team
@@ -53,18 +55,18 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		// Add members to team
 		_, err = db.Exec(`
 			INSERT INTO team_members (team_id, user_id) VALUES
-			($1, 'e2e_member1'),
-			($1, 'e2e_member2')
+			($1, $2),
+			($1, $3)
 			ON CONFLICT DO NOTHING
-		`, matrixTeam)
+		`, matrixTeam, matrixMember1, matrixMember2)
 		Expect(err).NotTo(HaveOccurred())
 
 		_, err = db.Exec(`
 			INSERT INTO health_check_sessions (id, team_id, user_id, date, assessment_period, completed) VALUES
-			('e2e_matrix_s1', $1, 'e2e_member1', '2024-10-01', '2024 - 2nd Half', true),
-			('e2e_matrix_s2', $1, 'e2e_member2', '2024-10-02', '2024 - 2nd Half', true)
+			('e2e_matrix_s1', $1, $2, '2024-10-01', '2024 - 2nd Half', true),
+			('e2e_matrix_s2', $1, $3, '2024-10-02', '2024 - 2nd Half', true)
 			ON CONFLICT (id) DO NOTHING
-		`, matrixTeam)
+		`, matrixTeam, matrixMember1, matrixMember2)
 		Expect(err).NotTo(HaveOccurred())
 
 		_, err = db.Exec(`
@@ -106,7 +108,7 @@ var _ = Describe("E2E: Dimension Matrix View", Label("e2e"), func() {
 		_, _ = db.Exec(`DELETE FROM team_members WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM team_supervisors WHERE team_id = $1`, matrixTeam)
 		_, _ = db.Exec(`DELETE FROM teams WHERE id = $1`, matrixTeam)
-		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, 'e2e_member1', 'e2e_member2')`, matrixLead)
+		_, _ = db.Exec(`DELETE FROM users WHERE id IN ($1, $2, $3)`, matrixLead, matrixMember1, matrixMember2)
 		if page != nil {
 			page.Close()
 		}
