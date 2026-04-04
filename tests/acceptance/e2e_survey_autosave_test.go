@@ -24,7 +24,7 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 		page, err = ctx.NewPage()
 		Expect(err).NotTo(HaveOccurred())
 
-		// Clear any existing draft for e2e_demo user before each test
+		// Clear any existing draft before each test
 		_, err = page.Goto(frontendURL + "/login")
 		Expect(err).NotTo(HaveOccurred())
 		_, err = page.Evaluate(`() => {
@@ -49,7 +49,7 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 	})
 
 	loginAndGoToSurvey := func() {
-		By("Logging in as e2e_demo")
+		By("Logging in as e2e_lead1 (Team Lead, level-4)")
 		_, err := page.Goto(frontendURL + "/login")
 		Expect(err).NotTo(HaveOccurred())
 
@@ -59,27 +59,21 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		err = page.Locator("input[name='username']").Fill("e2e_demo")
+		err = page.Locator("input[name='username']").Fill("e2e_lead1")
 		Expect(err).NotTo(HaveOccurred())
 		err = page.Locator("input[name='password']").Fill("demo")
 		Expect(err).NotTo(HaveOccurred())
 		err = page.Locator("button[type='submit']").Click()
 		Expect(err).NotTo(HaveOccurred())
 
-		By("Waiting for redirect to home page")
-		err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+		By("Waiting for redirect to dashboard page")
+		err = page.WaitForURL("**/dashboard", playwright.PageWaitForURLOptions{
 			Timeout: playwright.Float(10000),
 		})
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Navigating to survey")
-		surveyBtn := page.Locator("[data-testid='take-survey-btn']")
-		err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
-			State:   playwright.WaitForSelectorStateVisible,
-			Timeout: playwright.Float(5000),
-		})
-		Expect(err).NotTo(HaveOccurred())
-		err = surveyBtn.Click()
+		_, err = page.Goto(frontendURL + "/survey")
 		Expect(err).NotTo(HaveOccurred())
 
 		err = page.WaitForURL("**/survey", playwright.PageWaitForURLOptions{

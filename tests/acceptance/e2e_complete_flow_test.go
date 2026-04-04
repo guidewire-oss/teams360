@@ -145,17 +145,9 @@ var _ = Describe("E2E: Complete Data Flow", Label("e2e", "critical"), func() {
 					err = scoreBtn.Click()
 					Expect(err).NotTo(HaveOccurred())
 
-					// Wait for trend buttons to appear (they only show after score is selected)
+					// Note: testMemberID (e2e_demo) is a Team Member (level-5) — trend input is hidden
+					// for individual surveys. Only score selection is needed.
 					time.Sleep(300 * time.Millisecond)
-
-					// Select trend using data-trend attribute (stable for simplicity)
-					trendBtn := page.Locator("button[data-trend='stable']").First()
-					Eventually(func() bool {
-						visible, _ := trendBtn.IsVisible()
-						return visible
-					}, 5*time.Second, 200*time.Millisecond).Should(BeTrue(), "Trend button should be visible")
-					err = trendBtn.Click()
-					Expect(err).NotTo(HaveOccurred())
 
 					// Add comment on first dimension only
 					if i == 0 {
