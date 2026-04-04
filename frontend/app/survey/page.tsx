@@ -258,7 +258,7 @@ function SurveyPageContent() {
       return;
     }
 
-    if (!isTeamMember && !currentResponse?.trend) {
+    if ((!isTeamMember || isPostWorkshop) && !currentResponse?.trend) {
       setValidationError('Please select a trend (Improving, Stable, or Declining) before continuing.');
       return;
     }
@@ -288,7 +288,7 @@ function SurveyPageContent() {
     }
 
     // Validate each response has both score and trend (trend only required for non-team-members)
-    const incompleteResponses = responses.filter(r => !r.score || (!isTeamMember && !r.trend));
+    const incompleteResponses = responses.filter(r => !r.score || ((!isTeamMember || isPostWorkshop) && !r.trend));
     if (incompleteResponses.length > 0) {
       setValidationError(isTeamMember
         ? 'Please select a score for all dimensions before submitting.'
@@ -559,7 +559,7 @@ function SurveyPageContent() {
 
             {currentResponse?.score && (
               <div className="mb-8 p-6 bg-gray-50 rounded-xl">
-                {!isTeamMember && (
+                {(!isTeamMember || isPostWorkshop) && (
                   <>
                     <h3 className="font-semibold text-gray-900 mb-4">Trend</h3>
                     <div className="flex gap-4">

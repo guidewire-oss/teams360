@@ -389,11 +389,11 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(err).NotTo(HaveOccurred())
 				time.Sleep(500 * time.Millisecond)
 
-				By("Verifying trend buttons are NOT visible for Team Member")
+				By("Verifying trend buttons are NOT visible for Team Member on individual survey")
 				improvingBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
 				visible, err := improvingBtn.IsVisible()
 				Expect(err).NotTo(HaveOccurred())
-				Expect(visible).To(BeFalse(), "Trend buttons should not be shown for Team Members")
+				Expect(visible).To(BeFalse(), "Trend buttons should not be shown for Team Members on individual survey")
 
 				By("Verifying comment textarea IS still visible")
 				commentBox := page.Locator("[data-dimension='mission']").Filter(playwright.LocatorFilterOptions{
@@ -403,7 +403,62 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(err).NotTo(HaveOccurred())
 				Expect(commentVisible).To(BeTrue(), "Comment box should still be visible for Team Members")
 
-				GinkgoWriter.Printf("Trend buttons correctly hidden for Team Member\n")
+				GinkgoWriter.Printf("Trend buttons correctly hidden for Team Member on individual survey\n")
+			})
+		})
+
+		Context("when a Team Member loads the post-workshop survey", func() {
+			It("should show trend buttons on post-workshop survey regardless of role", func() {
+				By("Opening browser and logging in as Team Member")
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				_, err = page.Goto(frontendURL + "/login")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.Locator("#username").Fill("e2e_demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("#password").Fill("demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Navigating directly to post-workshop survey")
+				_, err = page.Goto(frontendURL + "/survey?type=post_workshop")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/survey**", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Waiting for survey to load")
+				err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Selecting a score to trigger the post-score section")
+				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond)
+
+				By("Verifying trend buttons ARE visible on post-workshop survey")
+				improvingBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
+				err = improvingBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				GinkgoWriter.Printf("Trend buttons correctly shown on post-workshop survey\n")
 			})
 		})
 	})
