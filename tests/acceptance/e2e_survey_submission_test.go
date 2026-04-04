@@ -387,9 +387,7 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(visible).To(BeFalse(), "Trend buttons should not be shown for Team Members on individual survey")
 
 				By("Verifying comment textarea IS still visible")
-				commentBox := page.Locator("[data-dimension='mission']").Filter(playwright.LocatorFilterOptions{
-					Has: page.Locator("textarea"),
-				})
+				commentBox := page.Locator("textarea[data-dimension='mission']")
 				commentVisible, err := commentBox.IsVisible()
 				Expect(err).NotTo(HaveOccurred())
 				Expect(commentVisible).To(BeTrue(), "Comment box should still be visible for Team Members")

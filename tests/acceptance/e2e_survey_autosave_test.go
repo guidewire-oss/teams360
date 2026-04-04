@@ -46,6 +46,14 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 		if ctx != nil {
 			ctx.Close()
 		}
+		// Clean up any sessions submitted by e2e_lead1 during autosave tests to avoid
+		// polluting the team lead dashboard tests with unexpected current-period data.
+		db.Exec(`DELETE FROM health_check_responses WHERE session_id IN (
+			SELECT id FROM health_check_sessions WHERE user_id = 'e2e_lead1'
+			AND id NOT LIKE 'e2e_%' AND id NOT LIKE 'demo-%'
+		)`)
+		db.Exec(`DELETE FROM health_check_sessions WHERE user_id = 'e2e_lead1'
+			AND id NOT LIKE 'e2e_%' AND id NOT LIKE 'demo-%'`)
 	})
 
 	loginAndGoToSurvey := func() {
