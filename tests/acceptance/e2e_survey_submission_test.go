@@ -340,6 +340,74 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 		})
 	})
 
+	Describe("Trend input visibility", func() {
+		Context("when a Team Member (level-5) loads the survey", func() {
+			It("should not show trend buttons for any dimension", func() {
+				By("Opening browser and logging in as Team Member")
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				_, err = page.Goto(frontendURL + "/login")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.Locator("#username").Fill("e2e_demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("#password").Fill("demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				surveyBtn := page.Locator("[data-testid='take-survey-btn']")
+				err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = surveyBtn.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/survey", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Waiting for survey to load")
+				err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Selecting a score to trigger the post-score section")
+				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond)
+
+				By("Verifying trend buttons are NOT visible for Team Member")
+				improvingBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
+				visible, err := improvingBtn.IsVisible()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(visible).To(BeFalse(), "Trend buttons should not be shown for Team Members")
+
+				By("Verifying comment textarea IS still visible")
+				commentBox := page.Locator("[data-dimension='mission']").Filter(playwright.LocatorFilterOptions{
+					Has: page.Locator("textarea"),
+				})
+				commentVisible, err := commentBox.IsVisible()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(commentVisible).To(BeTrue(), "Comment box should still be visible for Team Members")
+
+				GinkgoWriter.Printf("Trend buttons correctly hidden for Team Member\n")
+			})
+		})
+	})
+
 	Describe("Error handling and validation", func() {
 		Context("when submitting incomplete survey", func() {
 			It("should show validation errors and prevent submission", func() {
