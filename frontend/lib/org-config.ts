@@ -58,7 +58,7 @@ export const DEFAULT_ORG_CONFIG: OrganizationConfig = {
         canManageUsers: false,
         canConfigureSystem: false,
         canViewReports: true,
-        canExportData: false
+        canExportData: true
       }
     },
     {
@@ -84,15 +84,24 @@ export const DEFAULT_ORG_CONFIG: OrganizationConfig = {
 // Store organization config (in production, this would be in a database)
 let currentConfig: OrganizationConfig = DEFAULT_ORG_CONFIG;
 
+// Increment this when DEFAULT_ORG_CONFIG changes (e.g. permission updates) to
+// force-replace stale localStorage copies.
+const ORG_CONFIG_VERSION = 2;
+
 // Initialize from localStorage if available
 if (typeof window !== 'undefined') {
   const stored = localStorage.getItem('orgConfig');
-  if (stored) {
+  const storedVersion = parseInt(localStorage.getItem('orgConfigVersion') || '0', 10);
+  if (stored && storedVersion >= ORG_CONFIG_VERSION) {
     try {
       currentConfig = JSON.parse(stored);
     } catch (e) {
       console.error('Failed to load org config:', e);
     }
+  } else {
+    // Stale or missing version — reset to updated defaults
+    localStorage.removeItem('orgConfig');
+    localStorage.setItem('orgConfigVersion', String(ORG_CONFIG_VERSION));
   }
 }
 
