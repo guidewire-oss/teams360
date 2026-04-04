@@ -364,6 +364,90 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 		})
 	})
 
+	Describe("Score Band Legend", func() {
+		Context("when Team Lead views the radar chart tab", func() {
+			It("should display the score band legend", func() {
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				By("Logging in as Team Lead")
+				loginAsTeamLead(page)
+
+				By("Verifying score band legend is visible on radar tab")
+				legend := page.Locator("[data-testid='score-band-legend']")
+				err = legend.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(15000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Verifying all four bands are shown")
+				legendText, err := legend.InnerText()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(legendText).To(ContainSubstring("Excellent"))
+				Expect(legendText).To(ContainSubstring("Good"))
+				Expect(legendText).To(ContainSubstring("Fair"))
+				Expect(legendText).To(ContainSubstring("Poor"))
+
+				GinkgoWriter.Printf("Score band legend displayed successfully\n")
+			})
+		})
+	})
+
+	Describe("Export to Excel", func() {
+		Context("when Team Lead has data and clicks export", func() {
+			It("should show the export button when individual responses are loaded", func() {
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				By("Logging in as Team Lead")
+				loginAsTeamLead(page)
+
+				By("Waiting for data to load on dashboard")
+				radarSection := page.Locator("[data-testid='radar-chart-section']")
+				err = radarSection.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(15000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Clicking Individual Responses tab to load data for export")
+				responsesTab := page.Locator("[data-testid='responses-tab']")
+				err = responsesTab.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = responsesTab.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Waiting for response cards to load")
+				Eventually(func() bool {
+					cards := page.Locator("[data-testid='response-card']")
+					count, _ := cards.Count()
+					return count > 0
+				}, 15*time.Second, 500*time.Millisecond).Should(BeTrue(), "Response cards should load")
+
+				By("Going back to radar tab where export button is shown")
+				radarTab := page.Locator("[data-testid='radar-tab']")
+				err = radarTab.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Verifying export button is visible")
+				exportBtn := page.Locator("[data-testid='export-excel-btn']")
+				err = exportBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				GinkgoWriter.Printf("Export to Excel button is visible for Team Lead\n")
+			})
+		})
+	})
+
 	Describe("Team Lead Survey Access", func() {
 		Context("when Team Lead wants to take a survey", func() {
 			It("should allow Team Lead to complete health check survey", func() {
