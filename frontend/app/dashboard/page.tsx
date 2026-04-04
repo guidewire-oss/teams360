@@ -579,7 +579,7 @@ export default function DashboardPage() {
                 <option key={period} value={period}>{period}</option>
               ))}
             </select>
-            {userPermissions.canExportData && individualResponses.length > 0 && (
+            {userPermissions.canExportData && healthSummary.length > 0 && (
               <button
                 data-testid="export-excel-btn"
                 onClick={handleExportToExcel}
