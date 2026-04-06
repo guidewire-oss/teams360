@@ -290,9 +290,9 @@ function SurveyPageContent() {
     // Validate each response has both score and trend (trend only required for non-team-members)
     const incompleteResponses = responses.filter(r => !r.score || ((!isTeamMember || isPostWorkshop) && !r.trend));
     if (incompleteResponses.length > 0) {
-      setValidationError(isTeamMember
-        ? 'Please select a score for all dimensions before submitting.'
-        : 'Please select both a score and trend for all dimensions before submitting.'
+      setValidationError((!isTeamMember || isPostWorkshop)
+        ? 'Please select both a score and trend for all dimensions before submitting.'
+        : 'Please select a score for all dimensions before submitting.'
       );
       return;
     }
