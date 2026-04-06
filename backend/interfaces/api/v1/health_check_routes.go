@@ -11,8 +11,8 @@ import (
 
 // SetupHealthCheckRoutes registers health check routes with repository injection
 // All routes require JWT authentication
-func SetupHealthCheckRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, orgRepo organization.Repository, jwtService *services.JWTService) {
-	handler := NewHealthCheckHandler(healthCheckRepo, orgRepo)
+func SetupHealthCheckRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository, orgRepo organization.Repository, jwtService *services.JWTService, notificationService *services.NotificationService) {
+	handler := NewHealthCheckHandler(healthCheckRepo, orgRepo, notificationService)
 
 	// Health check routes - all require authentication
 	healthChecks := router.Group("/api/v1")

@@ -1,5 +1,8 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
+# Speckit tooling (developer scaffolding, not part of the application)
+.specify/
+
 # IMPORTANT: Un-ignore lib directories (overrides global gitignore)
 !lib/
 !frontend/lib/
@@ -243,5 +246,6 @@ backend/docs/
 docs/FEATURE_ANALYSIS.md
 docs/CODE_REVIEW_REPORT.md
 docs/prompts.txt
+docs/ses-migration-plan.md
 backend/main
 backend/api

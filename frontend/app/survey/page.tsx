@@ -258,7 +258,7 @@ function SurveyPageContent() {
       return;
     }
 
-    if (!currentResponse?.trend) {
+    if ((!isTeamMember || isPostWorkshop) && !currentResponse?.trend) {
       setValidationError('Please select a trend (Improving, Stable, or Declining) before continuing.');
       return;
     }
@@ -287,10 +287,13 @@ function SurveyPageContent() {
       return;
     }
 
-    // Validate each response has both score and trend
-    const incompleteResponses = responses.filter(r => !r.score || !r.trend);
+    // Validate each response has both score and trend (trend only required for non-team-members)
+    const incompleteResponses = responses.filter(r => !r.score || ((!isTeamMember || isPostWorkshop) && !r.trend));
     if (incompleteResponses.length > 0) {
-      setValidationError('Please select both a score and trend for all dimensions before submitting.');
+      setValidationError((!isTeamMember || isPostWorkshop)
+        ? 'Please select both a score and trend for all dimensions before submitting.'
+        : 'Please select a score for all dimensions before submitting.'
+      );
       return;
     }
 
@@ -411,6 +414,7 @@ function SurveyPageContent() {
   const currentResponse = getCurrentResponse();
 
   const isTeamLead = user.hierarchyLevelId === 'level-4';
+  const isTeamMember = user.hierarchyLevelId === 'level-5';
 
   // Compute display period from team cadence
   const surveyPeriod = team ? getAssessmentPeriod(new Date(), toCadence(team.cadence)) : '';
@@ -453,7 +457,7 @@ function SurveyPageContent() {
                 <div className="mt-2 flex flex-col gap-1">
                   {isTeamLead && (
                     <button
-                      onClick={() => router.push('/manager')}
+                      onClick={() => router.push('/dashboard')}
                       className={`flex items-center gap-1 text-sm ${isPostWorkshop ? 'text-amber-200' : 'text-indigo-200'} hover:text-white transition-colors`}
                     >
                       <BarChart3 className="w-4 h-4" />
@@ -555,50 +559,54 @@ function SurveyPageContent() {
 
             {currentResponse?.score && (
               <div className="mb-8 p-6 bg-gray-50 rounded-xl">
-                <h3 className="font-semibold text-gray-900 mb-4">Trend</h3>
-                <div className="flex gap-4">
-                  <button
-                    onClick={() => handleTrendSelect('improving')}
-                    data-dimension={dimension.id}
-                    data-trend="improving"
-                    className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
-                      currentResponse?.trend === 'improving'
-                        ? 'border-green-500 bg-green-50 text-green-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50'
-                    }`}
-                  >
-                    <TrendingUp className="w-5 h-5" />
-                    Improving
-                  </button>
-                  <button
-                    onClick={() => handleTrendSelect('stable')}
-                    data-dimension={dimension.id}
-                    data-trend="stable"
-                    className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
-                      currentResponse?.trend === 'stable'
-                        ? 'border-blue-500 bg-blue-50 text-blue-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
-                    }`}
-                  >
-                    <Minus className="w-5 h-5" />
-                    Stable
-                  </button>
-                  <button
-                    onClick={() => handleTrendSelect('declining')}
-                    data-dimension={dimension.id}
-                    data-trend="declining"
-                    className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
-                      currentResponse?.trend === 'declining'
-                        ? 'border-red-500 bg-red-50 text-red-700'
-                        : 'border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50'
-                    }`}
-                  >
-                    <TrendingDown className="w-5 h-5" />
-                    Declining
-                  </button>
-                </div>
+                {(!isTeamMember || isPostWorkshop) && (
+                  <>
+                    <h3 className="font-semibold text-gray-900 mb-4">Trend</h3>
+                    <div className="flex gap-4">
+                      <button
+                        onClick={() => handleTrendSelect('improving')}
+                        data-dimension={dimension.id}
+                        data-trend="improving"
+                        className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
+                          currentResponse?.trend === 'improving'
+                            ? 'border-green-500 bg-green-50 text-green-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-green-300 hover:bg-green-50'
+                        }`}
+                      >
+                        <TrendingUp className="w-5 h-5" />
+                        Improving
+                      </button>
+                      <button
+                        onClick={() => handleTrendSelect('stable')}
+                        data-dimension={dimension.id}
+                        data-trend="stable"
+                        className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
+                          currentResponse?.trend === 'stable'
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50'
+                        }`}
+                      >
+                        <Minus className="w-5 h-5" />
+                        Stable
+                      </button>
+                      <button
+                        onClick={() => handleTrendSelect('declining')}
+                        data-dimension={dimension.id}
+                        data-trend="declining"
+                        className={`flex-1 p-3 rounded-lg border-2 flex items-center justify-center gap-2 transition-all ${
+                          currentResponse?.trend === 'declining'
+                            ? 'border-red-500 bg-red-50 text-red-700'
+                            : 'border-gray-300 bg-white text-gray-700 hover:border-red-300 hover:bg-red-50'
+                        }`}
+                      >
+                        <TrendingDown className="w-5 h-5" />
+                        Declining
+                      </button>
+                    </div>
+                  </>
+                )}
 
-                <div className="mt-4">
+                <div className={!isTeamMember ? 'mt-4' : ''}>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Comments (optional)
                   </label>

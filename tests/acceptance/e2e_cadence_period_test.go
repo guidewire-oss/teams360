@@ -32,7 +32,7 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				db.Exec("DELETE FROM teams WHERE id = $1", cadenceTeamID)
 			}
 			// Restore user's original team membership
-			db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ('e2e_team1', $1) ON CONFLICT DO NOTHING", testUserID)
+			db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ('e2e_team1', $1) ON CONFLICT (team_id, user_id) DO NOTHING", testUserID)
 		})
 
 		Context("when team has quarterly cadence", func() {
@@ -111,7 +111,9 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("Quarterly Check"))
 
 				By("Filling all 11 dimensions and submitting")
-				fillDimension := func(dimensionID string, score int, trend string) {
+				// Note: e2e_demo is a Team Member (level-5) — trend input is hidden for individual surveys.
+				// Only score selection is needed.
+				fillDimension := func(dimensionID string, score int) {
 					scoreSelector := fmt.Sprintf("[data-dimension='%s'][data-score='%d']", dimensionID, score)
 					err = page.Locator(scoreSelector).WaitFor(playwright.LocatorWaitForOptions{
 						State:   playwright.WaitForSelectorStateVisible,
@@ -119,16 +121,6 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 					})
 					Expect(err).NotTo(HaveOccurred())
 					err = page.Locator(scoreSelector).Click()
-					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(500 * time.Millisecond)
-
-					trendSelector := fmt.Sprintf("[data-dimension='%s'][data-trend='%s']", dimensionID, trend)
-					err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
-						State:   playwright.WaitForSelectorStateVisible,
-						Timeout: playwright.Float(5000),
-					})
-					Expect(err).NotTo(HaveOccurred())
-					err = page.Locator(trendSelector).Click()
 					Expect(err).NotTo(HaveOccurred())
 					time.Sleep(500 * time.Millisecond)
 				}
@@ -152,10 +144,10 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				})
 				Expect(err).NotTo(HaveOccurred())
 
-				// Fill all 11 dimensions: score Green (3), trend stable
+				// Fill all 11 dimensions: score Green (3)
 				dimensions := []string{"mission", "value", "speed", "fun", "health", "learning", "support", "pawns", "release", "process", "teamwork"}
 				for i, dim := range dimensions {
-					fillDimension(dim, 3, "stable")
+					fillDimension(dim, 3)
 					if i < len(dimensions)-1 {
 						clickNext()
 					}
@@ -272,6 +264,8 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 				}, 10*time.Second, 500*time.Millisecond).Should(ContainSubstring("Monthly Check"))
 
 				By("Filling all 11 dimensions and submitting")
+				// Note: e2e_demo is a Team Member (level-5) — trend input is hidden for individual surveys.
+				// Only score selection is needed.
 				err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
 					Timeout: playwright.Float(10000),
@@ -287,16 +281,6 @@ var _ = Describe("E2E: Cadence-Driven Assessment Periods", Label("e2e"), func() 
 					})
 					Expect(err).NotTo(HaveOccurred())
 					err = page.Locator(scoreSelector).Click()
-					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(500 * time.Millisecond)
-
-					trendSelector := fmt.Sprintf("[data-dimension='%s'][data-trend='stable']", dim)
-					err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
-						State:   playwright.WaitForSelectorStateVisible,
-						Timeout: playwright.Float(5000),
-					})
-					Expect(err).NotTo(HaveOccurred())
-					err = page.Locator(trendSelector).Click()
 					Expect(err).NotTo(HaveOccurred())
 					time.Sleep(500 * time.Millisecond)
 
