@@ -41,6 +41,16 @@ type HealthDimension struct {
 	UpdatedAt       time.Time `json:"updatedAt,omitempty"`
 }
 
+// AppSettings represents application-wide settings (singleton row)
+type AppSettings struct {
+	EmailNotifications bool   `json:"emailNotifications"`
+	SlackNotifications bool   `json:"slackNotifications"`
+	WeeklyDigest       bool   `json:"weeklyDigest"`
+	RetentionMonths    int    `json:"retentionMonths"`
+	CompanyName        string `json:"companyName"`
+	LogoURL            string `json:"logoURL"`
+}
+
 // OrganizationConfig represents the organization configuration
 // This is an aggregate root in DDD terms
 type OrganizationConfig struct {
@@ -78,4 +88,11 @@ type Repository interface {
 	SaveDimension(ctx context.Context, dim *HealthDimension) error
 	UpdateDimension(ctx context.Context, dim *HealthDimension) error
 	DeleteDimension(ctx context.Context, id string) error
+
+	// App settings (singleton)
+	GetAppSettings(ctx context.Context) (*AppSettings, error)
+	UpdateAppSettings(ctx context.Context, settings *AppSettings) error
+	UpdateBrandingSettings(ctx context.Context, companyName string, logoURL string) error
+	UpdateNotificationSettings(ctx context.Context, email, slack, digest bool) error
+	UpdateRetentionSettings(ctx context.Context, months int) error
 }

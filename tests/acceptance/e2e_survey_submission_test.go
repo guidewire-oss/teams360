@@ -22,7 +22,7 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			// Reset user's team assignment to e2e_team1 (may have been changed by other tests)
 			_, err := db.Exec("DELETE FROM team_members WHERE user_id = $1", testUserID)
 			Expect(err).NotTo(HaveOccurred())
-			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING", testTeamID, testUserID)
+			_, err = db.Exec("INSERT INTO team_members (team_id, user_id) VALUES ($1, $2) ON CONFLICT (team_id, user_id) DO NOTHING", testTeamID, testUserID)
 			Expect(err).NotTo(HaveOccurred())
 
 			// Clean up ONLY sessions created by THIS test (identified by being in current assessment period for this team/user)
@@ -125,7 +125,9 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			By("Selecting health check responses for all 11 dimensions (paginated survey)")
 
 			// Helper function to fill a dimension
-			fillDimension := func(dimensionID string, score int, trend string) {
+			// Note: e2e_demo is a Team Member (level-5) so trend input is hidden for individual surveys.
+			// Only score is required for Team Members; trend argument is accepted but ignored.
+			fillDimension := func(dimensionID string, score int, _ string) {
 				scoreSelector := fmt.Sprintf("[data-dimension='%s'][data-score='%d']", dimensionID, score)
 				err = page.Locator(scoreSelector).WaitFor(playwright.LocatorWaitForOptions{
 					State:   playwright.WaitForSelectorStateVisible,
@@ -134,17 +136,7 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(err).NotTo(HaveOccurred())
 				err = page.Locator(scoreSelector).Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
-
-				trendSelector := fmt.Sprintf("[data-dimension='%s'][data-trend='%s']", dimensionID, trend)
-				err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
-					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(5000), // Increased timeout
-				})
-				Expect(err).NotTo(HaveOccurred())
-				err = page.Locator(trendSelector).Click()
-				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
+				time.Sleep(500 * time.Millisecond) // Wait for React state update
 			}
 
 			clickNext := func() {
@@ -257,37 +249,36 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 			Expect(responseCount).To(Equal(11), "Should have 11 dimension responses")
 
 			By("Verifying specific response data")
-			// Check Mission response
-			var dimensionID, trend, comment string
+			// Note: e2e_demo is a Team Member (level-5) — trend input is hidden for individual surveys,
+			// so only score is verified here.
+			var dimensionID, comment string
 			var score int
 
 			err = db.QueryRow(`
-				SELECT dimension_id, score, trend, comment
+				SELECT dimension_id, score, comment
 				FROM health_check_responses
 				WHERE session_id = $1 AND dimension_id = 'mission'
-			`, sessionID).Scan(&dimensionID, &score, &trend, &comment)
+			`, sessionID).Scan(&dimensionID, &score, &comment)
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dimensionID).To(Equal("mission"))
 			Expect(score).To(Equal(3))
-			Expect(trend).To(Equal("improving"))
 
-			// Check Speed response (Red, Declining)
+			// Check Speed response (Red)
 			err = db.QueryRow(`
-				SELECT dimension_id, score, trend
+				SELECT dimension_id, score
 				FROM health_check_responses
 				WHERE session_id = $1 AND dimension_id = 'speed'
-			`, sessionID).Scan(&dimensionID, &score, &trend)
+			`, sessionID).Scan(&dimensionID, &score)
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(dimensionID).To(Equal("speed"))
 			Expect(score).To(Equal(1))
-			Expect(trend).To(Equal("declining"))
 
 			By("Verifying assessment period was auto-calculated")
 			Expect(assessmentPeriod).NotTo(BeEmpty())
-			// Assessment period should be in format "YYYY - 1st Half" or "YYYY - 2nd Half"
-			Expect(assessmentPeriod).To(MatchRegexp(`\d{4} - (1st|2nd) Half`))
+			// Assessment period format depends on team cadence (monthly/quarterly/half-yearly/yearly)
+			Expect(assessmentPeriod).To(MatchRegexp(`\d{4}( (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)|( Q[1-4])|( H[12]))?`))
 
 			GinkgoWriter.Printf("✅ E2E Test PASSED: Survey submitted successfully\n")
 			GinkgoWriter.Printf("   Session ID: %s\n", sessionID)
@@ -336,6 +327,127 @@ var _ = Describe("E2E: Survey Submission Flow", func() {
 				Expect(sessionExists).To(BeTrue(), "Session should exist in database")
 
 				GinkgoWriter.Printf("✅ Session %s verified in database\n", testSessionID)
+			})
+		})
+	})
+
+	Describe("Trend input visibility", func() {
+		Context("when a Team Member (level-5) loads the survey", func() {
+			It("should not show trend buttons for any dimension", func() {
+				By("Opening browser and logging in as Team Member")
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				_, err = page.Goto(frontendURL + "/login")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.Locator("#username").Fill("e2e_demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("#password").Fill("demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				surveyBtn := page.Locator("[data-testid='take-survey-btn']")
+				err = surveyBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+				err = surveyBtn.Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/survey", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Waiting for survey to load")
+				err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Selecting a score to trigger the post-score section")
+				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond)
+
+				By("Verifying trend buttons are NOT visible for Team Member on individual survey")
+				improvingBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
+				visible, err := improvingBtn.IsVisible()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(visible).To(BeFalse(), "Trend buttons should not be shown for Team Members on individual survey")
+
+				By("Verifying comment textarea IS still visible")
+				commentBox := page.Locator("textarea[data-dimension='mission']")
+				commentVisible, err := commentBox.IsVisible()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(commentVisible).To(BeTrue(), "Comment box should still be visible for Team Members")
+
+				GinkgoWriter.Printf("Trend buttons correctly hidden for Team Member on individual survey\n")
+			})
+		})
+
+		Context("when a Team Member loads the post-workshop survey", func() {
+			It("should show trend buttons on post-workshop survey regardless of role", func() {
+				By("Opening browser and logging in as Team Member")
+				page, err := browser.NewPage()
+				Expect(err).NotTo(HaveOccurred())
+				defer page.Close()
+
+				_, err = page.Goto(frontendURL + "/login")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.Locator("#username").Fill("e2e_demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("#password").Fill("demo")
+				Expect(err).NotTo(HaveOccurred())
+				err = page.Locator("button[type='submit']:has-text('Sign In')").Click()
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/home", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Navigating directly to post-workshop survey")
+				_, err = page.Goto(frontendURL + "/survey?type=post_workshop")
+				Expect(err).NotTo(HaveOccurred())
+
+				err = page.WaitForURL("**/survey**", playwright.PageWaitForURLOptions{
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Waiting for survey to load")
+				err = page.Locator("text=Mission").WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(10000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				By("Selecting a score to trigger the post-score section")
+				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
+				Expect(err).NotTo(HaveOccurred())
+				time.Sleep(500 * time.Millisecond)
+
+				By("Verifying trend buttons ARE visible on post-workshop survey")
+				improvingBtn := page.Locator("[data-dimension='mission'][data-trend='improving']")
+				err = improvingBtn.WaitFor(playwright.LocatorWaitForOptions{
+					State:   playwright.WaitForSelectorStateVisible,
+					Timeout: playwright.Float(5000),
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				GinkgoWriter.Printf("Trend buttons correctly shown on post-workshop survey\n")
 			})
 		})
 	})

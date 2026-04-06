@@ -695,6 +695,103 @@ func (r *OrganizationRepository) DeleteDimension(ctx context.Context, id string)
 	return nil
 }
 
+// GetAppSettings reads the singleton app_settings row
+func (r *OrganizationRepository) GetAppSettings(ctx context.Context) (*organization.AppSettings, error) {
+	var s organization.AppSettings
+	var logoURL sql.NullString
+	err := r.db.QueryRowContext(ctx, `
+		SELECT email_notifications, slack_notifications, weekly_digest, retention_months, company_name, logo_url
+		FROM app_settings WHERE id = 1
+	`).Scan(&s.EmailNotifications, &s.SlackNotifications, &s.WeeklyDigest, &s.RetentionMonths, &s.CompanyName, &logoURL)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// Return defaults if row doesn't exist yet
+			return &organization.AppSettings{RetentionMonths: 12, CompanyName: "My Company"}, nil
+		}
+		return nil, fmt.Errorf("failed to query app settings: %w", err)
+	}
+	if logoURL.Valid {
+		s.LogoURL = logoURL.String
+	}
+	return &s, nil
+}
+
+// UpdateAppSettings persists app settings to the singleton row
+func (r *OrganizationRepository) UpdateAppSettings(ctx context.Context, s *organization.AppSettings) error {
+	var logoURL *string
+	if s.LogoURL != "" {
+		logoURL = &s.LogoURL
+	}
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, retention_months, company_name, logo_url, updated_at)
+		VALUES (1, $1, $2, $3, $4, $5, $6, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			email_notifications = EXCLUDED.email_notifications,
+			slack_notifications = EXCLUDED.slack_notifications,
+			weekly_digest = EXCLUDED.weekly_digest,
+			retention_months = EXCLUDED.retention_months,
+			company_name = EXCLUDED.company_name,
+			logo_url = EXCLUDED.logo_url,
+			updated_at = NOW()
+	`, s.EmailNotifications, s.SlackNotifications, s.WeeklyDigest, s.RetentionMonths, s.CompanyName, logoURL)
+	if err != nil {
+		return fmt.Errorf("failed to update app settings: %w", err)
+	}
+	return nil
+}
+
+// UpdateBrandingSettings updates only the branding columns (company_name, logo_url)
+func (r *OrganizationRepository) UpdateBrandingSettings(ctx context.Context, companyName string, logoURL string) error {
+	var logo *string
+	if logoURL != "" {
+		logo = &logoURL
+	}
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, company_name, logo_url, updated_at)
+		VALUES (1, $1, $2, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			company_name = EXCLUDED.company_name,
+			logo_url = EXCLUDED.logo_url,
+			updated_at = NOW()
+	`, companyName, logo)
+	if err != nil {
+		return fmt.Errorf("failed to update branding settings: %w", err)
+	}
+	return nil
+}
+
+// UpdateNotificationSettings updates only the notification columns
+func (r *OrganizationRepository) UpdateNotificationSettings(ctx context.Context, email, slack, digest bool) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, email_notifications, slack_notifications, weekly_digest, updated_at)
+		VALUES (1, $1, $2, $3, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			email_notifications = EXCLUDED.email_notifications,
+			slack_notifications = EXCLUDED.slack_notifications,
+			weekly_digest = EXCLUDED.weekly_digest,
+			updated_at = NOW()
+	`, email, slack, digest)
+	if err != nil {
+		return fmt.Errorf("failed to update notification settings: %w", err)
+	}
+	return nil
+}
+
+// UpdateRetentionSettings updates only the retention_months column
+func (r *OrganizationRepository) UpdateRetentionSettings(ctx context.Context, months int) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO app_settings (id, retention_months, updated_at)
+		VALUES (1, $1, NOW())
+		ON CONFLICT (id) DO UPDATE SET
+			retention_months = EXCLUDED.retention_months,
+			updated_at = NOW()
+	`, months)
+	if err != nil {
+		return fmt.Errorf("failed to update retention settings: %w", err)
+	}
+	return nil
+}
+
 // Helper methods
 
 // saveHierarchyLevelTx saves a hierarchy level within a transaction

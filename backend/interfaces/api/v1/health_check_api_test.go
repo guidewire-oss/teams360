@@ -2,6 +2,7 @@ package v1_test
 
 import (
 	"bytes"
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -18,15 +19,18 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/lib/pq"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 )
 
 var _ = Describe("Health Check API", func() {
 	var (
-		db     *sql.DB
-		router *gin.Engine
-		err    error
+		db         *sql.DB
+		router     *gin.Engine
+		err        error
+		jwtService *services.JWTService
+		userToken  string
 	)
 
 	BeforeEach(func() {
@@ -51,7 +55,7 @@ var _ = Describe("Health Check API", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		migrationEngine, err := migrate.NewWithDatabaseInstance(
-			"file://../../infrastructure/persistence/postgres/migrations",
+			"file://../../../infrastructure/persistence/postgres/migrations",
 			"postgres",
 			driver,
 		)
@@ -60,11 +64,17 @@ var _ = Describe("Health Check API", func() {
 		err = migrationEngine.Up()
 		Expect(err).NotTo(HaveOccurred())
 
+		// Initialize JWT service and generate test token
+		jwtService = services.NewJWTService()
+		tokenPair, tokenErr := jwtService.GenerateTokenPair(context.Background(), "user123", "user123", "user123@test.com", "level-5", []string{"team1"})
+		Expect(tokenErr).NotTo(HaveOccurred())
+		userToken = tokenPair.AccessToken
+
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
 	})
 
 	AfterEach(func() {
@@ -80,7 +90,7 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId":           "team1",
 					"userId":           "user123",
-					"date":             time.Now().Format("2006-01-02"),
+					"date":             time.Now().Format(time.RFC3339),
 					"assessmentPeriod": "2024 - 2nd Half",
 					"responses": []map[string]interface{}{
 						{
@@ -111,6 +121,7 @@ var _ = Describe("Health Check API", func() {
 				// When: Submitting via POST
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -145,7 +156,7 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId": "team1",
 					"userId": "user123",
-					"date":   time.Now().Format("2006-01-02"),
+					"date":   time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{
 						{
 							"dimensionId": "mission",
@@ -159,6 +170,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 
 				// When: Posting
@@ -177,7 +189,7 @@ var _ = Describe("Health Check API", func() {
 				// Given: Submission without teamId
 				submission := map[string]interface{}{
 					"userId": "user123",
-					"date":   time.Now().Format("2006-01-02"),
+					"date":   time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{
 						{"dimensionId": "mission", "score": 3, "trend": "improving"},
 					},
@@ -186,6 +198,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 
 				// When: Posting
@@ -203,7 +216,7 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId": "team1",
 					"userId": "user123",
-					"date":   time.Now().Format("2006-01-02"),
+					"date":   time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{
 						{"dimensionId": "mission", "score": 5, "trend": "improving"}, // Invalid score
 					},
@@ -212,6 +225,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 
 				// When: Posting
@@ -226,7 +240,7 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId": "team1",
 					"userId": "user123",
-					"date":   time.Now().Format("2006-01-02"),
+					"date":   time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{
 						{"dimensionId": "mission", "score": 3, "trend": "invalid-trend"},
 					},
@@ -235,6 +249,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 
 				// When: Posting
@@ -249,13 +264,14 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId":    "team1",
 					"userId":    "user123",
-					"date":      time.Now().Format("2006-01-02"),
+					"date":      time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{},
 				}
 
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 
 				// When: Posting
@@ -272,6 +288,7 @@ var _ = Describe("Health Check API", func() {
 			It("should return all 11 active dimensions", func() {
 				// When: Getting dimensions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-dimensions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -299,6 +316,7 @@ var _ = Describe("Health Check API", func() {
 			It("should include mission dimension", func() {
 				// When: Getting dimensions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-dimensions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -328,7 +346,7 @@ var _ = Describe("Health Check API", func() {
 				submission := map[string]interface{}{
 					"teamId": "team1",
 					"userId": "user123",
-					"date":   time.Now().Format("2006-01-02"),
+					"date":   time.Now().Format(time.RFC3339),
 					"responses": []map[string]interface{}{
 						{"dimensionId": "mission", "score": 3, "trend": "improving", "comment": "Great"},
 					},
@@ -338,6 +356,7 @@ var _ = Describe("Health Check API", func() {
 				body, _ := json.Marshal(submission)
 				req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -347,6 +366,7 @@ var _ = Describe("Health Check API", func() {
 
 				// When: Getting by ID
 				req = httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/"+sessionId, nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w = httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -369,6 +389,7 @@ var _ = Describe("Health Check API", func() {
 			It("should return 404 Not Found", func() {
 				// When: Getting non-existent session
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/non-existent-id", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -378,7 +399,7 @@ var _ = Describe("Health Check API", func() {
 		})
 	})
 
-	Describe("GET /api/v1/teams/:teamId/health-checks", func() {
+	Describe("GET /api/v1/health-checks/team/:id", func() {
 		Context("when team has multiple sessions", func() {
 			It("should return all sessions for the team", func() {
 				// Given: Multiple sessions for team1
@@ -386,7 +407,7 @@ var _ = Describe("Health Check API", func() {
 					submission := map[string]interface{}{
 						"teamId": "team1",
 						"userId": "user" + string(rune(i+1)),
-						"date":   time.Now().Format("2006-01-02"),
+						"date":   time.Now().Format(time.RFC3339),
 						"responses": []map[string]interface{}{
 							{"dimensionId": "mission", "score": 3, "trend": "improving"},
 						},
@@ -396,12 +417,14 @@ var _ = Describe("Health Check API", func() {
 					body, _ := json.Marshal(submission)
 					req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Authorization", "Bearer "+userToken)
 					w := httptest.NewRecorder()
 					router.ServeHTTP(w, req)
 				}
 
 				// When: Getting team sessions
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/team1/health-checks", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/team/team1", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -422,7 +445,7 @@ var _ = Describe("Health Check API", func() {
 				submission1 := map[string]interface{}{
 					"teamId":           "team1",
 					"userId":           "user1",
-					"date":             "2024-01-15",
+					"date":             "2024-01-15T10:00:00Z",
 					"assessmentPeriod": "2023 - 2nd Half",
 					"responses": []map[string]interface{}{
 						{"dimensionId": "mission", "score": 3, "trend": "improving"},
@@ -433,7 +456,7 @@ var _ = Describe("Health Check API", func() {
 				submission2 := map[string]interface{}{
 					"teamId":           "team1",
 					"userId":           "user2",
-					"date":             "2024-07-15",
+					"date":             "2024-07-15T10:00:00Z",
 					"assessmentPeriod": "2024 - 1st Half",
 					"responses": []map[string]interface{}{
 						{"dimensionId": "value", "score": 2, "trend": "stable"},
@@ -446,12 +469,14 @@ var _ = Describe("Health Check API", func() {
 					body, _ := json.Marshal(sub)
 					req := httptest.NewRequest(http.MethodPost, "/api/v1/health-checks", bytes.NewBuffer(body))
 					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Authorization", "Bearer "+userToken)
 					w := httptest.NewRecorder()
 					router.ServeHTTP(w, req)
 				}
 
 				// When: Filtering by period
-				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/team1/health-checks?assessmentPeriod=2024+-+1st+Half", nil)
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/health-checks/team/team1?assessmentPeriod=2024+-+1st+Half", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 

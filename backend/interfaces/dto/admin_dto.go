@@ -61,6 +61,7 @@ type AdminUserDTO struct {
 	HierarchyLevel string    `json:"hierarchyLevel"`
 	ReportsTo      *string   `json:"reportsTo"`
 	TeamIds        []string  `json:"teamIds"`
+	AuthType       string    `json:"authType"`
 	CreatedAt      time.Time `json:"createdAt"`
 	UpdatedAt      time.Time `json:"updatedAt"`
 }
@@ -71,7 +72,8 @@ type CreateUserRequest struct {
 	Username       string  `json:"username" binding:"required"` // Required - used to generate ID if not provided
 	Email          string  `json:"email" binding:"required,email"`
 	FullName       string  `json:"fullName" binding:"required"`
-	Password       string  `json:"password" binding:"required,min=4"`
+	Password       string  `json:"password"`                                     // Required for local users, omit for SSO users
+	AuthType       string  `json:"authType" binding:"omitempty,oneof=local sso"` // "local" (default) or "sso"
 	HierarchyLevel string  `json:"hierarchyLevel" binding:"required"`
 	ReportsTo      *string `json:"reportsTo"`
 }
@@ -82,6 +84,7 @@ type UpdateUserRequest struct {
 	Email          *string `json:"email"`
 	FullName       *string `json:"fullName"`
 	Password       *string `json:"password"`
+	AuthType       *string `json:"authType" binding:"omitempty,oneof=local sso"`
 	HierarchyLevel *string `json:"hierarchyLevel"`
 	ReportsTo      *string `json:"reportsTo"`
 }
@@ -98,35 +101,81 @@ type UsersResponse struct {
 
 // AdminTeamDTO represents detailed team information for admin
 type AdminTeamDTO struct {
-	ID           string    `json:"id"`
-	Name         string    `json:"name"`
-	TeamLeadID   *string   `json:"teamLeadId"`
-	TeamLeadName *string   `json:"teamLeadName"`
-	Cadence      string    `json:"cadence"`
-	MemberCount  int       `json:"memberCount"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID                    string    `json:"id"`
+	Name                  string    `json:"name"`
+	TeamLeadID            *string   `json:"teamLeadId"`
+	TeamLeadName          *string   `json:"teamLeadName"`
+	Cadence               string    `json:"cadence"`
+	DistributionListEmail *string   `json:"distributionListEmail,omitempty"`
+	MemberCount           int       `json:"memberCount"`
+	CreatedAt             time.Time `json:"createdAt"`
+	UpdatedAt             time.Time `json:"updatedAt"`
 }
 
 // CreateTeamRequest represents request to create a team
 type CreateTeamRequest struct {
-	ID         string  `json:"id"`                      // Optional - will be auto-generated from name if not provided
-	Name       string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
-	TeamLeadID *string `json:"teamLeadId"`
-	Cadence    string  `json:"cadence" binding:"required,oneof=weekly biweekly monthly quarterly"`
+	ID                    string  `json:"id"`                      // Optional - will be auto-generated from name if not provided
+	Name                  string  `json:"name" binding:"required"` // Required - used to generate ID if not provided
+	TeamLeadID            *string `json:"teamLeadId"`
+	Cadence               string  `json:"cadence" binding:"required,oneof=monthly quarterly half-yearly yearly"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // UpdateTeamRequest represents request to update a team
 type UpdateTeamRequest struct {
-	Name       *string `json:"name"`
-	TeamLeadID *string `json:"teamLeadId"`
-	Cadence    *string `json:"cadence"`
+	Name                  *string `json:"name"`
+	TeamLeadID            *string `json:"teamLeadId"`
+	Cadence               *string `json:"cadence" binding:"omitempty,oneof=monthly quarterly half-yearly yearly"`
+	DistributionListEmail *string `json:"distributionListEmail" binding:"omitempty,email"`
 }
 
 // TeamsResponse represents response with list of teams
 type TeamsResponse struct {
 	Teams []AdminTeamDTO `json:"teams"`
 	Total int            `json:"total"`
+}
+
+// TeamMemberAdminDTO represents a team member in admin context
+type TeamMemberAdminDTO struct {
+	UserID   string `json:"userId"`
+	UserName string `json:"userName"`
+	Email    string `json:"email"`
+}
+
+// TeamMembersResponse represents response with list of team members
+type TeamMembersResponse struct {
+	Members []TeamMemberAdminDTO `json:"members"`
+	Total   int                  `json:"total"`
+}
+
+// AddTeamMemberRequest represents request to add a member to a team
+type AddTeamMemberRequest struct {
+	UserID string `json:"userId" binding:"required"`
+}
+
+// SupervisorLinkDTO represents a supervisor in the chain with display names
+type SupervisorLinkDTO struct {
+	UserID    string `json:"userId"`
+	UserName  string `json:"userName"`
+	LevelID   string `json:"levelId"`
+	LevelName string `json:"levelName"`
+}
+
+// SupervisorChainResponse represents the full supervisor chain for a team
+type SupervisorChainResponse struct {
+	TeamID      string              `json:"teamId"`
+	Supervisors []SupervisorLinkDTO `json:"supervisors"`
+}
+
+// UpdateSupervisorChainRequest represents request to update a team's supervisor chain
+type UpdateSupervisorChainRequest struct {
+	Supervisors []SupervisorLinkInput `json:"supervisors" binding:"required"`
+}
+
+// SupervisorLinkInput represents a supervisor link in update requests
+type SupervisorLinkInput struct {
+	UserID  string `json:"userId" binding:"required"`
+	LevelID string `json:"levelId" binding:"required"`
 }
 
 // ============================================================================
@@ -172,6 +221,12 @@ type DimensionsResponse struct {
 	Dimensions []HealthDimensionDTO `json:"dimensions"`
 }
 
+// BrandingSettings represents company branding configuration
+type BrandingSettings struct {
+	CompanyName string `json:"companyName" binding:"required,max=100"`
+	LogoURL     string `json:"logoURL"`
+}
+
 // NotificationSettings represents notification configuration
 type NotificationSettings struct {
 	EmailEnabled       bool     `json:"emailEnabled"`
@@ -180,6 +235,7 @@ type NotificationSettings struct {
 	NotifyManagers     bool     `json:"notifyManagers"`
 	ReminderDaysBefore int      `json:"reminderDaysBefore"`
 	ReminderRecipients []string `json:"reminderRecipients"`
+	SmtpConfigured     bool     `json:"smtpConfigured"`
 }
 
 // RetentionPolicy represents data retention configuration

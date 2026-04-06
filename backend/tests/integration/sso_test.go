@@ -61,9 +61,10 @@ var _ = Describe("SSO Authentication Integration Tests", func() {
 		gin.SetMode(gin.TestMode)
 		router = gin.New()
 		userRepo := postgres.NewUserRepository(db)
+		orgRepo := postgres.NewOrganizationRepository(db)
 		jwtService := services.NewJWTService()
-		v1.SetupAuthRoutes(router, userRepo, jwtService)
-		v1.SetupSSORoutes(router, userRepo, jwtService)
+		v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
+		v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
 	})
 
 	AfterEach(func() {
@@ -275,8 +276,8 @@ var _ = Describe("SSO Authentication Integration Tests", func() {
 			Context("when the email from the token matches a user in the DB", func() {
 				BeforeEach(func() {
 					_, err := db.Exec(`
-						INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash)
-						VALUES ('sso-user-1', 'ssouser', 'sso@example.com', 'SSO User', 'level-3', 'unused')
+						INSERT INTO users (id, username, email, full_name, hierarchy_level_id, password_hash, auth_type)
+						VALUES ('sso-user-1', 'ssouser', 'sso@example.com', 'SSO User', 'level-3', 'unused', 'sso')
 					`)
 					Expect(err).NotTo(HaveOccurred())
 				})

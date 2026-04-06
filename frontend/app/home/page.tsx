@@ -2,12 +2,51 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
+import { API_BASE_URL } from '@/lib/api/client';
 import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { getCurrentAssessmentPeriod } from '@/lib/assessment-period';
-import { LogOut, Building2, ChevronDown, ClipboardList, TrendingUp, Calendar } from 'lucide-react';
+// Assessment period import removed — period is team-specific, computed on survey page
+import { LogOut, Building2, ChevronDown, ClipboardList, TrendingUp, Calendar, Clock, CalendarClock } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar } from 'recharts';
+import { getTeamInfoCached, TeamInfo } from '@/lib/api/teams';
+
+function getNextSurveyDate(lastSurveyDate: string, cadence: string): Date {
+  const last = new Date(lastSurveyDate);
+  const next = new Date(last);
+  switch (cadence) {
+    case 'weekly':
+      next.setDate(last.getDate() + 7);
+      break;
+    case 'biweekly':
+      next.setDate(last.getDate() + 14);
+      break;
+    case 'monthly':
+      next.setMonth(last.getMonth() + 1);
+      break;
+    case 'quarterly':
+      next.setMonth(last.getMonth() + 3);
+      break;
+    default:
+      next.setMonth(last.getMonth() + 1);
+  }
+  return next;
+}
+
+function formatRelativeDate(date: Date): string {
+  const now = new Date();
+  // Normalize both to start-of-day to compare calendar days, not timestamps
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dateStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffMs = dateStart.getTime() - todayStart.getTime();
+  const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (diffDays < 0) return 'Overdue';
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  if (diffDays <= 7) return `In ${diffDays} days`;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 interface SurveyHistoryEntry {
   sessionId: string;
@@ -36,9 +75,12 @@ export default function MemberHomePage() {
   const [showUserInfo, setShowUserInfo] = useState(false);
   const [surveyHistory, setSurveyHistory] = useState<SurveyHistoryEntry[]>([]);
   const [trendData, setTrendData] = useState<TrendDataPoint[]>([]);
+  const [team, setTeam] = useState<TeamInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [brandingName, setBrandingName] = useState<string>('');
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
 
-  const currentPeriod = getCurrentAssessmentPeriod();
+  const currentPeriod = ''; // Period is team-specific; shown on survey page after team selection
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -48,13 +90,27 @@ export default function MemberHomePage() {
     }
     setUser(currentUser);
     fetchSurveyHistory(currentUser.id);
+
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.companyName) setBrandingName(data.companyName);
+        if (data.logoURL) setBrandingLogo(data.logoURL);
+      })
+      .catch(() => {});
+
+    // Fetch team info for cadence
+    const teamId = currentUser.teamIds && currentUser.teamIds.length > 0 ? currentUser.teamIds[0] : null;
+    if (teamId) {
+      getTeamInfoCached(teamId).then(setTeam).catch(() => {});
+    }
   }, [router]);
 
   const fetchSurveyHistory = async (userId: string) => {
     try {
       setLoading(true);
       console.log('[MemberHome] Fetching survey history for user:', userId);
-      const response = await fetch(`/api/v1/users/${userId}/survey-history`);
+      const response = await authenticatedFetch(`${API_BASE_URL}/api/v1/users/${userId}/survey-history`);
       console.log('[MemberHome] Response status:', response.status, response.ok);
       if (response.ok) {
         const data = await response.json();
@@ -149,9 +205,13 @@ export default function MemberHomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex justify-between items-center">
             <div className="flex items-center space-x-3">
-              <Building2 className="h-8 w-8 text-blue-600" />
+              {brandingLogo ? (
+                <img src={brandingLogo} alt="Company logo" className="w-8 h-8 object-contain rounded" />
+              ) : (
+                <Building2 className="h-8 w-8 text-blue-600" />
+              )}
               <div>
-                <h1 className="text-xl font-bold text-gray-900">Team360</h1>
+                <h1 className="text-xl font-bold text-gray-900">{brandingName || 'Team360'}</h1>
                 <p className="text-sm text-gray-500">Member Home</p>
               </div>
             </div>
@@ -203,7 +263,7 @@ export default function MemberHomePage() {
             <div>
               <div className="flex items-center space-x-2 mb-2">
                 <Calendar className="h-5 w-5" />
-                <span data-testid="current-period" className="text-sm font-medium opacity-90">{currentPeriod}</span>
+                <span data-testid="current-period" className="text-sm font-medium opacity-90">Current Period</span>
               </div>
               <h3 className="text-xl font-bold mb-2">Ready to share your feedback?</h3>
               <p className="text-blue-100">Your input helps the team improve. Take a few minutes to complete the health check.</p>
@@ -218,6 +278,58 @@ export default function MemberHomePage() {
             </button>
           </div>
         </div>
+
+        {/* Survey Schedule Info */}
+        {!loading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+            <div data-testid="last-survey-info" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-start space-x-4">
+              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <Clock className="h-5 w-5 text-gray-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Last Survey</p>
+                {latestSurvey ? (
+                  <>
+                    <p className="text-lg font-semibold text-gray-900">
+                      {new Date(latestSurvey.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{latestSurvey.assessmentPeriod}</p>
+                  </>
+                ) : (
+                  <p className="text-lg font-semibold text-gray-400">No surveys yet</p>
+                )}
+              </div>
+            </div>
+            <div data-testid="next-survey-info" className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 flex items-start space-x-4">
+              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <CalendarClock className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-500">Next Survey</p>
+                {latestSurvey && team ? (
+                  (() => {
+                    const nextDate = getNextSurveyDate(latestSurvey.date, team.cadence);
+                    const isOverdue = nextDate.getTime() < Date.now();
+                    return (
+                      <>
+                        <p className={`text-lg font-semibold ${isOverdue ? 'text-red-600' : 'text-gray-900'}`}>
+                          {nextDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                        <p className={`text-xs mt-0.5 ${isOverdue ? 'text-red-400' : 'text-gray-400'}`}>
+                          {formatRelativeDate(nextDate)} · {team.cadence.charAt(0).toUpperCase() + team.cadence.slice(1)} cadence
+                        </p>
+                      </>
+                    );
+                  })()
+                ) : (
+                  <p className="text-lg font-semibold text-gray-400">
+                    {team ? 'Complete your first survey' : 'Loading...'}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

@@ -3,15 +3,21 @@ package v1
 import (
 	"database/sql"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
+	"github.com/agopalakrishnan/teams360/backend/interfaces/middleware"
 	"github.com/gin-gonic/gin"
 )
 
 // SetupUserRoutes registers user-related routes
-// TODO: Update signature to accept healthcheck.Repository instead of *sql.DB
-// Target: func SetupUserRoutes(router *gin.Engine, healthCheckRepo healthcheck.Repository)
-// User survey history queries health check sessions, so it needs healthcheck.Repository
-func SetupUserRoutes(router *gin.Engine, db *sql.DB) {
+// All routes require JWT authentication
+func SetupUserRoutes(router *gin.Engine, db *sql.DB, jwtService *services.JWTService) {
 	handler := NewUserHandler(db)
 
-	router.GET("/api/v1/users/:userId/survey-history", handler.GetUserSurveyHistory)
+	// User routes - require authentication + same user or manager
+	userRoutes := router.Group("/api/v1/users/:userId")
+	userRoutes.Use(middleware.JWTAuthMiddleware(jwtService))
+	userRoutes.Use(middleware.SameUserOrManagerMiddleware("userId"))
+	{
+		userRoutes.GET("/survey-history", handler.GetUserSurveyHistory)
+	}
 }

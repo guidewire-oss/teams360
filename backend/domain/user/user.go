@@ -5,6 +5,14 @@ import (
 	"time"
 )
 
+// AuthType represents how a user authenticates
+type AuthType string
+
+const (
+	AuthTypeLocal AuthType = "local"
+	AuthTypeSSO   AuthType = "sso"
+)
+
 // User represents a user in the system
 // This is an aggregate root in DDD terms
 type User struct {
@@ -17,6 +25,7 @@ type User struct {
 	TeamIDs          []string  `json:"teamIds"`
 	IsAdmin          bool      `json:"isAdmin,omitempty"`
 	PasswordHash     string    `json:"-"` // Never serialize to JSON
+	AuthType         AuthType  `json:"authType,omitempty"`
 	CreatedAt        time.Time `json:"createdAt,omitempty"`
 	UpdatedAt        time.Time `json:"updatedAt,omitempty"`
 }
@@ -29,6 +38,7 @@ type Repository interface {
 	FindAll(ctx context.Context) ([]*User, error)
 	FindByHierarchyLevel(ctx context.Context, levelID string) ([]*User, error)
 	FindSubordinates(ctx context.Context, supervisorID string) ([]*User, error)
+	FindSupervisorChainUp(ctx context.Context, userID string) ([]*User, error)
 	Save(ctx context.Context, user *User) error
 	Update(ctx context.Context, user *User) error
 	Delete(ctx context.Context, id string) error

@@ -15,9 +15,17 @@ import {
   updateTeam as updateAdminTeam,
   deleteTeam,
   clearAdminCache,
+  getBrandingSettings,
+  updateBrandingSettings,
+  getNotificationSettings,
+  updateNotificationSettings,
+  getRetentionPolicy,
+  updateRetentionPolicy,
   AdminUser,
   HierarchyLevel,
   AdminTeam,
+  CreateUserRequest,
+  UpdateUserRequest,
 } from "@/lib/api/admin";
 import {
   Settings,
@@ -32,9 +40,12 @@ import {
   X,
   Building2,
   AlertCircle,
+  GitBranch,
 } from "lucide-react";
 import HierarchyConfig from "@/components/HierarchyConfig";
 import DimensionConfig from "@/components/DimensionConfig";
+import SupervisorChainModal from "@/components/SupervisorChainModal";
+import TeamMembersModal from "@/components/TeamMembersModal";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -53,12 +64,16 @@ export default function AdminPage() {
     name: "",
     teamLeadId: "",
     cadence: "monthly",
+    distributionListEmail: "",
   });
   const [teamFormLoading, setTeamFormLoading] = useState(false);
   const [teamFormError, setTeamFormError] = useState<string | null>(null);
   const [deletingTeamId, setDeletingTeamId] = useState<string | null>(null);
+  const [supervisorChainTeam, setSupervisorChainTeam] = useState<AdminTeam | null>(null);
+  const [membersTeam, setMembersTeam] = useState<AdminTeam | null>(null);
   const [availableTeamLeads, setAvailableTeamLeads] = useState<AdminUser[]>([]);
   const [teamLeadsLoading, setTeamLeadsLoading] = useState(false);
+  const [teamSearchQuery, setTeamSearchQuery] = useState("");
 
   const [showNewUserForm, setShowNewUserForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
@@ -76,12 +91,30 @@ export default function AdminPage() {
     password: "",
     hierarchyLevel: "",
     reportsTo: "",
+    authType: "local" as "local" | "sso",
   });
   const [userFormError, setUserFormError] = useState<string | null>(null);
   const [userFormSubmitting, setUserFormSubmitting] = useState(false);
   const [deleteConfirmUserId, setDeleteConfirmUserId] = useState<string | null>(
     null,
   );
+  const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [userRoleFilter, setUserRoleFilter] = useState("");
+
+  // Settings tab state
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [slackEnabled, setSlackEnabled] = useState(false);
+  const [notifyOnSubmission, setNotifyOnSubmission] = useState(false);
+  const [smtpConfigured, setSmtpConfigured] = useState(false);
+  const [retentionMonths, setRetentionMonths] = useState(12);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsError, setSettingsError] = useState<string | null>(null);
+  const [settingsSuccess, setSettingsSuccess] = useState(false);
+
+  // Branding state
+  const [brandingCompanyName, setBrandingCompanyName] = useState("My Company");
+  const [brandingLogoURL, setBrandingLogoURL] = useState("");
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -109,6 +142,86 @@ export default function AdminPage() {
     }
   }, [activeTab]);
 
+  // Fetch settings and teams when activeTab changes to 'settings'
+  useEffect(() => {
+    if (activeTab === "settings") {
+      loadSettings();
+      if (teams.length === 0) fetchAdminTeams();
+    }
+  }, [activeTab]);
+
+  const loadSettings = async () => {
+    setSettingsLoading(true);
+    setSettingsError(null);
+    try {
+      const [notifSettings, retention, branding] = await Promise.all([
+        getNotificationSettings(),
+        getRetentionPolicy(),
+        getBrandingSettings(),
+      ]);
+      setEmailEnabled(notifSettings.emailEnabled);
+      setSlackEnabled(notifSettings.slackEnabled);
+      setNotifyOnSubmission(notifSettings.notifyOnSubmission);
+      setSmtpConfigured(notifSettings.smtpConfigured);
+      setRetentionMonths(retention.keepSessionsMonths);
+      setBrandingCompanyName(branding.companyName || "My Company");
+      setBrandingLogoURL(branding.logoURL || "");
+    } catch (err) {
+      setSettingsError("Failed to load settings");
+    } finally {
+      setSettingsLoading(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    setSettingsSaving(true);
+    setSettingsError(null);
+    setSettingsSuccess(false);
+    try {
+      await Promise.all([
+        updateBrandingSettings({
+          companyName: brandingCompanyName,
+          logoURL: brandingLogoURL,
+        }),
+        updateNotificationSettings({
+          emailEnabled,
+          slackEnabled,
+          notifyOnSubmission,
+        }),
+        updateRetentionPolicy({ keepSessionsMonths: retentionMonths }),
+      ]);
+      setSettingsSuccess(true);
+      setTimeout(() => setSettingsSuccess(false), 3000);
+    } catch (err) {
+      setSettingsError("Failed to save settings");
+    } finally {
+      setSettingsSaving(false);
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 500 * 1024) {
+      setSettingsError("Logo file must be less than 500KB");
+      return;
+    }
+
+    const allowedLogoTypes = ["image/png", "image/jpeg", "image/webp"];
+    if (!allowedLogoTypes.includes(file.type)) {
+      setSettingsError("Please upload a PNG, JPEG, or WebP image file");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBrandingLogoURL(reader.result as string);
+      setSettingsError(null);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const loadUsersData = async () => {
     setUsersLoading(true);
     setUsersError(null);
@@ -131,8 +244,8 @@ export default function AdminPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push("/login");
   };
 
@@ -168,7 +281,7 @@ export default function AdminPage() {
   };
 
   const handleShowCreateTeamForm = () => {
-    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly" });
+    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly", distributionListEmail: "" });
     setTeamFormError(null);
     setShowNewTeamForm(true);
     setEditingTeam(null);
@@ -179,6 +292,7 @@ export default function AdminPage() {
       name: team.name,
       teamLeadId: team.teamLeadId || "",
       cadence: team.cadence,
+      distributionListEmail: team.distributionListEmail || "",
     });
     setTeamFormError(null);
     setEditingTeam(team);
@@ -188,30 +302,38 @@ export default function AdminPage() {
   const handleCancelTeamForm = () => {
     setShowNewTeamForm(false);
     setEditingTeam(null);
-    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly" });
+    setTeamFormData({ name: "", teamLeadId: "", cadence: "monthly", distributionListEmail: "" });
     setTeamFormError(null);
   };
+
+  const isValidEmail = (email: string) => /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(email);
 
   const handleCreateTeam = async () => {
     if (!teamFormData.name.trim()) {
       setTeamFormError("Team name is required");
       return;
     }
+    const dlEmail = teamFormData.distributionListEmail.trim();
+    if (dlEmail && !isValidEmail(dlEmail)) {
+      setTeamFormError("Invalid email format for distribution list");
+      return;
+    }
 
     setTeamFormLoading(true);
     setTeamFormError(null);
     try {
-      await createTeam({
+      const newTeam = await createTeam({
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
+        distributionListEmail: dlEmail || null,
       });
 
       // Clear cache and refresh teams list
       clearAdminCache();
       await fetchAdminTeams();
 
-      // Close form
+      // Close form (supervisor chain is auto-derived from user hierarchy)
       handleCancelTeamForm();
     } catch (err: any) {
       console.error("Failed to create team:", err);
@@ -228,6 +350,11 @@ export default function AdminPage() {
       setTeamFormError("Team name is required");
       return;
     }
+    const dlEmail = teamFormData.distributionListEmail.trim();
+    if (dlEmail && !isValidEmail(dlEmail)) {
+      setTeamFormError("Invalid email format for distribution list");
+      return;
+    }
 
     setTeamFormLoading(true);
     setTeamFormError(null);
@@ -236,6 +363,7 @@ export default function AdminPage() {
         name: teamFormData.name.trim(),
         teamLeadId: teamFormData.teamLeadId || null,
         cadence: teamFormData.cadence,
+        distributionListEmail: dlEmail || null,
       });
 
       // Clear cache and refresh teams list
@@ -246,7 +374,7 @@ export default function AdminPage() {
       handleCancelTeamForm();
     } catch (err: any) {
       console.error("Failed to update team:", err);
-      setTeamFormError(err.message || "Failed to update team");
+      setTeamFormError("Failed to save team changes. Please try again or contact support if the issue persists.");
     } finally {
       setTeamFormLoading(false);
     }
@@ -309,6 +437,7 @@ export default function AdminPage() {
       password: "",
       hierarchyLevel: "",
       reportsTo: "",
+      authType: "local",
     });
     setUserFormError(null);
     setShowNewUserForm(false);
@@ -330,10 +459,12 @@ export default function AdminPage() {
       password: "",
       hierarchyLevel: userToEdit.hierarchyLevel,
       reportsTo: userToEdit.reportsTo || "",
+      authType: userToEdit.authType || "local",
     });
     setUserFormError(null);
     setEditingUser(userToEdit);
     setShowNewUserForm(false);
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   // Handle user form submit
@@ -352,8 +483,12 @@ export default function AdminPage() {
       if (!userFormData.email.trim()) {
         throw new Error("Email is required");
       }
-      if (!editingUser && !userFormData.password.trim()) {
-        throw new Error("Password is required for new users");
+      if (
+        userFormData.authType === "local" &&
+        (!editingUser || editingUser.authType === "sso") &&
+        !userFormData.password.trim()
+      ) {
+        throw new Error("Password is required for local users");
       }
       if (!userFormData.hierarchyLevel) {
         throw new Error("Role is required");
@@ -361,31 +496,34 @@ export default function AdminPage() {
 
       if (editingUser) {
         // Update existing user
-        const updateData: any = {
+        const updateData: UpdateUserRequest = {
           fullName: userFormData.fullName,
           username: userFormData.username,
           email: userFormData.email,
           hierarchyLevel: userFormData.hierarchyLevel,
           reportsTo: userFormData.reportsTo || null,
+          authType: userFormData.authType,
         };
 
-        // Only include password if it was changed
-        if (userFormData.password.trim()) {
+        // Only include password if it was changed (and user is local)
+        if (userFormData.authType === "local" && userFormData.password.trim()) {
           updateData.password = userFormData.password;
         }
 
         await updateUser(editingUser.id, updateData);
       } else {
         // Create new user
-        await createUser({
+        const createData: CreateUserRequest = {
           id: userFormData.username, // Use username as ID
           fullName: userFormData.fullName,
           username: userFormData.username,
           email: userFormData.email,
-          password: userFormData.password,
           hierarchyLevel: userFormData.hierarchyLevel,
           reportsTo: userFormData.reportsTo || null,
-        });
+          authType: userFormData.authType,
+          ...(userFormData.authType === "local" ? { password: userFormData.password } : {}),
+        };
+        await createUser(createData);
       }
 
       // Clear cache and reload users
@@ -572,245 +710,158 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Create team form */}
+            {/* Create team modal */}
             {showNewTeamForm && (
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border mb-6"
-                data-testid="create-team-form"
-              >
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  New Team
-                </h3>
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-testid="team-create-modal">
+                <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    New Team
+                  </h3>
 
-                {teamFormError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
-                    <p className="text-sm text-red-700">{teamFormError}</p>
+                  {teamFormError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                      <p className="text-sm text-red-700">{teamFormError}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label htmlFor="team-name" className="block text-sm font-medium text-gray-700 mb-2">Team Name *</label>
+                      <input type="text" id="team-name" data-testid="team-name-input" value={teamFormData.name} onChange={(e) => setTeamFormData({ ...teamFormData, name: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Enter team name" disabled={teamFormLoading} />
+                    </div>
+                    <div>
+                      <label htmlFor="team-lead" className="block text-sm font-medium text-gray-700 mb-2">Team Lead</label>
+                      <select id="team-lead" data-testid="team-lead-select" value={teamFormData.teamLeadId} onChange={(e) => setTeamFormData({ ...teamFormData, teamLeadId: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" disabled={teamFormLoading || teamLeadsLoading}>
+                        <option value="">No team lead</option>
+                        {availableTeamLeads.map((user) => (<option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="cadence" className="block text-sm font-medium text-gray-700 mb-2">Cadence *</label>
+                      <select id="cadence" data-testid="team-cadence-select" value={teamFormData.cadence} onChange={(e) => setTeamFormData({ ...teamFormData, cadence: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" disabled={teamFormLoading}>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="half-yearly">Half-Yearly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      htmlFor="team-name"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Team Name *
+                  <div className="mt-4">
+                    <label htmlFor="distributionListEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                      Distribution List Email
                     </label>
                     <input
-                      type="text"
-                      id="team-name"
-                      data-testid="team-name-input"
-                      value={teamFormData.name}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          name: e.target.value,
-                        })
-                      }
+                      type="email"
+                      id="distributionListEmail"
+                      data-testid="team-dl-email-input"
+                      value={teamFormData.distributionListEmail}
+                      onChange={(e) => setTeamFormData({...teamFormData, distributionListEmail: e.target.value})}
+                      placeholder="team-dl@company.com"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter team name"
                       disabled={teamFormLoading}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Post-workshop survey summaries will be sent to this address.
+                    </p>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="team-lead"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Team Lead
-                    </label>
-                    <select
-                      id="team-lead"
-                      data-testid="team-lead-select"
-                      value={teamFormData.teamLeadId}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          teamLeadId: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      disabled={teamFormLoading || teamLeadsLoading}
-                    >
-                      <option value="">No team lead</option>
-                      {availableTeamLeads.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.fullName} ({user.username})
-                        </option>
-                      ))}
-                    </select>
+                  <div className="flex gap-4 mt-6">
+                    <button data-testid="save-team-btn" onClick={handleCreateTeam} disabled={teamFormLoading} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      <Save className="w-4 h-4" />
+                      {teamFormLoading ? "Creating..." : "Create Team"}
+                    </button>
+                    <button onClick={handleCancelTeamForm} disabled={teamFormLoading} className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50">
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </button>
                   </div>
-
-                  <div>
-                    <label
-                      htmlFor="cadence"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Cadence *
-                    </label>
-                    <select
-                      id="cadence"
-                      data-testid="team-cadence-select"
-                      value={teamFormData.cadence}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          cadence: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      disabled={teamFormLoading}
-                    >
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex gap-4 mt-6">
-                  <button
-                    data-testid="save-team-btn"
-                    onClick={handleCreateTeam}
-                    disabled={teamFormLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Save className="w-4 h-4" />
-                    {teamFormLoading ? "Creating..." : "Create Team"}
-                  </button>
-                  <button
-                    onClick={handleCancelTeamForm}
-                    disabled={teamFormLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
-                  >
-                    <X className="w-4 h-4" />
-                    Cancel
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* Edit team form */}
+            {/* Edit team modal */}
             {editingTeam && (
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border mb-6"
-                data-testid="edit-team-form"
-              >
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                  Edit Team
-                </h3>
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-testid="team-edit-modal">
+                <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                    Edit Team
+                  </h3>
 
-                {teamFormError && (
-                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
-                    <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
-                    <p className="text-sm text-red-700">{teamFormError}</p>
+                  {teamFormError && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                      <p className="text-sm text-red-700">{teamFormError}</p>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 gap-4">
+                    <div>
+                      <label htmlFor="edit-team-name" className="block text-sm font-medium text-gray-700 mb-2">Team Name *</label>
+                      <input type="text" id="edit-team-name" data-testid="team-name-input" value={teamFormData.name} onChange={(e) => setTeamFormData({ ...teamFormData, name: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" placeholder="Enter team name" disabled={teamFormLoading} />
+                    </div>
+                    <div>
+                      <label htmlFor="edit-team-lead" className="block text-sm font-medium text-gray-700 mb-2">Team Lead</label>
+                      <select id="edit-team-lead" data-testid="team-lead-select" value={teamFormData.teamLeadId} onChange={(e) => setTeamFormData({ ...teamFormData, teamLeadId: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" disabled={teamFormLoading || teamLeadsLoading}>
+                        <option value="">No team lead</option>
+                        {availableTeamLeads.map((user) => (<option key={user.id} value={user.id}>{user.fullName} ({user.username})</option>))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="edit-cadence" className="block text-sm font-medium text-gray-700 mb-2">Cadence *</label>
+                      <select id="edit-cadence" data-testid="team-cadence-select" value={teamFormData.cadence} onChange={(e) => setTeamFormData({ ...teamFormData, cadence: e.target.value })} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent" disabled={teamFormLoading}>
+                        <option value="monthly">Monthly</option>
+                        <option value="quarterly">Quarterly</option>
+                        <option value="half-yearly">Half-Yearly</option>
+                        <option value="yearly">Yearly</option>
+                      </select>
+                    </div>
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label
-                      htmlFor="edit-team-name"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Team Name *
+                  <div className="mt-4">
+                    <label htmlFor="edit-distributionListEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                      Distribution List Email
                     </label>
                     <input
-                      type="text"
-                      id="edit-team-name"
-                      data-testid="team-name-input"
-                      value={teamFormData.name}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          name: e.target.value,
-                        })
-                      }
+                      type="email"
+                      id="edit-distributionListEmail"
+                      data-testid="team-dl-email-edit-input"
+                      value={teamFormData.distributionListEmail}
+                      onChange={(e) => setTeamFormData({...teamFormData, distributionListEmail: e.target.value})}
+                      placeholder="team-dl@company.com"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter team name"
                       disabled={teamFormLoading}
                     />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Post-workshop survey summaries will be sent to this address.
+                    </p>
                   </div>
 
-                  <div>
-                    <label
-                      htmlFor="edit-team-lead"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Team Lead
-                    </label>
-                    <select
-                      id="edit-team-lead"
-                      data-testid="team-lead-select"
-                      value={teamFormData.teamLeadId}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          teamLeadId: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      disabled={teamFormLoading || teamLeadsLoading}
-                    >
-                      <option value="">No team lead</option>
-                      {availableTeamLeads.map((user) => (
-                        <option key={user.id} value={user.id}>
-                          {user.fullName} ({user.username})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="edit-cadence"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Cadence *
-                    </label>
-                    <select
-                      id="edit-cadence"
-                      data-testid="team-cadence-select"
-                      value={teamFormData.cadence}
-                      onChange={(e) =>
-                        setTeamFormData({
-                          ...teamFormData,
-                          cadence: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      disabled={teamFormLoading}
-                    >
-                      <option value="weekly">Weekly</option>
-                      <option value="biweekly">Bi-weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="quarterly">Quarterly</option>
-                    </select>
+                  <div className="flex gap-4 mt-6">
+                    <button data-testid="save-team-btn" onClick={handleUpdateTeam} disabled={teamFormLoading} className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      <Save className="w-4 h-4" />
+                      {teamFormLoading ? "Saving..." : "Save Changes"}
+                    </button>
+                    <button onClick={handleCancelTeamForm} disabled={teamFormLoading} className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50">
+                      <X className="w-4 h-4" />
+                      Cancel
+                    </button>
                   </div>
                 </div>
+              </div>
+            )}
 
-                <div className="flex gap-4 mt-6">
-                  <button
-                    data-testid="save-team-btn"
-                    onClick={handleUpdateTeam}
-                    disabled={teamFormLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Save className="w-4 h-4" />
-                    {teamFormLoading ? "Saving..." : "Save Changes"}
-                  </button>
-                  <button
-                    onClick={handleCancelTeamForm}
-                    disabled={teamFormLoading}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
-                  >
-                    <X className="w-4 h-4" />
-                    Cancel
-                  </button>
-                </div>
+            {!teamsLoading && teams.length > 0 && (
+              <div className="mb-4">
+                <input
+                  type="text"
+                  data-testid="team-search-input"
+                  value={teamSearchQuery}
+                  onChange={(e) => setTeamSearchQuery(e.target.value)}
+                  className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Search teams by name or team lead..."
+                />
               </div>
             )}
 
@@ -849,7 +900,11 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {teams.map((team) => (
+                    {teams.filter((team) => {
+                      if (!teamSearchQuery) return true;
+                      const q = teamSearchQuery.toLowerCase();
+                      return team.name.toLowerCase().includes(q) || (team.teamLeadName || '').toLowerCase().includes(q);
+                    }).map((team) => (
                       <tr key={team.id} data-testid="team-row">
                         <td className="px-6 py-4">
                           <div className="font-semibold text-gray-900">
@@ -885,8 +940,27 @@ export default function AdminPage() {
                               onClick={() => handleShowEditTeamForm(team)}
                               className="text-indigo-600 hover:text-indigo-900"
                               disabled={deletingTeamId === team.id}
+                              title="Edit team"
                             >
                               <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              data-testid="manage-members-btn"
+                              onClick={() => setMembersTeam(team)}
+                              className="text-blue-600 hover:text-blue-900"
+                              disabled={deletingTeamId === team.id}
+                              title="Manage members"
+                            >
+                              <Users className="w-4 h-4" />
+                            </button>
+                            <button
+                              data-testid="manage-hierarchy-btn"
+                              onClick={() => setSupervisorChainTeam(team)}
+                              className="text-emerald-600 hover:text-emerald-900"
+                              disabled={deletingTeamId === team.id}
+                              title="View hierarchy"
+                            >
+                              <GitBranch className="w-4 h-4" />
                             </button>
                             <button
                               data-testid="delete-team-btn"
@@ -907,6 +981,27 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+
+            {/* Supervisor Chain Modal (read-only, auto-derived from user hierarchy) */}
+            {supervisorChainTeam && (
+              <SupervisorChainModal
+                teamId={supervisorChainTeam.id}
+                teamName={supervisorChainTeam.name}
+                onClose={() => setSupervisorChainTeam(null)}
+              />
+            )}
+
+            {/* Team Members Modal */}
+            {membersTeam && (
+              <TeamMembersModal
+                teamId={membersTeam.id}
+                teamName={membersTeam.name}
+                onClose={() => {
+                  setMembersTeam(null);
+                  fetchAdminTeams(); // Refresh member counts
+                }}
+              />
             )}
           </div>
         )}
@@ -934,10 +1029,8 @@ export default function AdminPage() {
             )}
 
             {showNewUserForm && (
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border mb-6"
-                data-testid="create-user-form"
-              >
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-testid="user-create-modal">
+              <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   New User
                 </h3>
@@ -1005,22 +1098,57 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password *
+                      Authentication Type
                     </label>
-                    <input
-                      type="password"
-                      data-testid="user-password-input"
-                      value={userFormData.password}
-                      onChange={(e) =>
-                        setUserFormData({
-                          ...userFormData,
-                          password: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter password"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="create-auth-type"
+                          data-testid="auth-type-local"
+                          checked={userFormData.authType === "local"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "local" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">Local (Password)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="create-auth-type"
+                          data-testid="auth-type-sso"
+                          checked={userFormData.authType === "sso"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "sso", password: "" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">SSO (Identity Provider)</span>
+                      </label>
+                    </div>
                   </div>
+                  {userFormData.authType === "local" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="user-password-input"
+                        value={userFormData.password}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter password"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role *
@@ -1096,13 +1224,12 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
+              </div>
             )}
 
             {editingUser && (
-              <div
-                className="bg-white p-6 rounded-xl shadow-sm border mb-6"
-                data-testid="create-user-form"
-              >
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" data-testid="user-edit-modal">
+              <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto">
                 <h3 className="text-lg font-semibold text-gray-900 mb-4">
                   Edit User
                 </h3>
@@ -1170,22 +1297,57 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password (leave blank to keep current)
+                      Authentication Type
                     </label>
-                    <input
-                      type="password"
-                      data-testid="user-password-input"
-                      value={userFormData.password}
-                      onChange={(e) =>
-                        setUserFormData({
-                          ...userFormData,
-                          password: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                      placeholder="Enter new password"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit-auth-type"
+                          data-testid="auth-type-local"
+                          checked={userFormData.authType === "local"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "local" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">Local (Password)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="edit-auth-type"
+                          data-testid="auth-type-sso"
+                          checked={userFormData.authType === "sso"}
+                          onChange={() =>
+                            setUserFormData({ ...userFormData, authType: "sso", password: "" })
+                          }
+                          className="text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <span className="text-sm text-gray-700">SSO (Identity Provider)</span>
+                      </label>
+                    </div>
                   </div>
+                  {userFormData.authType === "local" && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Password (leave blank to keep current)
+                      </label>
+                      <input
+                        type="password"
+                        data-testid="user-password-input"
+                        value={userFormData.password}
+                        onChange={(e) =>
+                          setUserFormData({
+                            ...userFormData,
+                            password: e.target.value,
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter new password"
+                      />
+                    </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Role *
@@ -1261,6 +1423,31 @@ export default function AdminPage() {
                   </button>
                 </div>
               </div>
+              </div>
+            )}
+
+            {!usersLoading && users.length > 0 && (
+              <div className="mb-4 flex gap-4 items-center">
+                <input
+                  type="text"
+                  data-testid="user-search-input"
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  placeholder="Search by name, username, or email..."
+                />
+                <select
+                  data-testid="user-role-filter"
+                  value={userRoleFilter}
+                  onChange={(e) => setUserRoleFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                >
+                  <option value="">All Roles</option>
+                  {hierarchyLevels.map((level) => (
+                    <option key={level.id} value={level.id}>{level.name}</option>
+                  ))}
+                </select>
+              </div>
             )}
 
             {usersLoading ? (
@@ -1298,7 +1485,12 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
-                    {users.map((userItem) => (
+                    {users.filter((userItem) => {
+                      const q = userSearchQuery.toLowerCase();
+                      const matchesSearch = !q || userItem.username.toLowerCase().includes(q) || userItem.fullName.toLowerCase().includes(q) || userItem.email.toLowerCase().includes(q);
+                      const matchesRole = !userRoleFilter || userItem.hierarchyLevel === userRoleFilter;
+                      return matchesSearch && matchesRole;
+                    }).map((userItem) => (
                       <tr key={userItem.id} data-testid="user-row">
                         <td className="px-6 py-4">
                           <div className="font-medium text-gray-900">
@@ -1324,6 +1516,14 @@ export default function AdminPage() {
                               (l) => l.id === userItem.hierarchyLevel,
                             )?.name || userItem.hierarchyLevel}
                           </span>
+                          {userItem.authType === "sso" && (
+                            <span
+                              className="ml-2 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700"
+                              data-testid="sso-badge"
+                            >
+                              SSO
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm text-gray-500">
@@ -1413,6 +1613,120 @@ export default function AdminPage() {
                   <DimensionConfig />
                 </div>
 
+                {settingsLoading ? (
+                  <div className="text-center py-4 text-gray-500">Loading settings...</div>
+                ) : (
+                  <>
+                <div data-testid="branding-settings">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Company Branding
+                  </h3>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Name
+                      </label>
+                      <input
+                        type="text"
+                        data-testid="branding-company-name"
+                        value={brandingCompanyName}
+                        onChange={(e) => setBrandingCompanyName(e.target.value)}
+                        className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        placeholder="Enter company name"
+                        maxLength={100}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Company Logo
+                      </label>
+                      <div className="flex items-center gap-4">
+                        {brandingLogoURL ? (
+                          <div className="flex items-center gap-3" data-testid="branding-logo-preview">
+                            <img
+                              src={brandingLogoURL}
+                              alt="Company logo"
+                              className="w-12 h-12 object-contain rounded border border-gray-200"
+                            />
+                            <button
+                              type="button"
+                              data-testid="branding-logo-remove"
+                              onClick={() => setBrandingLogoURL("")}
+                              className="text-sm text-red-600 hover:text-red-800"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="w-12 h-12 bg-gray-100 rounded border border-gray-200 flex items-center justify-center">
+                            <Building2 className="w-6 h-6 text-gray-400" />
+                          </div>
+                        )}
+                        <label
+                          data-testid="branding-logo-upload"
+                          className="cursor-pointer px-4 py-2 text-sm text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          {brandingLogoURL ? "Change Logo" : "Upload Logo"}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleLogoUpload}
+                          />
+                        </label>
+                        <span className="text-xs text-gray-500">Max 500KB</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {!smtpConfigured && (
+                  <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+                    <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-medium text-amber-800">SMTP Not Configured</p>
+                      <p className="text-sm text-amber-700 mt-1">
+                        Email notifications are disabled. Set <code className="bg-amber-100 px-1 rounded">SMTP_HOST</code> and related environment variables to enable email delivery.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div data-testid="team-dl-settings">
+                  <h3 className="text-lg font-medium text-gray-900 mb-4">
+                    Team Distribution Lists
+                  </h3>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Teams with a distribution list email will receive post-workshop survey summaries.
+                  </p>
+                  <div className="border rounded-lg overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="text-left px-4 py-2 font-medium text-gray-600">Team</th>
+                          <th className="text-left px-4 py-2 font-medium text-gray-600">Distribution List Email</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {teams.length === 0 ? (
+                          <tr><td colSpan={2} className="px-4 py-3 text-gray-400 text-center">No teams configured</td></tr>
+                        ) : teams.map((t) => (
+                          <tr key={t.id}>
+                            <td className="px-4 py-2 font-medium text-gray-900">{t.name}</td>
+                            <td className="px-4 py-2">
+                              {t.distributionListEmail ? (
+                                <span className="text-gray-700">{t.distributionListEmail}</span>
+                              ) : (
+                                <span className="text-gray-400">Not set</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div data-testid="notifications-settings">
                 <h3 className="text-lg font-medium text-gray-900 mb-4">
                   Notification Settings
@@ -1422,24 +1736,31 @@ export default function AdminPage() {
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
-                      defaultChecked
+                      data-testid="email-enabled-checkbox"
+                      checked={emailEnabled}
+                      onChange={(e) => setEmailEnabled(e.target.checked)}
                     />
-                    <span>Send email reminders for upcoming health checks</span>
+                    <span className="text-gray-700">Send email reminders for upcoming health checks</span>
                   </label>
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
-                      defaultChecked
+                      data-testid="slack-enabled-checkbox"
+                      checked={slackEnabled}
+                      onChange={(e) => setSlackEnabled(e.target.checked)}
                     />
-                    <span>Notify managers when team health declines</span>
+                    <span className="text-gray-700">Notify managers when team health declines</span>
                   </label>
                   <label className="flex items-center gap-3">
                     <input
                       type="checkbox"
                       className="w-4 h-4 text-indigo-600 rounded"
+                      data-testid="weekly-digest-checkbox"
+                      checked={notifyOnSubmission}
+                      onChange={(e) => setNotifyOnSubmission(e.target.checked)}
                     />
-                    <span>Send weekly summary reports</span>
+                    <span className="text-gray-700">Send weekly summary reports</span>
                   </label>
                 </div>
               </div>
@@ -1453,18 +1774,23 @@ export default function AdminPage() {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Keep health check data for
                     </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                      <option>6 months</option>
-                      <option defaultValue="selected">1 year</option>
-                      <option>2 years</option>
-                      <option>Forever</option>
+                    <select
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                      data-testid="retention-months-select"
+                      value={retentionMonths}
+                      onChange={(e) => setRetentionMonths(Number(e.target.value))}
+                    >
+                      <option value={6}>6 months</option>
+                      <option value={12}>1 year</option>
+                      <option value={24}>2 years</option>
+                      <option value={120}>Forever</option>
                     </select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Export format
                     </label>
-                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                    <select className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
                       <option>CSV</option>
                       <option>JSON</option>
                       <option>Excel</option>
@@ -1473,14 +1799,31 @@ export default function AdminPage() {
                 </div>
               </div>
 
+              {settingsError && (
+                <div className="text-red-600 text-sm" data-testid="settings-error">{settingsError}</div>
+              )}
+              {settingsSuccess && (
+                <div className="text-green-600 text-sm" data-testid="settings-success">Settings saved successfully</div>
+              )}
+
               <div className="flex gap-4 pt-6 border-t">
-                <button className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
-                  Save Settings
+                <button
+                  onClick={saveSettings}
+                  disabled={settingsSaving}
+                  data-testid="save-settings-btn"
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  {settingsSaving ? "Saving..." : "Save Settings"}
                 </button>
-                <button className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+                <button
+                  onClick={loadSettings}
+                  className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+                >
                   Cancel
                 </button>
               </div>
+                  </>
+                )}
               </div>
             </div>
           </div>

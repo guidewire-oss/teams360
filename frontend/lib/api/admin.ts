@@ -64,12 +64,9 @@ export interface AdminUser {
   hierarchyLevel: string;
   reportsTo: string | null;
   teamIds: string[];
+  authType: 'local' | 'sso';
   createdAt: string;
   updatedAt: string;
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface CreateUserRequest {
@@ -77,14 +74,10 @@ export interface CreateUserRequest {
   username: string;
   email: string;
   fullName: string;
-  password: string;
+  password?: string;  // Required for local users, omit for SSO
+  authType?: 'local' | 'sso';
   hierarchyLevel: string;
   reportsTo?: string | null;
-  teamIds?: string[];
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface UpdateUserRequest {
@@ -92,13 +85,9 @@ export interface UpdateUserRequest {
   email?: string;
   fullName?: string;
   password?: string;
+  authType?: 'local' | 'sso';
   hierarchyLevel?: string;
   reportsTo?: string | null;
-  teamIds?: string[];
-  // Future OAuth/groups support
-  authProvider?: string;
-  externalId?: string;
-  groups?: string[];
 }
 
 export interface UsersListResponse {
@@ -116,6 +105,7 @@ export interface AdminTeam {
   teamLeadId: string | null;
   teamLeadName: string | null;
   cadence: string;
+  distributionListEmail?: string | null;
   memberCount: number;
   createdAt: string;
   updatedAt: string;
@@ -127,6 +117,7 @@ export interface CreateTeamRequest {
   name: string;
   teamLeadId?: string | null;
   cadence: string;
+  distributionListEmail?: string | null;
   memberIds?: string[];
   // Future OAuth/groups support
   externalGroupId?: string;
@@ -136,6 +127,7 @@ export interface UpdateTeamRequest {
   name?: string;
   teamLeadId?: string | null;
   cadence?: string;
+  distributionListEmail?: string | null;
   memberIds?: string[];
   // Future OAuth/groups support
   externalGroupId?: string;
@@ -144,6 +136,26 @@ export interface UpdateTeamRequest {
 export interface AdminTeamsListResponse {
   teams: AdminTeam[];
   total: number;
+}
+
+// ============================================================================
+// SUPERVISOR CHAIN TYPES
+// ============================================================================
+
+export interface SupervisorLink {
+  userId: string;
+  userName: string;
+  levelId: string;
+  levelName: string;
+}
+
+export interface SupervisorChainResponse {
+  teamId: string;
+  supervisors: SupervisorLink[];
+}
+
+export interface UpdateSupervisorChainRequest {
+  supervisors: { userId: string; levelId: string }[];
 }
 
 // ============================================================================
@@ -195,23 +207,27 @@ export interface DimensionsListResponse {
 export interface NotificationSettings {
   emailEnabled: boolean;
   slackEnabled: boolean;
-  emailRecipients: string[];
-  slackWebhookUrl: string;
-  notifyOnSurveySubmission: boolean;
-  notifyOnLowScores: boolean;
-  lowScoreThreshold: number;
-  createdAt: string;
-  updatedAt: string;
+  notifyOnSubmission: boolean;
+  notifyManagers: boolean;
+  reminderDaysBefore: number;
+  reminderRecipients: string[];
+  smtpConfigured: boolean;
 }
 
 export interface UpdateNotificationSettingsRequest {
   emailEnabled?: boolean;
   slackEnabled?: boolean;
-  emailRecipients?: string[];
-  slackWebhookUrl?: string;
-  notifyOnSurveySubmission?: boolean;
-  notifyOnLowScores?: boolean;
-  lowScoreThreshold?: number;
+  notifyOnSubmission?: boolean;
+}
+
+export interface RetentionPolicy {
+  keepSessionsMonths: number;
+  archiveEnabled: boolean;
+  anonymizeAfterDays: number;
+}
+
+export interface UpdateRetentionPolicyRequest {
+  keepSessionsMonths: number;
 }
 
 // ============================================================================
@@ -410,6 +426,86 @@ export async function deleteTeam(teamId: string): Promise<void> {
 }
 
 // ============================================================================
+// TEAM MEMBER MANAGEMENT API METHODS
+// ============================================================================
+
+export interface TeamMemberAdmin {
+  userId: string;
+  userName: string;
+  email: string;
+}
+
+export interface TeamMembersResponse {
+  members: TeamMemberAdmin[];
+  total: number;
+}
+
+/**
+ * Fetches members of a team
+ */
+export async function getTeamMembers(teamId: string): Promise<TeamMembersResponse> {
+  return createApiClient<TeamMembersResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/members`
+  );
+}
+
+/**
+ * Adds a member to a team
+ */
+export async function addTeamMember(teamId: string, userId: string): Promise<void> {
+  await createApiClient<void>(`${API_BASE_URL}/api/v1/admin/teams/${teamId}/members`, {
+    method: 'POST',
+    body: JSON.stringify({ userId }),
+  });
+}
+
+/**
+ * Removes a member from a team
+ */
+export async function removeTeamMember(teamId: string, userId: string): Promise<void> {
+  await createApiClient<void>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/members/${userId}`,
+    { method: 'DELETE' }
+  );
+}
+
+// ============================================================================
+// SUPERVISOR CHAIN API METHODS
+// ============================================================================
+
+/**
+ * Fetches the supervisor chain for a team
+ *
+ * @param teamId - Team ID
+ * @returns Supervisor chain with user and level names
+ */
+export async function getSupervisorChain(teamId: string): Promise<SupervisorChainResponse> {
+  return createApiClient<SupervisorChainResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/supervisors`
+  );
+}
+
+/**
+ * Updates the supervisor chain for a team
+ *
+ * @param teamId - Team ID
+ * @param request - New supervisor chain
+ * @returns Updated supervisor chain
+ */
+export async function updateSupervisorChain(
+  teamId: string,
+  request: UpdateSupervisorChainRequest
+): Promise<SupervisorChainResponse> {
+  return createApiClient<SupervisorChainResponse>(
+    `${API_BASE_URL}/api/v1/admin/teams/${teamId}/supervisors`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
 // HEALTH DIMENSIONS API METHODS
 // ============================================================================
 
@@ -477,6 +573,39 @@ export async function deleteDimension(dimensionId: string): Promise<void> {
 }
 
 // ============================================================================
+// BRANDING SETTINGS API METHODS
+// ============================================================================
+
+export interface BrandingSettings {
+  companyName: string;
+  logoURL: string;
+}
+
+/**
+ * Fetches branding settings
+ */
+export async function getBrandingSettings(): Promise<BrandingSettings> {
+  return createApiClient<BrandingSettings>(
+    `${API_BASE_URL}/api/v1/admin/settings/branding`
+  );
+}
+
+/**
+ * Updates branding settings (company name and optional logo)
+ */
+export async function updateBrandingSettings(
+  request: BrandingSettings
+): Promise<BrandingSettings> {
+  return createApiClient<BrandingSettings>(
+    `${API_BASE_URL}/api/v1/admin/settings/branding`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
 // NOTIFICATION SETTINGS API METHODS
 // ============================================================================
 
@@ -502,6 +631,34 @@ export async function updateNotificationSettings(
 ): Promise<NotificationSettings> {
   return createApiClient<NotificationSettings>(
     `${API_BASE_URL}/api/v1/admin/settings/notifications`,
+    {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    }
+  );
+}
+
+// ============================================================================
+// RETENTION POLICY API METHODS
+// ============================================================================
+
+/**
+ * Fetches retention policy settings
+ */
+export async function getRetentionPolicy(): Promise<RetentionPolicy> {
+  return createApiClient<RetentionPolicy>(
+    `${API_BASE_URL}/api/v1/admin/settings/retention`
+  );
+}
+
+/**
+ * Updates retention policy settings
+ */
+export async function updateRetentionPolicy(
+  request: UpdateRetentionPolicyRequest
+): Promise<RetentionPolicy> {
+  return createApiClient<RetentionPolicy>(
+    `${API_BASE_URL}/api/v1/admin/settings/retention`,
     {
       method: 'PUT',
       body: JSON.stringify(request),

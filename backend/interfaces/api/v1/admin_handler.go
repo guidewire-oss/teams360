@@ -19,8 +19,8 @@ type AdminHandler struct {
 func NewAdminHandler(orgRepo organization.Repository, userRepo user.Repository, teamRepo team.Repository) *AdminHandler {
 	return &AdminHandler{
 		HierarchyHandler: NewHierarchyAdminHandler(orgRepo),
-		UserHandler:      NewUserAdminHandler(userRepo),
-		TeamHandler:      NewTeamAdminHandler(teamRepo),
+		UserHandler:      NewUserAdminHandler(userRepo, teamRepo),
+		TeamHandler:      NewTeamAdminHandler(teamRepo, userRepo, orgRepo),
 		SettingsHandler:  NewSettingsAdminHandler(orgRepo),
 	}
 }
@@ -89,6 +89,26 @@ func (h *AdminHandler) DeleteTeam(c *gin.Context) {
 	h.TeamHandler.DeleteTeam(c)
 }
 
+func (h *AdminHandler) GetTeamMembers(c *gin.Context) {
+	h.TeamHandler.GetTeamMembers(c)
+}
+
+func (h *AdminHandler) AddTeamMember(c *gin.Context) {
+	h.TeamHandler.AddTeamMember(c)
+}
+
+func (h *AdminHandler) RemoveTeamMember(c *gin.Context) {
+	h.TeamHandler.RemoveTeamMember(c)
+}
+
+func (h *AdminHandler) GetTeamSupervisors(c *gin.Context) {
+	h.TeamHandler.GetSupervisorChain(c)
+}
+
+func (h *AdminHandler) UpdateTeamSupervisors(c *gin.Context) {
+	h.TeamHandler.UpdateSupervisorChain(c)
+}
+
 // ============================================================================
 // Settings Handlers - Delegate to SettingsAdminHandler
 // ============================================================================
@@ -107,6 +127,14 @@ func (h *AdminHandler) UpdateDimension(c *gin.Context) {
 
 func (h *AdminHandler) DeleteDimension(c *gin.Context) {
 	h.SettingsHandler.DeleteDimension(c)
+}
+
+func (h *AdminHandler) GetBrandingSettings(c *gin.Context) {
+	h.SettingsHandler.GetBrandingSettings(c)
+}
+
+func (h *AdminHandler) UpdateBrandingSettings(c *gin.Context) {
+	h.SettingsHandler.UpdateBrandingSettings(c)
 }
 
 func (h *AdminHandler) GetNotificationSettings(c *gin.Context) {

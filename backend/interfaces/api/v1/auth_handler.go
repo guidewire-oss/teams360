@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/agopalakrishnan/teams360/backend/application/services"
+	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
@@ -18,13 +19,15 @@ import (
 // AuthHandler handles authentication-related HTTP requests
 type AuthHandler struct {
 	userRepo   user.Repository
+	orgRepo    organization.Repository
 	jwtService *services.JWTService
 }
 
 // NewAuthHandler creates a new AuthHandler
-func NewAuthHandler(userRepo user.Repository, jwtService *services.JWTService) *AuthHandler {
+func NewAuthHandler(userRepo user.Repository, orgRepo organization.Repository, jwtService *services.JWTService) *AuthHandler {
 	return &AuthHandler{
 		userRepo:   userRepo,
+		orgRepo:    orgRepo,
 		jwtService: jwtService,
 	}
 }
@@ -78,6 +81,22 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	span.SetAttributes(attribute.String("user.id", usr.ID))
+
+	// SSO users cannot log in with username/password
+	if usr.AuthType == user.AuthTypeSSO {
+		telemetry.RecordLogin(ctx, false, time.Since(startTime), "sso_user_local_login")
+		log.Auth("login").
+			Username(req.Username).
+			UserID(usr.ID).
+			IP(clientIP).
+			RequestID(requestID).
+			Endpoint(endpoint).
+			Reason("sso_user_local_login").
+			Details("SSO user attempted local password login").
+			Failure()
+		dto.RespondError(c, http.StatusUnauthorized, "Invalid username or password")
+		return
+	}
 
 	// Validate password using bcrypt
 	if err := bcrypt.CompareHashAndPassword([]byte(usr.PasswordHash), []byte(req.Password)); err != nil {
@@ -134,6 +153,14 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Details("User authenticated successfully, JWT tokens issued").
 		Success()
 
+	// Fetch hierarchy level permissions to include canTakeSurvey in response
+	canTakeSurvey := false
+	if usr.HierarchyLevelID != "" {
+		if level, err := h.orgRepo.FindHierarchyLevelByID(c.Request.Context(), usr.HierarchyLevelID); err == nil {
+			canTakeSurvey = level.Permissions.CanTakeSurvey
+		}
+	}
+
 	// Return user info with JWT tokens
 	response := dto.LoginResponse{
 		User: dto.UserDTO{
@@ -143,6 +170,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 			FullName:       usr.Name,
 			HierarchyLevel: usr.HierarchyLevelID,
 			TeamIds:        teamIds,
+			CanTakeSurvey:  canTakeSurvey,
 		},
 		AccessToken:  tokenPair.AccessToken,
 		RefreshToken: tokenPair.RefreshToken,

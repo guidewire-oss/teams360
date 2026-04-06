@@ -1,11 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { getCurrentUser, logout, User } from '@/lib/auth';
+import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
-import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/api/client';
+import { getAssessmentPeriods } from '@/lib/api/health-checks';
+import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, Download } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
 
 // Types matching backend API response
 interface DimensionSummary {
@@ -40,7 +43,77 @@ interface TrendData {
   [key: string]: string | number;
 }
 
+interface Subordinate {
+  id: string;
+  username: string;
+  name: string;
+  hierarchyLevelId: string;
+  reportsTo?: string;
+  teamIds: string[];
+}
+
 type TabView = 'teams' | 'hierarchy' | 'summary' | 'comparison' | 'radar' | 'trends';
+
+const LEVEL_STYLES: Record<string, { border: string; icon: string; label: string }> = {
+  'level-1': { border: 'border-purple-500', icon: 'text-purple-600', label: 'VP' },
+  'level-2': { border: 'border-blue-500', icon: 'text-blue-600', label: 'Director' },
+  'level-3': { border: 'border-teal-500', icon: 'text-teal-600', label: 'Manager' },
+  'level-4': { border: 'border-green-500', icon: 'text-green-600', label: 'Team Lead' },
+  'level-5': { border: 'border-gray-400', icon: 'text-gray-500', label: 'Team Member' },
+};
+
+function HierarchyNode({
+  person,
+  childrenByParent,
+  teamsByIdMap,
+  depth,
+}: {
+  person: { id: string; name: string; hierarchyLevelId: string; username: string; teamIds: string[] };
+  childrenByParent: Map<string, Subordinate[]>;
+  teamsByIdMap: Map<string, TeamHealthSummary>;
+  depth: number;
+}) {
+  const style = LEVEL_STYLES[person.hierarchyLevelId] || LEVEL_STYLES['level-5'];
+  const directReports = childrenByParent.get(person.id) || [];
+  const personTeams = (person.teamIds || [])
+    .map((tid) => teamsByIdMap.get(tid))
+    .filter((t): t is TeamHealthSummary => !!t);
+
+  return (
+    <div data-testid={`org-node-${person.id}`} className={`border-l-4 ${style.border} pl-4 py-2`}>
+      <div className="flex items-center gap-3">
+        <Users className={`w-5 h-5 ${style.icon}`} />
+        <div>
+          <div className="font-semibold text-gray-900">
+            {person.name}
+            <span className={`ml-2 text-xs font-normal px-2 py-0.5 rounded-full bg-gray-100 ${style.icon}`}>
+              {style.label}
+            </span>
+          </div>
+          {personTeams.length > 0 && (
+            <div className="text-xs text-gray-500 mt-0.5">
+              {personTeams.map((t) => t.teamName).join(', ')}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {directReports.length > 0 && (
+        <div className={`mt-3 ${depth < 4 ? 'ml-6' : 'ml-4'} space-y-2`}>
+          {directReports.map((sub) => (
+            <HierarchyNode
+              key={sub.id}
+              person={sub}
+              childrenByParent={childrenByParent}
+              teamsByIdMap={teamsByIdMap}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function ManagerPage() {
   const router = useRouter();
@@ -49,15 +122,42 @@ export default function ManagerPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<string>('');
+  const [assessmentPeriodOptions, setAssessmentPeriodOptions] = useState<string[]>([]);
   const [expandedTeam, setExpandedTeam] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabView>('teams');
   const [selectedTeamsForComparison, setSelectedTeamsForComparison] = useState<string[]>([]);
+
+  // Subordinate tree state
+  const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
+
+  // Pre-group subordinates by parent and teams by ID for O(1) lookups in hierarchy tree
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, Subordinate[]>();
+    for (const sub of subordinates) {
+      const parent = sub.reportsTo || '';
+      if (!map.has(parent)) map.set(parent, []);
+      map.get(parent)!.push(sub);
+    }
+    return map;
+  }, [subordinates]);
+
+  const teamsByIdMap = useMemo(() => {
+    const map = new Map<string, TeamHealthSummary>();
+    for (const team of dashboardData?.teams || []) {
+      map.set(team.teamId, team);
+    }
+    return map;
+  }, [dashboardData?.teams]);
 
   // Radar and Trends data states
   const [radarData, setRadarData] = useState<RadarData[]>([]);
   const [trendsData, setTrendsData] = useState<TrendData[]>([]);
   const [radarLoading, setRadarLoading] = useState(false);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [brandingName, setBrandingName] = useState<string>('');
+  const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
+  const [trendsView, setTrendsView] = useState<'overview' | 'dimensions'>('dimensions');
+  const [selectedTrendTeam, setSelectedTrendTeam] = useState<string>(''); // '' = all teams averaged
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -66,8 +166,25 @@ export default function ManagerPage() {
     } else {
       setUser(currentUser);
       fetchDashboardData(currentUser.id, '');
+      fetchSubordinates(currentUser.id);
     }
+
+    // Fetch branding from public config endpoint
+    fetch(`${API_BASE_URL}/api/v1/config`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.companyName) setBrandingName(data.companyName);
+        if (data.logoURL) setBrandingLogo(data.logoURL);
+      })
+      .catch(() => {});
   }, [router]);
+
+  // Fetch assessment period options from database
+  useEffect(() => {
+    getAssessmentPeriods()
+      .then(setAssessmentPeriodOptions)
+      .catch((err) => console.error('Failed to fetch assessment periods:', err));
+  }, []);
 
   const fetchDashboardData = async (managerId: string, assessmentPeriod: string) => {
     setLoading(true);
@@ -78,7 +195,7 @@ export default function ManagerPage() {
         ? `/api/v1/managers/${managerId}/teams/health?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
         : `/api/v1/managers/${managerId}/teams/health`;
 
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
 
       if (!response.ok) {
         throw new Error(`Failed to fetch dashboard data: ${response.statusText}`);
@@ -87,10 +204,22 @@ export default function ManagerPage() {
       const data: ManagerDashboardResponse = await response.json();
       setDashboardData(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      setError('Unable to load team health data. Please refresh the page.');
       console.error('Error fetching dashboard data:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchSubordinates = async (managerId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/v1/managers/${managerId}/subordinates`);
+      if (response.ok) {
+        const data = await response.json();
+        setSubordinates(data.subordinates || []);
+      }
+    } catch (err) {
+      console.error('Error fetching subordinates:', err);
     }
   };
 
@@ -101,7 +230,7 @@ export default function ManagerPage() {
         ? `/api/v1/managers/${managerId}/dashboard/radar?assessmentPeriod=${encodeURIComponent(assessmentPeriod)}`
         : `/api/v1/managers/${managerId}/dashboard/radar`;
 
-      const response = await fetch(url);
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const data = await response.json();
         // Transform backend format to frontend format
@@ -128,10 +257,16 @@ export default function ManagerPage() {
     }
   };
 
-  const fetchTrendsData = async (managerId: string) => {
+  const fetchTrendsData = async (managerId: string, teamId?: string) => {
     setTrendsLoading(true);
     try {
-      const response = await fetch(`/api/v1/managers/${managerId}/dashboard/trends`);
+      // When a specific team is selected, use the team-level endpoint (same as Team Lead dashboard).
+      // Otherwise fall back to the manager-level aggregated endpoint.
+      const url = teamId
+        ? `${API_BASE_URL}/api/v1/teams/${teamId}/dashboard/trends`
+        : `${API_BASE_URL}/api/v1/managers/${managerId}/dashboard/trends`;
+
+      const response = await authenticatedFetch(url);
       if (response.ok) {
         const data = await response.json();
         // Transform backend format to frontend format
@@ -158,14 +293,14 @@ export default function ManagerPage() {
     }
   };
 
-  // Fetch radar/trends data when tab changes
+  // Fetch radar/trends data when tab or team filter changes
   useEffect(() => {
     if (user && activeTab === 'radar') {
       fetchRadarData(user.id, selectedPeriod);
     } else if (user && activeTab === 'trends') {
-      fetchTrendsData(user.id);
+      fetchTrendsData(user.id, selectedTrendTeam || undefined);
     }
-  }, [user, activeTab, selectedPeriod]);
+  }, [user, activeTab, selectedPeriod, selectedTrendTeam]);
 
   const handlePeriodChange = (period: string) => {
     setSelectedPeriod(period);
@@ -177,8 +312,8 @@ export default function ManagerPage() {
     }
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    await logout();
     router.push('/login');
   };
 
@@ -194,6 +329,69 @@ export default function ManagerPage() {
     return score.toFixed(1);
   };
 
+  const getAvgBadgeStyle = (avg: number): { backgroundColor: string; color: string } =>
+    avg >= 2.5
+      ? { backgroundColor: '#D1FAE5', color: '#065F46' }
+      : avg >= 1.5
+      ? { backgroundColor: '#FEF3C7', color: '#92400E' }
+      : { backgroundColor: '#FEE2E2', color: '#991B1B' };
+
+  const getScoreBandLabel = (avg: number): string => {
+    if (avg >= 2.7) return 'Excellent';
+    if (avg >= 2.3) return 'Good';
+    if (avg >= 1.7) return 'Fair';
+    return 'Poor';
+  };
+
+  const handleExportToExcel = () => {
+    if (!dashboardData) return;
+    const periodLabel = selectedPeriod || 'All Periods';
+
+    // Sheet 1: Team summary
+    const teamRows = dashboardData.teams.map(t => ({
+      Team: t.teamName,
+      'Overall Health Score': parseFloat(t.overallHealth.toFixed(2)),
+      Band: getScoreBandLabel(t.overallHealth),
+      'Submission Count': t.submissionCount,
+    }));
+    const teamsSheet = XLSX.utils.json_to_sheet(teamRows);
+
+    // Sheet 2: Per-team dimension breakdown
+    const dimensionRows = dashboardData.teams.flatMap(t =>
+      t.dimensions.map(d => {
+        const dimInfo = HEALTH_DIMENSIONS.find(hd => hd.id === d.dimensionId);
+        return {
+          Team: t.teamName,
+          Dimension: dimInfo?.name || d.dimensionId,
+          'Average Score': parseFloat(d.avgScore.toFixed(2)),
+          Band: getScoreBandLabel(d.avgScore),
+          'Response Count': d.responseCount,
+        };
+      })
+    );
+    const dimensionsSheet = XLSX.utils.json_to_sheet(dimensionRows);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, teamsSheet, 'Team Summary');
+    XLSX.utils.book_append_sheet(wb, dimensionsSheet, 'Dimension Breakdown');
+
+    const fileName = `health-check-manager-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
+  const dimSparklines = HEALTH_DIMENSIONS.map((dim) => {
+    const data = trendsData.map((t) => ({
+      period: t.period as string,
+      value: (t[dim.id] as number) || 0,
+    }));
+    const validData = data.filter((p) => p.value > 0);
+    const latest = validData.length > 0 ? validData[validData.length - 1].value : 0;
+    const prev = validData.length > 1 ? validData[validData.length - 2].value : latest;
+    const direction: 'up' | 'down' | 'stable' =
+      latest > prev + 0.1 ? 'up' : latest < prev - 0.1 ? 'down' : 'stable';
+    return { dim, data, latest, direction };
+  }).filter((d) => d.data.some((p) => p.value > 0));
+
   if (!user) return null;
 
   return (
@@ -202,9 +400,16 @@ export default function ManagerPage() {
       <div className="bg-white shadow-sm border-b">
         <div className="container mx-auto px-4 py-4">
           <div className="flex justify-between items-center">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
-              <p className="text-gray-500">Team Health Overview</p>
+            <div className="flex items-center gap-4">
+              {brandingLogo ? (
+                <img src={brandingLogo} alt="Company logo" className="w-8 h-8 object-contain rounded" />
+              ) : (
+                <Users className="w-8 h-8 text-indigo-600" />
+              )}
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Manager Dashboard</h1>
+                <p className="text-gray-500">{brandingName ? `${brandingName} Health Overview` : 'Team Health Overview'}</p>
+              </div>
             </div>
 
             <div className="flex items-center gap-4">
@@ -212,6 +417,17 @@ export default function ManagerPage() {
                 <p className="text-sm font-semibold text-gray-900">{user.name}</p>
                 <p className="text-xs text-gray-500">Manager</p>
               </div>
+
+              {user.canTakeSurvey && (
+                <button
+                  onClick={() => router.push('/survey')}
+                  data-testid="take-survey-button"
+                  className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Take Survey
+                </button>
+              )}
 
               <button
                 onClick={handleLogout}
@@ -226,10 +442,10 @@ export default function ManagerPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Assessment Period Filter */}
-        <div className="mb-6 flex justify-between items-center">
+        {/* Assessment Period Filter + Score Band Legend + Export */}
+        <div className="mb-4 flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-900">Team Health Overview</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <label htmlFor="period-filter" className="text-sm text-gray-600">
               Assessment Period:
             </label>
@@ -238,15 +454,33 @@ export default function ManagerPage() {
               data-testid="period-filter"
               value={selectedPeriod}
               onChange={(e) => handlePeriodChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
             >
               <option value="">All Periods</option>
-              <option value="2024 - 2nd Half">2024 - 2nd Half</option>
-              <option value="2024 - 1st Half">2024 - 1st Half</option>
-              <option value="2023 - 2nd Half">2023 - 2nd Half</option>
-              <option value="2023 - 1st Half">2023 - 1st Half</option>
+              {assessmentPeriodOptions.map((period) => (
+                <option key={period} value={period}>{period}</option>
+              ))}
             </select>
+            {dashboardData && dashboardData.teams.length > 0 && (
+              <button
+                data-testid="export-excel-btn"
+                onClick={handleExportToExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Export to Excel
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Score Band Legend */}
+        <div data-testid="score-band-legend" className="mb-6 flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs font-medium">
+          <span className="text-gray-500 font-semibold">Score bands:</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">2.7 – 3.0 Excellent</span>
+          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800">2.3 – 2.6 Good</span>
+          <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">1.7 – 2.2 Fair</span>
+          <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800">1.0 – 1.6 Poor</span>
         </div>
 
         {/* Tab Navigation */}
@@ -390,33 +624,217 @@ export default function ManagerPage() {
         {/* Trends Tab */}
         {!loading && !error && activeTab === 'trends' && (
           <div className="bg-white rounded-xl shadow-sm border p-6">
-            <h3 className="text-xl font-semibold text-gray-900 mb-6">Health Trends Over Time</h3>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="text-xl font-semibold text-gray-900">Health Trends Over Time</h3>
+                {trendsView === 'dimensions' && trendsData.length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    One card per dimension — score vs. time
+                    {selectedTrendTeam === ''
+                      ? ' · averaged across all teams'
+                      : ''}
+                  </p>
+                )}
+              </div>
+              {trendsData.length > 0 && !trendsLoading && (
+                <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg">
+                  <button
+                    onClick={() => setTrendsView('dimensions')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      trendsView === 'dimensions'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <LayoutGrid className="w-4 h-4" />
+                    By Dimension
+                  </button>
+                  <button
+                    onClick={() => setTrendsView('overview')}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      trendsView === 'overview'
+                        ? 'bg-white text-indigo-600 shadow-sm'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    <LineChartIcon className="w-4 h-4" />
+                    Overview
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Team filter pills */}
+            {dashboardData && dashboardData.teams.length > 0 && (
+              <div className="mb-5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-medium text-gray-500 mr-1">Filter by team:</span>
+                  <button
+                    onClick={() => setSelectedTrendTeam('')}
+                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                      selectedTrendTeam === ''
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                    }`}
+                  >
+                    All Teams
+                  </button>
+                  {dashboardData.teams.map((team) => (
+                    <button
+                      key={team.teamId}
+                      onClick={() => setSelectedTrendTeam(team.teamId)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors border ${
+                        selectedTrendTeam === team.teamId
+                          ? 'bg-indigo-600 text-white border-indigo-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+                      }`}
+                    >
+                      {team.teamName}
+                    </button>
+                  ))}
+                </div>
+                {selectedTrendTeam !== '' && (
+                  <p className="text-xs text-indigo-500 mt-2 flex items-center gap-1">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                    Showing trends for <strong>{dashboardData.teams.find(t => t.teamId === selectedTrendTeam)?.teamName}</strong> only
+                  </p>
+                )}
+              </div>
+            )}
+
             {trendsLoading ? (
               <div className="flex justify-center items-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
               </div>
             ) : trendsData.length > 0 ? (
-              <div data-testid="vp-trends-chart">
-                <ResponsiveContainer width="100%" height={500}>
-                  <LineChart data={trendsData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis domain={[0, 3]} />
-                    <Tooltip />
-                    <Legend />
-                    {HEALTH_DIMENSIONS.map((dim, idx) => (
-                      <Line
-                        key={dim.id}
-                        type="monotone"
-                        dataKey={dim.id}
-                        name={dim.name}
-                        stroke={`hsl(${idx * 32}, 70%, 50%)`}
-                        strokeWidth={2}
-                      />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <>
+                {trendsView === 'dimensions' ? (
+                  /* Small multiples — one sparkline card per dimension */
+                  <div data-testid="vp-trends-chart" className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {dimSparklines.map(({ dim, data, latest, direction }) => {
+                      const lineColor =
+                        latest >= 2.5 ? '#10B981' : latest >= 1.5 ? '#F59E0B' : '#EF4444';
+                      return (
+                        <div
+                          key={dim.id}
+                          className="border rounded-xl p-3 flex flex-col gap-1.5 hover:shadow-md transition-shadow"
+                        >
+                          {/* Dimension name + score badge */}
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-xs font-semibold text-gray-700 leading-tight">
+                              {dim.name}
+                            </h4>
+                            <span
+                              className="inline-block px-1.5 py-0.5 rounded-full text-xs font-bold flex-shrink-0"
+                              style={getAvgBadgeStyle(latest)}
+                            >
+                              {latest > 0 ? latest.toFixed(1) : '—'}
+                            </span>
+                          </div>
+
+                          {/* Trend direction */}
+                          <div className="flex items-center gap-1 text-xs">
+                            {direction === 'up' && (
+                              <TrendingUp className="w-3.5 h-3.5 text-green-500 flex-shrink-0" />
+                            )}
+                            {direction === 'down' && (
+                              <TrendingDown className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                            )}
+                            {direction === 'stable' && (
+                              <Minus className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                            )}
+                            <span
+                              className={
+                                direction === 'up'
+                                  ? 'text-green-600'
+                                  : direction === 'down'
+                                  ? 'text-red-600'
+                                  : 'text-gray-400'
+                              }
+                            >
+                              {direction === 'up'
+                                ? 'Improving'
+                                : direction === 'down'
+                                ? 'Declining'
+                                : 'Stable'}
+                            </span>
+                          </div>
+
+                          {/* Sparkline */}
+                          {data.length > 1 ? (
+                            <ResponsiveContainer width="100%" height={52}>
+                              <LineChart
+                                data={data}
+                                margin={{ top: 4, right: 4, left: 4, bottom: 4 }}
+                              >
+                                <XAxis dataKey="period" hide />
+                                <YAxis domain={[1, 3]} hide />
+                                <Line
+                                  type="monotone"
+                                  dataKey="value"
+                                  stroke={lineColor}
+                                  strokeWidth={2}
+                                  dot={{ r: 2, fill: lineColor }}
+                                  activeDot={{ r: 3 }}
+                                />
+                                <Tooltip
+                                  contentStyle={{
+                                    fontSize: '11px',
+                                    padding: '6px 10px',
+                                    borderRadius: '6px',
+                                    backgroundColor: '#1f2937',
+                                    border: '1px solid #374151',
+                                    color: '#f9fafb',
+                                  }}
+                                  labelStyle={{ color: '#e5e7eb', fontWeight: 600, marginBottom: '2px' }}
+                                  itemStyle={{ color: '#d1fae5' }}
+                                  cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '3 3' }}
+                                  formatter={(v: number) => [v.toFixed(2), 'Score']}
+                                  labelFormatter={(period) => period}
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          ) : (
+                            <div className="h-[52px] flex items-center justify-center text-xs text-gray-300">
+                              Single period
+                            </div>
+                          )}
+
+                          {/* Latest period label */}
+                          {data.length > 0 && (
+                            <p className="text-xs text-gray-400 truncate text-right">
+                              {data[data.length - 1].period}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  /* Overview — original 11-line chart */
+                  <div data-testid="vp-trends-chart">
+                    <ResponsiveContainer width="100%" height={500}>
+                      <LineChart data={trendsData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="period" />
+                        <YAxis domain={[0, 3]} />
+                        <Tooltip />
+                        <Legend />
+                        {HEALTH_DIMENSIONS.map((dim, idx) => (
+                          <Line
+                            key={dim.id}
+                            type="monotone"
+                            dataKey={dim.id}
+                            name={dim.name}
+                            stroke={`hsl(${idx * 32}, 70%, 50%)`}
+                            strokeWidth={2}
+                          />
+                        ))}
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+              </>
             ) : (
               <p className="text-gray-500 text-center py-12">No trend data available</p>
             )}
@@ -586,52 +1004,19 @@ export default function ManagerPage() {
           <div data-testid="hierarchy-tree" className="bg-white rounded-xl shadow-sm border p-6">
             <h3 className="text-xl font-semibold text-gray-900 mb-6">Organization Hierarchy</h3>
 
-            {/* VP Level */}
-            <div className="space-y-4">
-              <div data-testid="org-node-vp" className="border-l-4 border-purple-500 pl-4 py-2">
-                <div className="flex items-center gap-3">
-                  <Users className="w-5 h-5 text-purple-600" />
-                  <div>
-                    <div className="font-semibold text-gray-900">VP Level</div>
-                    <div className="text-sm text-gray-600">{user?.name || 'Vice President'}</div>
-                  </div>
-                </div>
-
-                {/* Directors */}
-                <div className="mt-4 ml-6 space-y-3">
-                  <div data-testid="org-node-director" className="border-l-4 border-blue-500 pl-4 py-2">
-                      <div className="flex items-center gap-3">
-                        <Users className="w-5 h-5 text-blue-600" />
-                        <div>
-                          <div className="font-semibold text-gray-900">Director Level</div>
-                          <div className="text-sm text-gray-600">
-                            {dashboardData?.teams?.length || 0} team{(dashboardData?.teams?.length || 0) !== 1 ? 's' : ''}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Managers/Teams */}
-                      <div className="mt-3 ml-6 space-y-2">
-                        {(dashboardData?.teams || []).map((team) => (
-                          <div key={team.teamId} className="border-l-4 border-green-500 pl-4 py-1">
-                            <div className="flex items-center gap-3">
-                              <Users className="w-4 h-4 text-green-600" />
-                              <div>
-                                <div className="font-medium text-gray-900">{team.teamName}</div>
-                                <div className="text-xs text-gray-500">
-                                  Health: {formatHealthScore(team.overallHealth)}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                </div>
+            {subordinates.length > 0 || user ? (
+              <div className="space-y-4">
+                {/* Current user as root */}
+                {user && (
+                  <HierarchyNode
+                    person={{ id: user.id, name: user.name, hierarchyLevelId: user.hierarchyLevelId || user.hierarchyLevel || 'level-3', username: user.username, teamIds: user.teamIds || [] }}
+                    childrenByParent={childrenByParent}
+                    teamsByIdMap={teamsByIdMap}
+                    depth={0}
+                  />
+                )}
               </div>
-            </div>
-
-            {(!dashboardData || dashboardData.teams.length === 0) && (
+            ) : (
               <div className="text-center py-8 text-gray-500">
                 <p>No organizational structure to display</p>
               </div>
@@ -740,7 +1125,7 @@ export default function ManagerPage() {
                   const selected = Array.from(e.target.selectedOptions, option => option.value);
                   setSelectedTeamsForComparison(selected);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-gray-900 focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 bg-white"
                 size={Math.min(dashboardData.teams.length, 5)}
               >
                 {dashboardData.teams.map((team) => (

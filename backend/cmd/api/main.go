@@ -13,6 +13,7 @@ import (
 	"github.com/XSAM/otelsql"
 	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
+	"github.com/agopalakrishnan/teams360/backend/infrastructure/email"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/middleware"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
@@ -116,6 +117,11 @@ func main() {
 	}
 	log.Info("database connection established")
 
+	// Store APP_ENV in app_config table for runtime queries
+	if err := postgres.EnsureAppConfig(db); err != nil {
+		log.WithError(err).Fatal("failed to set app_config")
+	}
+
 	// Run migrations
 	driver, err := migratePostgres.WithInstance(db, &migratePostgres.Config{})
 	if err != nil {
@@ -136,6 +142,17 @@ func main() {
 	}
 	log.Info("database migrations completed")
 
+	// Seed demo data only when APP_ENV=demo
+	appEnv := os.Getenv("APP_ENV")
+	if appEnv == "" {
+		appEnv = "dev"
+	}
+	if appEnv == "demo" {
+		if err := postgres.SeedDemoData(db); err != nil {
+			log.WithError(err).Fatal("failed to seed demo data")
+		}
+	}
+
 	// Initialize repositories
 	healthCheckRepo := postgres.NewHealthCheckRepository(db)
 	userRepo := postgres.NewUserRepository(db)
@@ -146,10 +163,28 @@ func main() {
 	trendsService := trends.NewService(db)
 	jwtService := services.NewJWTService()
 
+	// Initialize email service: SES > SMTP > disabled
+	var emailSender email.Sender
+	if sesCfg := email.LoadSESConfig(); sesCfg != nil {
+		ses, err := email.NewSESEmailService(sesCfg)
+		if err != nil {
+			log.WithError(err).Fatal("failed to initialize SES email service")
+		}
+		emailSender = ses
+		log.WithField("region", sesCfg.Region).Info("AWS SES email service configured")
+	} else if smtpCfg := email.LoadConfig(); smtpCfg != nil {
+		emailSender = email.NewSMTPEmailService(smtpCfg)
+		log.WithField("host", smtpCfg.Host).Info("SMTP email service configured")
+	} else {
+		log.Info("No email service configured, email notifications disabled")
+	}
+
+	// Initialize notification service
+	notificationService := services.NewNotificationService(emailSender, teamRepo, userRepo, orgRepo)
+
 	// Initialize password reset service
 	passwordResetRepo := postgres.NewPasswordResetRepository(db)
-	mockEmailService := services.NewMockEmailService() // Use mock for now
-	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, mockEmailService)
+	passwordResetService := services.NewPasswordResetService(passwordResetRepo, userRepo, emailSender)
 
 	// Initialize router (use gin.New() instead of gin.Default() to disable default logger)
 	router := gin.New()
@@ -173,15 +208,15 @@ func main() {
 	})
 
 	// Setup API routes with repository injection
-	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
-	v1.SetupAuthRoutes(router, userRepo, jwtService)
-	v1.SetupSSORoutes(router, userRepo, jwtService)
-	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
-	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
-	v1.SetupTeamDashboardRoutes(router, db)             // Still uses db (complex dashboard queries)
-	v1.SetupUserRoutes(router, db)                      // Still uses db (complex user queries)
+	v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, notificationService)
+	v1.SetupAuthRoutes(router, userRepo, orgRepo, jwtService)
+	v1.SetupSSORoutes(router, userRepo, jwtService, orgRepo)
+	v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
+	v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
+	v1.SetupTeamDashboardRoutes(router, db, jwtService) // Dashboard routes with JWT + team membership
+	v1.SetupUserRoutes(router, db, jwtService)          // User routes with JWT + same-user-or-manager
 	v1.SetupProtectedUserRoutes(router, db, jwtService) // Protected routes requiring JWT
-	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo)
+	v1.SetupAdminRoutes(router, orgRepo, userRepo, teamRepo, jwtService)
 	v1.SetupPasswordResetRoutes(router, passwordResetService, userRepo)
 
 	// Static file serving for frontend SPA

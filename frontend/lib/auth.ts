@@ -14,6 +14,7 @@ export interface APIUser {
   fullName: string;
   hierarchyLevel: string;
   teamIds: string[];
+  canTakeSurvey?: boolean;
 }
 
 /**
@@ -42,6 +43,7 @@ export interface AuthUser extends Omit<DomainUser, 'password'> {
   // API-aligned field names (aliases for backwards compatibility)
   fullName: string;
   hierarchyLevel: string;
+  canTakeSurvey?: boolean;
 }
 
 // For backwards compatibility - components can still import "User" from auth.ts
@@ -63,7 +65,8 @@ export const setAuthData = (loginResponse: LoginResponse) => {
 
   // Also store user in cookie for middleware access (URL encoded)
   const userJson = JSON.stringify(loginResponse.user);
-  document.cookie = `${USER_KEY}=${encodeURIComponent(userJson)}; path=/; max-age=${loginResponse.expiresIn * 100}`; // Extended expiry for refresh
+  // Cookie must outlive the refresh token (7 days = 604800s)
+  document.cookie = `${USER_KEY}=${encodeURIComponent(userJson)}; path=/; max-age=604800`;
 };
 
 /**
@@ -136,6 +139,12 @@ export const authenticatedFetch = async (
     if (accessToken) {
       headers.set('Authorization', `Bearer ${accessToken}`);
       response = await fetch(url, { ...options, headers });
+    } else {
+      // Refresh failed — session is expired; redirect to login
+      if (typeof window !== 'undefined') {
+        window.location.href = '/login?expired=true';
+      }
+      return response;
     }
   }
 
@@ -177,6 +186,7 @@ export const getCurrentUser = (): AuthUser | null => {
         // API-aligned names
         fullName,
         hierarchyLevel,
+        canTakeSurvey: apiUser.canTakeSurvey || false,
         // Backwards-compatible aliases
         name: fullName,
         hierarchyLevelId: hierarchyLevel,

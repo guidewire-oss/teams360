@@ -176,7 +176,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 					) THEN 'submitted' ELSE 'pending' END AS post_workshop_status
 				FROM teams t
 				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN effective_sessions es ON t.id = es.team_id
+				LEFT JOIN effective_sessions es ON t.id = es.team_id
 				LEFT JOIN health_check_responses r ON es.id = r.session_id
 				WHERE ts.user_id = $1
 				GROUP BY t.id, t.name
@@ -202,7 +202,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 				d.response_count
 			FROM team_overall o
 			LEFT JOIN team_dimensions d ON o.team_id = d.team_id
-			ORDER BY o.overall_health ASC, o.team_name, d.dimension_id
+			ORDER BY o.overall_health ASC NULLS LAST, o.team_name, d.dimension_id
 		`
 		rows, err = r.db.QueryContext(ctx, query, managerID, assessmentPeriod)
 	} else {
@@ -236,7 +236,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 					) THEN 'submitted' ELSE 'pending' END AS post_workshop_status
 				FROM teams t
 				INNER JOIN team_supervisors ts ON t.id = ts.team_id
-				INNER JOIN effective_sessions es ON t.id = es.team_id
+				LEFT JOIN effective_sessions es ON t.id = es.team_id
 				LEFT JOIN health_check_responses r ON es.id = r.session_id
 				WHERE ts.user_id = $1
 				GROUP BY t.id, t.name
@@ -262,7 +262,7 @@ func (r *HealthCheckRepository) FindTeamHealthByManager(ctx context.Context, man
 				d.response_count
 			FROM team_overall o
 			LEFT JOIN team_dimensions d ON o.team_id = d.team_id
-			ORDER BY o.overall_health ASC, o.team_name, d.dimension_id
+			ORDER BY o.overall_health ASC NULLS LAST, o.team_name, d.dimension_id
 		`
 		rows, err = r.db.QueryContext(ctx, query, managerID)
 	}
@@ -498,6 +498,38 @@ func (r *HealthCheckRepository) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+// FindDistinctAssessmentPeriods returns all unique assessment periods from submitted sessions
+func (r *HealthCheckRepository) FindDistinctAssessmentPeriods(ctx context.Context) ([]string, error) {
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT DISTINCT assessment_period FROM health_check_sessions
+		WHERE assessment_period IS NOT NULL AND assessment_period != '' AND completed = true
+		ORDER BY assessment_period DESC
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query assessment periods: %w", err)
+	}
+	defer rows.Close()
+
+	var periods []string
+	for rows.Next() {
+		var period string
+		if err := rows.Scan(&period); err != nil {
+			return nil, fmt.Errorf("failed to scan assessment period: %w", err)
+		}
+		periods = append(periods, period)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating assessment periods: %w", err)
+	}
+
+	if periods == nil {
+		periods = []string{}
+	}
+
+	return periods, nil
 }
 
 // scanSessions is a helper function to scan query results into sessions

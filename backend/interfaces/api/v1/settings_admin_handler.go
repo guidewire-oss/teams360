@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
@@ -195,16 +196,60 @@ func (h *SettingsAdminHandler) DeleteDimension(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "Dimension deleted successfully"})
 }
 
+// GetBrandingSettings handles GET /api/v1/admin/settings/branding
+func (h *SettingsAdminHandler) GetBrandingSettings(c *gin.Context) {
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch branding settings", Message: err.Error()})
+		return
+	}
+
+	settings := dto.BrandingSettings{
+		CompanyName: appSettings.CompanyName,
+		LogoURL:     appSettings.LogoURL,
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
+// UpdateBrandingSettings handles PUT /api/v1/admin/settings/branding
+func (h *SettingsAdminHandler) UpdateBrandingSettings(c *gin.Context) {
+	var settings dto.BrandingSettings
+	if err := c.ShouldBindJSON(&settings); err != nil {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request body", Message: err.Error()})
+		return
+	}
+
+	// Validate logo size (base64 data URLs can be large)
+	if len(settings.LogoURL) > 700000 {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Logo is too large. Maximum size is 500KB."})
+		return
+	}
+
+	if err := h.orgRepo.UpdateBrandingSettings(c.Request.Context(), settings.CompanyName, settings.LogoURL); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save branding settings", Message: err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, settings)
+}
+
 // GetNotificationSettings handles GET /api/v1/admin/settings/notifications
 func (h *SettingsAdminHandler) GetNotificationSettings(c *gin.Context) {
-	// Placeholder implementation - would typically read from a settings table
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch settings", Message: err.Error()})
+		return
+	}
+
 	settings := dto.NotificationSettings{
-		EmailEnabled:       false,
-		SlackEnabled:       false,
-		NotifyOnSubmission: false,
+		EmailEnabled:       appSettings.EmailNotifications,
+		SlackEnabled:       appSettings.SlackNotifications,
+		NotifyOnSubmission: appSettings.WeeklyDigest,
 		NotifyManagers:     false,
 		ReminderDaysBefore: 7,
 		ReminderRecipients: []string{},
+		SmtpConfigured:     os.Getenv("SMTP_HOST") != "",
 	}
 
 	c.JSON(http.StatusOK, settings)
@@ -218,17 +263,26 @@ func (h *SettingsAdminHandler) UpdateNotificationSettings(c *gin.Context) {
 		return
 	}
 
-	// Placeholder implementation - would typically write to a settings table
+	if err := h.orgRepo.UpdateNotificationSettings(c.Request.Context(), settings.EmailEnabled, settings.SlackEnabled, settings.NotifyOnSubmission); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save settings", Message: err.Error()})
+		return
+	}
+
 	c.JSON(http.StatusOK, settings)
 }
 
 // GetRetentionPolicy handles GET /api/v1/admin/settings/retention
 func (h *SettingsAdminHandler) GetRetentionPolicy(c *gin.Context) {
-	// Placeholder implementation - would typically read from a settings table
+	appSettings, err := h.orgRepo.GetAppSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to fetch retention policy", Message: err.Error()})
+		return
+	}
+
 	policy := dto.RetentionPolicy{
-		KeepSessionsMonths: 12,
+		KeepSessionsMonths: appSettings.RetentionMonths,
 		ArchiveEnabled:     false,
-		AnonymizeAfterDays: 365,
+		AnonymizeAfterDays: appSettings.RetentionMonths * 30,
 	}
 
 	c.JSON(http.StatusOK, policy)
@@ -242,17 +296,17 @@ func (h *SettingsAdminHandler) UpdateRetentionPolicy(c *gin.Context) {
 		return
 	}
 
-	// Validate values
 	if policy.KeepSessionsMonths < 1 || policy.KeepSessionsMonths > 120 {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Keep sessions months must be between 1 and 120"})
 		return
 	}
 
-	if policy.AnonymizeAfterDays < 30 {
-		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Anonymize after days must be at least 30"})
+	if err := h.orgRepo.UpdateRetentionSettings(c.Request.Context(), policy.KeepSessionsMonths); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to save retention policy", Message: err.Error()})
 		return
 	}
 
-	// Placeholder implementation - would typically write to a settings table
+	policy.AnonymizeAfterDays = policy.KeepSessionsMonths * 30
+
 	c.JSON(http.StatusOK, policy)
 }

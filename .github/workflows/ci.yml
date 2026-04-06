@@ -98,12 +98,9 @@ jobs:
       - name: Install dependencies
         run: go mod download
 
-      - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
-
       - name: Run tests with coverage
         run: |
-          ginkgo -r --cover --coverprofile=coverage.out --skip-package=acceptance ./...
+          go run github.com/onsi/ginkgo/v2/ginkgo -r --cover --coverprofile=coverage.out --skip-package=acceptance ./...
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
@@ -205,15 +202,44 @@ jobs:
           retention-days: 1
 
   # =============================================================================
-  # E2E Tests (only on main branch or when explicitly requested)
+  # E2E Tests (skip for docs-only changes)
   # =============================================================================
+
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      needs_e2e: ${{ steps.filter.outputs.needs_e2e }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for functional changes
+        id: filter
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            BASE=${{ github.event.before }}
+          else
+            BASE=${{ github.event.pull_request.base.sha }}
+          fi
+          # Files that don't affect functionality
+          IGNORE_PATTERN='^docs/|\.md$|\.txt$|^LICENSE$|^\.github/ISSUE_TEMPLATE|^\.github/PULL_REQUEST_TEMPLATE'
+          CHANGED=$(git diff --name-only "$BASE" HEAD | grep -vE "$IGNORE_PATTERN" || true)
+          if [ -z "$CHANGED" ]; then
+            echo "Only docs/non-functional files changed — skipping E2E"
+            echo "needs_e2e=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Functional files changed — E2E required"
+            echo "needs_e2e=true" >> "$GITHUB_OUTPUT"
+          fi
 
   e2e-test:
     name: E2E Tests
     runs-on: ubuntu-latest
-    needs: [backend-build, frontend-build]
-    # Only run E2E on main or when PR has 'e2e' label
-    if: github.ref == 'refs/heads/main' || contains(github.event.pull_request.labels.*.name, 'e2e')
+    needs: [backend-build, frontend-build, changes]
+    if: needs.changes.outputs.needs_e2e == 'true'
     services:
       postgres:
         image: postgres:17-alpine
@@ -260,17 +286,14 @@ jobs:
         working-directory: tests
         run: |
           go mod download
-          go run github.com/playwright-community/playwright-go/cmd/playwright@latest install --with-deps chromium
-
-      - name: Install Ginkgo
-        run: go install github.com/onsi/ginkgo/v2/ginkgo@latest
+          go run github.com/playwright-community/playwright-go/cmd/playwright@v0.5200.1 install --with-deps chromium
 
       # Note: Do NOT start servers here - the test suite (suite_test.go) handles
       # database setup, seeding, and server startup in SynchronizedBeforeSuite
 
       - name: Run E2E tests
         working-directory: tests
-        run: ginkgo -v acceptance/
+        run: go run github.com/onsi/ginkgo/v2/ginkgo -v acceptance/
         env:
           TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable
 
@@ -281,7 +304,7 @@ jobs:
   ci-success:
     name: CI Success
     runs-on: ubuntu-latest
-    needs: [backend-test, backend-build, frontend-build]
+    needs: [backend-test, backend-build, frontend-build, e2e-test]
     if: always()
     steps:
       - name: Check all jobs passed
@@ -290,6 +313,12 @@ jobs:
              [[ "${{ needs.backend-build.result }}" != "success" ]] || \
              [[ "${{ needs.frontend-build.result }}" != "success" ]]; then
             echo "One or more required jobs failed"
+            exit 1
+          fi
+          # E2E is required when functional files change, skipped for docs-only
+          E2E="${{ needs.e2e-test.result }}"
+          if [[ "$E2E" != "success" && "$E2E" != "skipped" ]]; then
+            echo "E2E tests failed"
             exit 1
           fi
           echo "All required CI jobs passed!"

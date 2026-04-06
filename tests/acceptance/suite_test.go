@@ -3,12 +3,14 @@ package acceptance_test
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"syscall"
 	"testing"
 	"time"
 
+	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -27,11 +29,22 @@ var (
 	frontendSession *gexec.Session
 	pw              *playwright.Playwright
 	browser         playwright.Browser
+	embeddedPG      *embeddedpostgres.EmbeddedPostgres
 
 	// Test environment URLs
 	backendURL  = "http://localhost:8080"
 	frontendURL = "http://localhost:3000"
 )
+
+// isPortOpen checks whether a TCP port is already accepting connections.
+func isPortOpen(port int) bool {
+	conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", port), time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
 
 func TestAcceptance(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -57,10 +70,26 @@ var _ = SynchronizedBeforeSuite(
 		exec.Command("pkill", "-9", "-f", "next dev").Run()
 		time.Sleep(3 * time.Second) // Give processes time to die
 
-		// Setup test database
+		// Start embedded PostgreSQL if no external database is reachable
 		databaseURL := os.Getenv("TEST_DATABASE_URL")
 		if databaseURL == "" {
 			databaseURL = "postgres://postgres:postgres@localhost:5432/teams360_test?sslmode=disable"
+		}
+		if !isPortOpen(5432) {
+			By("No PostgreSQL on port 5432 — starting embedded PostgreSQL")
+			embeddedPG = embeddedpostgres.NewDatabase(
+				embeddedpostgres.DefaultConfig().
+					Port(5432).
+					Database("teams360_test").
+					Username("postgres").
+					Password("postgres"),
+			)
+			err := embeddedPG.Start()
+			Expect(err).NotTo(HaveOccurred(), "Failed to start embedded PostgreSQL")
+			GinkgoWriter.Printf("✅ Embedded PostgreSQL started on port 5432\n")
+		} else {
+			GinkgoWriter.Printf("✅ Using existing PostgreSQL on port 5432\n")
+			embeddedPG = nil
 		}
 
 		var err error
@@ -89,23 +118,46 @@ var _ = SynchronizedBeforeSuite(
 		// Seed test data
 		By("Seeding test users, teams, and health check data")
 
+		// Clean up any existing e2e test users from previous runs to ensure fresh state
+		// Delete by ID, username, and email patterns to handle all potential conflicts
+		_, _ = db.Exec(`DELETE FROM users WHERE id LIKE 'e2e_%' OR username LIKE 'e2e_%' OR email LIKE 'e2e_%@%'`)
+
 		// Insert test-specific users to avoid conflicts with seed migration
 		// Using test-specific IDs (e2e_*) to avoid conflicts with existing seed data
 		// Schema: id, username, email, full_name, hierarchy_level_id, reports_to, password_hash
+		// Insert users in order to respect reports_to foreign key constraints
+		// First: managers (no reports_to)
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
+			('e2e_manager1', 'e2e_manager1', 'e2e_manager1@teams360.demo', 'E2E Manager One', 'level-3', NULL, $1),
+			('e2e_testmanager1', 'e2e_testmanager1', 'e2e_testmanager@teams360.demo', 'E2E Test Manager', 'level-3', NULL, $1)
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e managers")
+
+		// Second: team leads (reports_to managers)
+		_, err = db.Exec(`
+			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
+			('e2e_lead1', 'e2e_lead1', 'e2e_lead1@teams360.demo', 'E2E Lead One', 'level-4', 'e2e_manager1', $1),
+			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1)
+		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e team leads")
+
+		// Third: team members (reports_to team leads)
 		_, err = db.Exec(`
 			INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to, password_hash) VALUES
 			('e2e_demo', 'e2e_demo', 'e2e_demo@teams360.demo', 'E2E Demo User', 'level-5', 'e2e_lead1', $1),
-			('e2e_manager1', 'e2e_manager1', 'e2e_manager1@teams360.demo', 'E2E Manager One', 'level-3', NULL, $1),
-			('e2e_testmanager1', 'e2e_testmanager1', 'e2e_testmanager@teams360.demo', 'E2E Test Manager', 'level-3', NULL, $1),
-			('e2e_lead1', 'e2e_lead1', 'e2e_lead1@teams360.demo', 'E2E Lead One', 'level-4', 'e2e_manager1', $1),
-			('e2e_lead2', 'e2e_lead2', 'e2e_lead2@teams360.demo', 'E2E Lead Two', 'level-4', 'e2e_manager1', $1),
 			('e2e_member1', 'e2e_member1', 'e2e_member1@teams360.demo', 'E2E Member One', 'level-5', 'e2e_lead1', $1),
 			('e2e_member2', 'e2e_member2', 'e2e_member2@teams360.demo', 'E2E Member Two', 'level-5', 'e2e_lead2', $1),
 			('e2e_member3', 'e2e_member3', 'e2e_member3@teams360.demo', 'E2E Member Three', 'level-5', 'e2e_lead2', $1),
 			('e2e_fresh_member', 'e2e_fresh_member', 'e2e_fresh_member@teams360.demo', 'E2E Fresh Member', 'level-5', 'e2e_lead1', $1)
-			ON CONFLICT (id) DO NOTHING
 		`, DemoPasswordHash)
+		Expect(err).NotTo(HaveOccurred(), "Failed to insert e2e team members")
+
+		// Verify that e2e users were actually inserted
+		var userCount int
+		err = db.QueryRow(`SELECT COUNT(*) FROM users WHERE id LIKE 'e2e_%'`).Scan(&userCount)
 		Expect(err).NotTo(HaveOccurred())
+		Expect(userCount).To(Equal(9), "Expected 9 e2e_ users to be inserted (2 managers + 2 leads + 5 members)")
 
 		// Insert E2E test teams (schema: id, name, team_lead_id)
 		// Note: No manager_id column - managers tracked via team_supervisors table
@@ -194,6 +246,7 @@ var _ = SynchronizedBeforeSuite(
 		backendCmd.Dir = "../../backend"
 		backendCmd.Env = append(os.Environ(),
 			"PORT=8080",
+			"APP_ENV=demo",
 			fmt.Sprintf("DATABASE_URL=%s", databaseURL),
 		)
 		// Set process group so we can kill all child processes
@@ -203,7 +256,7 @@ var _ = SynchronizedBeforeSuite(
 
 		// Wait for backend to be ready
 		Eventually(func() error {
-			resp, err := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", backendURL+"/health").Output()
+			resp, err := exec.Command("curl", "-s", "--max-time", "5", "-o", "/dev/null", "-w", "%{http_code}", backendURL+"/health").Output()
 			if err != nil {
 				return err
 			}
@@ -211,12 +264,10 @@ var _ = SynchronizedBeforeSuite(
 				return fmt.Errorf("backend not ready, status: %s", string(resp))
 			}
 			return nil
-		}, 30*time.Second, 1*time.Second).Should(Succeed(), "Backend API should start successfully")
+		}, 60*time.Second, 2*time.Second).Should(Succeed(), "Backend API should start successfully")
 
 		// Start frontend Next.js server using gexec for proper process management
 		By("Starting frontend Next.js server")
-		// Clear .next cache to ensure config changes (like rewrites) take effect
-		exec.Command("rm", "-rf", "../../frontend/.next").Run()
 		frontendCmd := exec.Command("npm", "run", "dev")
 		frontendCmd.Dir = "../../frontend"
 		frontendCmd.Env = append(os.Environ(),
@@ -227,9 +278,9 @@ var _ = SynchronizedBeforeSuite(
 		frontendSession, err = gexec.Start(frontendCmd, GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 
-		// Wait for frontend to be ready
+		// Wait for frontend to be ready (use --max-time to prevent curl from hanging)
 		Eventually(func() error {
-			resp, err := exec.Command("curl", "-s", "-o", "/dev/null", "-w", "%{http_code}", frontendURL).Output()
+			resp, err := exec.Command("curl", "-s", "--max-time", "5", "-o", "/dev/null", "-w", "%{http_code}", frontendURL).Output()
 			if err != nil {
 				return err
 			}
@@ -237,7 +288,7 @@ var _ = SynchronizedBeforeSuite(
 				return fmt.Errorf("frontend not ready, status: %s", string(resp))
 			}
 			return nil
-		}, 60*time.Second, 2*time.Second).Should(Succeed(), "Frontend should start successfully")
+		}, 300*time.Second, 5*time.Second).Should(Succeed(), "Frontend should start successfully")
 
 		GinkgoWriter.Printf("✅ Test infrastructure ready\n")
 		GinkgoWriter.Printf("   Backend:  %s\n", backendURL)
@@ -333,6 +384,15 @@ var _ = SynchronizedAfterSuite(
 
 		// Clean up gexec build artifacts
 		gexec.CleanupBuildArtifacts()
+
+		// Stop embedded PostgreSQL if we started it
+		if embeddedPG != nil {
+			if err := embeddedPG.Stop(); err != nil {
+				GinkgoWriter.Printf("Warning: failed to stop embedded PostgreSQL: %v\n", err)
+			} else {
+				GinkgoWriter.Printf("✅ Embedded PostgreSQL stopped\n")
+			}
+		}
 
 		GinkgoWriter.Printf("✅ Test infrastructure shut down\n")
 	},

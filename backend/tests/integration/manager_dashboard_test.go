@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/application/trends"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
@@ -20,9 +22,11 @@ import (
 
 var _ = Describe("Integration: Manager Dashboard API", func() {
 	var (
-		db      *sql.DB
-		router  *gin.Engine
-		cleanup func()
+		db           *sql.DB
+		router       *gin.Engine
+		cleanup      func()
+		jwtService   *services.JWTService
+		managerToken string
 	)
 
 	BeforeEach(func() {
@@ -32,14 +36,22 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 		// Setup test database with helpers
 		db, cleanup = testhelpers.SetupTestDatabase()
 
+		// Initialize JWT service and generate a director-level token for tests
+		// Director (level-2) can access any manager's dashboard data
+		jwtService = services.NewJWTService()
+		tokenPair, tokenErr := jwtService.GenerateTokenPair(context.Background(), "test_director", "test_director", "director@test.com", "level-2", nil)
+		Expect(tokenErr).NotTo(HaveOccurred())
+		managerToken = tokenPair.AccessToken
+
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
 		trendsService := trends.NewService(db)
 
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
-		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
+		userRepo := postgres.NewUserRepository(db)
+		v1.SetupManagerRoutes(router, healthCheckRepo, trendsService, jwtService, userRepo)
 	})
 
 	AfterEach(func() {
@@ -137,6 +149,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager requests their dashboard
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_manager1/teams/health", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -233,6 +246,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager filters by specific period
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_mgr2/teams/health?assessmentPeriod=2024+-+1st+Half", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -302,6 +316,7 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				// When: Manager 3 requests dashboard
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_mgr3/teams/health", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -316,6 +331,90 @@ var _ = Describe("Integration: Manager Dashboard API", func() {
 
 				team := teams[0].(map[string]interface{})
 				Expect(team["teamName"]).To(Equal("Manager 3 Team"))
+			})
+		})
+	})
+
+	Describe("GET /api/v1/managers/:managerId/subordinates", func() {
+		Context("when a manager requests their subordinate tree", func() {
+			It("should return direct and indirect reports with team memberships", func() {
+				// Given: A manager with a hierarchy beneath them
+				_, err := db.Exec(`
+					INSERT INTO users (id, username, email, full_name, hierarchy_level_id, reports_to)
+					VALUES
+						('int_sub_mgr', 'int_sub_mgr', 'int_sub_mgr@test.com', 'Sub Manager', 'level-3', NULL),
+						('int_sub_lead', 'int_sub_lead', 'int_sub_lead@test.com', 'Sub Lead', 'level-4', 'int_sub_mgr'),
+						('int_sub_member', 'int_sub_member', 'int_sub_member@test.com', 'Sub Member', 'level-5', 'int_sub_lead')
+				`)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = db.Exec(`
+					INSERT INTO teams (id, name, team_lead_id)
+					VALUES ('int_sub_team', 'Sub Team', 'int_sub_lead')
+				`)
+				Expect(err).NotTo(HaveOccurred())
+
+				_, err = db.Exec(`
+					INSERT INTO team_members (team_id, user_id)
+					VALUES ('int_sub_team', 'int_sub_lead'), ('int_sub_team', 'int_sub_member')
+				`)
+				Expect(err).NotTo(HaveOccurred())
+
+				// When: Manager requests subordinates
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_sub_mgr/subordinates", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+
+				// Then: Should return 200 with both subordinates
+				Expect(w.Code).To(Equal(http.StatusOK))
+
+				var response map[string]interface{}
+				err = json.Unmarshal(w.Body.Bytes(), &response)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(response["managerId"]).To(Equal("int_sub_mgr"))
+
+				subs := response["subordinates"].([]interface{})
+				Expect(subs).To(HaveLen(2)) // lead + member
+
+				// Verify subordinates have expected fields
+				sub0 := subs[0].(map[string]interface{})
+				Expect(sub0).To(HaveKey("id"))
+				Expect(sub0).To(HaveKey("name"))
+				Expect(sub0).To(HaveKey("hierarchyLevelId"))
+				Expect(sub0).To(HaveKey("teamIds"))
+				// Email should NOT be returned (PII minimization)
+				Expect(sub0).NotTo(HaveKey("email"))
+
+				// Verify team membership is included
+				leadSub := findSubordinateById(subs, "int_sub_lead")
+				Expect(leadSub).NotTo(BeNil())
+				Expect(leadSub["teamIds"]).To(ContainElement("int_sub_team"))
+			})
+
+			It("should return empty list when manager has no subordinates", func() {
+				// Given: A manager with no reports
+				_, err := db.Exec(`
+					INSERT INTO users (id, username, email, full_name, hierarchy_level_id)
+					VALUES ('int_lonely_mgr', 'int_lonely_mgr', 'int_lonely@test.com', 'Lonely Manager', 'level-3')
+				`)
+				Expect(err).NotTo(HaveOccurred())
+
+				// When: Manager requests subordinates
+				req := httptest.NewRequest(http.MethodGet, "/api/v1/managers/int_lonely_mgr/subordinates", nil)
+				req.Header.Set("Authorization", "Bearer "+managerToken)
+				w := httptest.NewRecorder()
+				router.ServeHTTP(w, req)
+
+				// Then: Should return 200 with empty subordinates
+				Expect(w.Code).To(Equal(http.StatusOK))
+
+				var response map[string]interface{}
+				json.Unmarshal(w.Body.Bytes(), &response)
+
+				subs := response["subordinates"].([]interface{})
+				Expect(subs).To(BeEmpty())
 			})
 		})
 	})
@@ -337,6 +436,16 @@ func findDimensionById(dimensions []interface{}, id string) map[string]interface
 		dim := d.(map[string]interface{})
 		if dim["dimensionId"] == id {
 			return dim
+		}
+	}
+	return nil
+}
+
+func findSubordinateById(subs []interface{}, id string) map[string]interface{} {
+	for _, s := range subs {
+		sub := s.(map[string]interface{})
+		if sub["id"] == id {
+			return sub
 		}
 	}
 	return nil

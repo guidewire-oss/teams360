@@ -1,7 +1,11 @@
 package v1
 
 import (
+	"context"
+	"fmt"
 	"net/http"
+	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -9,11 +13,26 @@ import (
 
 	"github.com/agopalakrishnan/teams360/backend/application/commands"
 	"github.com/agopalakrishnan/teams360/backend/application/queries"
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/domain/healthcheck"
 	"github.com/agopalakrishnan/teams360/backend/domain/organization"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
 	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/agopalakrishnan/teams360/backend/pkg/telemetry"
+)
+
+// Assessment period format regexes
+var (
+	legacyPeriodRegex     = regexp.MustCompile(`^(\d{4}) - (1st|2nd) Half$`)
+	monthlyPeriodRegex    = regexp.MustCompile(`^(\d{4}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$`)
+	quarterlyPeriodRegex  = regexp.MustCompile(`^(\d{4}) Q([1-4])$`)
+	halfYearlyPeriodRegex = regexp.MustCompile(`^(\d{4}) H([12])$`)
+	yearlyPeriodRegex     = regexp.MustCompile(`^(\d{4})$`)
+
+	monthNameToNumber = map[string]int{
+		"Jan": 1, "Feb": 2, "Mar": 3, "Apr": 4, "May": 5, "Jun": 6,
+		"Jul": 7, "Aug": 8, "Sep": 9, "Oct": 10, "Nov": 11, "Dec": 12,
+	}
 )
 
 // HealthCheckHandler handles health check related endpoints
@@ -22,15 +41,17 @@ type HealthCheckHandler struct {
 	dimensionsHandler   *queries.GetHealthDimensionsHandler
 	teamSessionsHandler *queries.GetTeamSessionsHandler
 	repository          healthcheck.Repository
+	notificationService *services.NotificationService
 }
 
 // NewHealthCheckHandler creates a new handler
-func NewHealthCheckHandler(repository healthcheck.Repository, orgRepo organization.Repository) *HealthCheckHandler {
+func NewHealthCheckHandler(repository healthcheck.Repository, orgRepo organization.Repository, notificationService *services.NotificationService) *HealthCheckHandler {
 	return &HealthCheckHandler{
 		submitHandler:       commands.NewSubmitHealthCheckHandler(repository),
 		dimensionsHandler:   queries.NewGetHealthDimensionsHandler(orgRepo),
 		teamSessionsHandler: queries.NewGetTeamSessionsHandler(repository),
 		repository:          repository,
+		notificationService: notificationService,
 	}
 }
 
@@ -56,6 +77,40 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	// Validate date is not in the future
+	if req.Date != "" {
+		parsedDate, err := time.Parse(time.RFC3339Nano, req.Date)
+		if err != nil {
+			telemetry.SetSpanError(span, err)
+			log.WithError(err).Warn("invalid date format in health check submission")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   "Invalid date format",
+				Message: "Date must be in RFC3339 format (e.g., 2024-01-15T10:30:00Z)",
+			})
+			return
+		}
+		if parsedDate.After(time.Now()) {
+			log.Warn("health check submission with future date rejected")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   "Invalid date: future dates are not allowed",
+				Message: "Health check date cannot be in the future",
+			})
+			return
+		}
+	}
+
+	// Validate assessment period format if provided
+	if req.AssessmentPeriod != "" {
+		if err := validateAssessmentPeriod(req.AssessmentPeriod); err != nil {
+			log.WithError(err).Warn("invalid assessment period format")
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{
+				Error:   err.Error(),
+				Message: "Assessment period must be in a valid format: 'YYYY Mon', 'YYYY Q1-Q4', 'YYYY H1/H2', 'YYYY', or 'YYYY - 1st/2nd Half'",
+			})
+			return
+		}
 	}
 
 	// Set span attributes for business context
@@ -125,6 +180,19 @@ func (h *HealthCheckHandler) SubmitHealthCheck(c *gin.Context) {
 		"assessment_period": req.AssessmentPeriod,
 		"dimension_count":   len(req.Responses),
 	}).Info("health check submitted successfully")
+
+	// Fire async email notification (never blocks the response)
+	if h.notificationService != nil {
+		go func() {
+			bgCtx := context.Background()
+			if session.SurveyType == "individual" || session.SurveyType == "" {
+				h.notificationService.SendIndividualSurveyEmail(bgCtx, session)
+			}
+			if session.SurveyType == "post_workshop" {
+				h.notificationService.SendPostWorkshopEmails(bgCtx, session)
+			}
+		}()
+	}
 
 	// Convert to response DTO
 	response := convertSessionToDTO(session)
@@ -301,6 +369,20 @@ func (h *HealthCheckHandler) GetTeamSubmissionStatus(c *gin.Context) {
 	})
 }
 
+// GetAssessmentPeriods handles GET /api/v1/assessment-periods
+func (h *HealthCheckHandler) GetAssessmentPeriods(c *gin.Context) {
+	periods, err := h.repository.FindDistinctAssessmentPeriods(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+			Error:   "Failed to fetch assessment periods",
+			Message: err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"periods": periods})
+}
+
 // Helper function to convert domain model to DTO
 func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthCheckSessionResponse {
 	response := dto.HealthCheckSessionResponse{
@@ -324,4 +406,82 @@ func convertSessionToDTO(session *healthcheck.HealthCheckSession) dto.HealthChec
 	}
 
 	return response
+}
+
+// validateAssessmentPeriod validates the assessment period format and ensures it's not in the future.
+// Valid formats:
+//   - Legacy:      "YYYY - 1st Half" or "YYYY - 2nd Half"
+//   - Monthly:     "YYYY Jan" through "YYYY Dec"
+//   - Quarterly:   "YYYY Q1" through "YYYY Q4"
+//   - Half-yearly: "YYYY H1" or "YYYY H2"
+//   - Yearly:      "YYYY"
+func validateAssessmentPeriod(period string) error {
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	// Try legacy format: "YYYY - 1st Half" or "YYYY - 2nd Half"
+	// "YYYY - 1st Half" covers Jul-Dec of YYYY; "YYYY - 2nd Half" covers Jan-Jun of YYYY+1
+	if m := legacyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		half := m[2]
+		if half == "1st" {
+			// Covers Jul-Dec of YYYY — future if we haven't reached Jul of YYYY
+			if year > currentYear || (year == currentYear && currentMonth < 7) {
+				return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+			}
+		} else {
+			// Covers Jan-Jun of YYYY+1 — future if we haven't reached Jan of YYYY+1
+			if year+1 > currentYear {
+				return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+			}
+		}
+		return nil
+	}
+
+	// Try monthly format: "YYYY Jan"
+	if m := monthlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		monthNum := monthNameToNumber[m[2]]
+		if year > currentYear || (year == currentYear && monthNum > currentMonth) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try quarterly format: "YYYY Q1"
+	if m := quarterlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		quarter, _ := strconv.Atoi(m[2])
+		currentQuarter := (currentMonth-1)/3 + 1
+		if year > currentYear || (year == currentYear && quarter > currentQuarter) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try half-yearly format: "YYYY H1"
+	if m := halfYearlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		half, _ := strconv.Atoi(m[2])
+		currentHalf := 1
+		if currentMonth > 6 {
+			currentHalf = 2
+		}
+		if year > currentYear || (year == currentYear && half > currentHalf) {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	// Try yearly format: "YYYY"
+	if m := yearlyPeriodRegex.FindStringSubmatch(period); m != nil {
+		year, _ := strconv.Atoi(m[1])
+		if year > currentYear {
+			return fmt.Errorf("invalid assessment period: future assessment periods are not allowed")
+		}
+		return nil
+	}
+
+	return fmt.Errorf("invalid assessment period format: must be 'YYYY Mon', 'YYYY Q1-Q4', 'YYYY H1/H2', 'YYYY', or 'YYYY - 1st/2nd Half'")
 }

@@ -1,11 +1,14 @@
 package v1
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
+	"github.com/agopalakrishnan/teams360/backend/domain/team"
 	"github.com/agopalakrishnan/teams360/backend/domain/user"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/dto"
+	"github.com/agopalakrishnan/teams360/backend/pkg/logger"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -13,11 +16,12 @@ import (
 // UserAdminHandler handles user-related admin HTTP requests
 type UserAdminHandler struct {
 	userRepo user.Repository
+	teamRepo team.Repository
 }
 
 // NewUserAdminHandler creates a new UserAdminHandler
-func NewUserAdminHandler(userRepo user.Repository) *UserAdminHandler {
-	return &UserAdminHandler{userRepo: userRepo}
+func NewUserAdminHandler(userRepo user.Repository, teamRepo team.Repository) *UserAdminHandler {
+	return &UserAdminHandler{userRepo: userRepo, teamRepo: teamRepo}
 }
 
 // ListUsers handles GET /api/v1/admin/users
@@ -48,6 +52,7 @@ func (h *UserAdminHandler) ListUsers(c *gin.Context) {
 			HierarchyLevel: usr.HierarchyLevelID,
 			ReportsTo:      usr.ReportsTo,
 			TeamIds:        teamIds,
+			AuthType:       string(usr.AuthType),
 			CreatedAt:      usr.CreatedAt,
 			UpdatedAt:      usr.UpdatedAt,
 		}
@@ -67,12 +72,27 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	// Hash password
-	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
-		return
+	// Determine auth type (default to local)
+	authType := user.AuthTypeLocal
+	if req.AuthType == "sso" {
+		authType = user.AuthTypeSSO
 	}
+
+	// For local users, password is required
+	var passwordHash string
+	if authType == user.AuthTypeLocal {
+		if len(req.Password) < 4 {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Password is required for local users (min 4 characters)"})
+			return
+		}
+		hashed, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
+			return
+		}
+		passwordHash = string(hashed)
+	}
+	// SSO users get no password hash
 
 	// Auto-generate ID from username if not provided
 	userID := req.ID
@@ -88,7 +108,8 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		Name:             req.FullName,
 		HierarchyLevelID: req.HierarchyLevel,
 		ReportsTo:        req.ReportsTo,
-		PasswordHash:     string(hashedPassword),
+		PasswordHash:     passwordHash,
+		AuthType:         authType,
 		TeamIDs:          []string{},
 	}
 
@@ -110,6 +131,7 @@ func (h *UserAdminHandler) CreateUser(c *gin.Context) {
 		HierarchyLevel: usr.HierarchyLevelID,
 		ReportsTo:      usr.ReportsTo,
 		TeamIds:        usr.TeamIDs,
+		AuthType:       string(usr.AuthType),
 		CreatedAt:      usr.CreatedAt,
 		UpdatedAt:      usr.UpdatedAt,
 	}
@@ -134,6 +156,10 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
+	// Capture pre-update values for change detection
+	oldReportsTo := usr.ReportsTo
+	oldHierarchyLevel := usr.HierarchyLevelID
+
 	// Update fields if provided
 	if req.Username != nil {
 		usr.Username = *req.Username
@@ -150,13 +176,39 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 	if req.ReportsTo != nil {
 		usr.ReportsTo = req.ReportsTo
 	}
-	if req.Password != nil {
+	// Track auth type transition for password requirement
+	oldAuthType := usr.AuthType
+	if req.AuthType != nil {
+		switch *req.AuthType {
+		case "sso":
+			usr.AuthType = user.AuthTypeSSO
+		case "local":
+			usr.AuthType = user.AuthTypeLocal
+		default:
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid authType (must be 'local' or 'sso')"})
+			return
+		}
+	}
+
+	// Handle password update
+	var newPasswordHash string
+	if req.Password != nil && *req.Password != "" {
+		if usr.AuthType == user.AuthTypeSSO {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Cannot set password for SSO users"})
+			return
+		}
 		hashed, err := bcrypt.GenerateFromPassword([]byte(*req.Password), bcrypt.DefaultCost)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to hash password"})
 			return
 		}
-		usr.PasswordHash = string(hashed)
+		newPasswordHash = string(hashed)
+	}
+
+	// Switching from SSO to local requires a password
+	if oldAuthType == user.AuthTypeSSO && usr.AuthType == user.AuthTypeLocal && newPasswordHash == "" {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Password is required when switching from SSO to local authentication"})
+		return
 	}
 
 	// Update using repository
@@ -166,6 +218,24 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 			Message: err.Error(),
 		})
 		return
+	}
+
+	// Update password separately (Update() doesn't touch password_hash)
+	if newPasswordHash != "" {
+		if err := h.userRepo.UpdatePassword(c.Request.Context(), usr.ID, newPasswordHash); err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{
+				Error:   "Failed to update password",
+				Message: err.Error(),
+			})
+			return
+		}
+	}
+
+	// Re-derive supervisor chains only if reports_to or hierarchy level actually changed
+	reportsToChanged := !ptrStrEqual(oldReportsTo, usr.ReportsTo)
+	hierarchyChanged := oldHierarchyLevel != usr.HierarchyLevelID
+	if reportsToChanged || hierarchyChanged {
+		h.rederiveSupervisorChains(c.Request.Context(), usr.ID)
 	}
 
 	// Fetch team IDs
@@ -183,6 +253,7 @@ func (h *UserAdminHandler) UpdateUser(c *gin.Context) {
 		HierarchyLevel: usr.HierarchyLevelID,
 		ReportsTo:      usr.ReportsTo,
 		TeamIds:        teamIds,
+		AuthType:       string(usr.AuthType),
 		CreatedAt:      usr.CreatedAt,
 		UpdatedAt:      usr.UpdatedAt,
 	}
@@ -220,4 +291,64 @@ func generateUserIDFromUsername(username string) string {
 		}
 	}
 	return result.String()
+}
+
+// ptrStrEqual compares two *string values for equality (nil-safe).
+func ptrStrEqual(a, b *string) bool {
+	if a == nil && b == nil {
+		return true
+	}
+	if a == nil || b == nil {
+		return false
+	}
+	return *a == *b
+}
+
+// rederiveSupervisorChains re-derives supervisor chains for all teams affected
+// by a change to the given user's reports_to or hierarchy level.
+func (h *UserAdminHandler) rederiveSupervisorChains(ctx context.Context, userID string) {
+	log := logger.Get()
+
+	// Find teams where this user is team lead
+	leadTeams, err := h.teamRepo.FindByLeadID(ctx, userID)
+	if err != nil {
+		log.Warn("failed to find teams for lead " + userID + ": " + err.Error())
+	}
+
+	// Find teams where this user is in the supervisor chain
+	supervisedTeams, err := h.teamRepo.FindBySupervisorID(ctx, userID)
+	if err != nil {
+		log.Warn("failed to find supervised teams for " + userID + ": " + err.Error())
+	}
+
+	// Collect unique team IDs that need re-derivation
+	teamsToUpdate := make(map[string]*team.Team)
+	for _, t := range leadTeams {
+		teamsToUpdate[t.ID] = t
+	}
+	for _, t := range supervisedTeams {
+		teamsToUpdate[t.ID] = t
+	}
+
+	// Re-derive each team's supervisor chain from its team lead
+	for _, t := range teamsToUpdate {
+		if t.TeamLeadID == nil || *t.TeamLeadID == "" {
+			continue
+		}
+		supervisors, err := h.userRepo.FindSupervisorChainUp(ctx, *t.TeamLeadID)
+		if err != nil {
+			log.Warn("failed to derive supervisor chain for team " + t.ID + ": " + err.Error())
+			continue
+		}
+		chain := make([]*team.SupervisorLink, len(supervisors))
+		for i, sup := range supervisors {
+			chain[i] = &team.SupervisorLink{
+				UserID:  sup.ID,
+				LevelID: sup.HierarchyLevelID,
+			}
+		}
+		if err := h.teamRepo.UpdateSupervisorChain(ctx, t.ID, chain); err != nil {
+			log.Warn("failed to update supervisor chain for team " + t.ID + ": " + err.Error())
+		}
+	}
 }

@@ -1,65 +1,136 @@
 /**
- * Utility functions for automatic assessment period detection
+ * Utility functions for cadence-driven assessment period detection.
  *
- * Assessment periods are defined as:
- * - "YYYY - 1st Half": July 1 - December 31 of the previous year
- * - "YYYY - 2nd Half": January 1 - June 30 of the current year
+ * Assessment period format depends on team cadence:
+ *   - Monthly:     "YYYY Mon"  (e.g., "2026 Mar")
+ *   - Quarterly:   "YYYY Q1"   (e.g., "2026 Q1")
+ *   - Half-yearly: "YYYY H1"   (e.g., "2026 H1")
+ *   - Yearly:      "YYYY"      (e.g., "2026")
  *
- * This means surveys submitted in:
- * - Jan 1 - Jun 30, 2025 → "2024 - 2nd Half"
- * - Jul 1 - Dec 31, 2025 → "2025 - 1st Half"
+ * Legacy format "YYYY - 1st/2nd Half" is still parsed for backward compatibility.
  */
+
+export type Cadence = 'monthly' | 'quarterly' | 'half-yearly' | 'yearly';
+
+const VALID_CADENCES: ReadonlySet<string> = new Set(['monthly', 'quarterly', 'half-yearly', 'yearly']);
 
 /**
- * Get the assessment period for a given date
- * @param date - Date object or ISO string (defaults to current date if not provided)
- * @returns Assessment period string in format "YYYY - [1st|2nd] Half"
+ * Validate and narrow a string to a Cadence type.
+ * Returns the cadence if valid, or 'half-yearly' as a safe default.
  */
-export function getAssessmentPeriod(date?: Date | string): string {
-  const submissionDate = date ? (typeof date === 'string' ? new Date(date) : date) : new Date();
+export function toCadence(value: string | undefined | null): Cadence {
+  if (value && VALID_CADENCES.has(value)) return value as Cadence;
+  return 'half-yearly';
+}
 
-  const month = submissionDate.getMonth(); // 0-indexed: 0 = January, 11 = December
-  const year = submissionDate.getFullYear();
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-  // January (0) to June (5) = first half of calendar year = "previous year - 2nd Half"
-  // July (6) to December (11) = second half of calendar year = "current year - 1st Half"
-  if (month >= 0 && month <= 5) {
-    // Jan-Jun: Use previous year's 2nd Half
-    return `${year - 1} - 2nd Half`;
-  } else {
-    // Jul-Dec: Use current year's 1st Half
-    return `${year} - 1st Half`;
+const MONTH_NAME_TO_INDEX: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+};
+
+/**
+ * Get the assessment period for a given date and cadence.
+ * @param date - Date object or ISO string (defaults to current date)
+ * @param cadence - Team cadence (defaults to 'half-yearly' for backward compat)
+ */
+export function getAssessmentPeriod(date?: Date | string, cadence?: Cadence): string {
+  const d = date ? (typeof date === 'string' ? new Date(date) : date) : new Date();
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0-indexed
+
+  switch (cadence) {
+    case 'monthly':
+      return `${year} ${MONTH_NAMES[month]}`;
+    case 'quarterly':
+      return `${year} Q${Math.floor(month / 3) + 1}`;
+    case 'yearly':
+      return `${year}`;
+    case 'half-yearly':
+    default:
+      return `${year} H${month < 6 ? 1 : 2}`;
   }
 }
 
 /**
- * Get the current assessment period (convenience function)
- * @returns Current assessment period string
+ * Get the current assessment period (convenience function).
  */
-export function getCurrentAssessmentPeriod(): string {
-  return getAssessmentPeriod();
+export function getCurrentAssessmentPeriod(cadence?: Cadence): string {
+  return getAssessmentPeriod(new Date(), cadence);
 }
 
 /**
- * Parse an assessment period string into year and half
- * @param period - Assessment period string (e.g., "2024 - 2nd Half")
- * @returns Object with year and half, or null if invalid format
+ * Parsed assessment period — discriminated union by type.
  */
-export function parseAssessmentPeriod(period: string): { year: number; half: '1st' | '2nd' } | null {
-  const match = period.match(/^(\d{4}) - (1st|2nd) Half$/);
-  if (!match) return null;
+export type ParsedPeriod =
+  | { type: 'monthly'; year: number; month: number }       // month: 0-indexed
+  | { type: 'quarterly'; year: number; quarter: number }    // quarter: 1-4
+  | { type: 'half-yearly'; year: number; half: number }     // half: 1-2
+  | { type: 'yearly'; year: number }
+  | { type: 'legacy'; year: number; half: '1st' | '2nd' };
 
-  return {
-    year: parseInt(match[1], 10),
-    half: match[2] as '1st' | '2nd'
-  };
+/**
+ * Parse an assessment period string into its components.
+ * @returns ParsedPeriod or null if format is invalid
+ */
+export function parseAssessmentPeriod(period: string): ParsedPeriod | null {
+  // Monthly: "2026 Mar"
+  const monthlyMatch = period.match(/^(\d{4}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$/);
+  if (monthlyMatch) {
+    return { type: 'monthly', year: parseInt(monthlyMatch[1], 10), month: MONTH_NAME_TO_INDEX[monthlyMatch[2]] };
+  }
+
+  // Quarterly: "2026 Q1"
+  const quarterlyMatch = period.match(/^(\d{4}) Q([1-4])$/);
+  if (quarterlyMatch) {
+    return { type: 'quarterly', year: parseInt(quarterlyMatch[1], 10), quarter: parseInt(quarterlyMatch[2], 10) };
+  }
+
+  // Half-yearly: "2026 H1"
+  const halfYearlyMatch = period.match(/^(\d{4}) H([12])$/);
+  if (halfYearlyMatch) {
+    return { type: 'half-yearly', year: parseInt(halfYearlyMatch[1], 10), half: parseInt(halfYearlyMatch[2], 10) };
+  }
+
+  // Yearly: "2026"
+  const yearlyMatch = period.match(/^(\d{4})$/);
+  if (yearlyMatch) {
+    return { type: 'yearly', year: parseInt(yearlyMatch[1], 10) };
+  }
+
+  // Legacy: "2024 - 1st Half"
+  const legacyMatch = period.match(/^(\d{4}) - (1st|2nd) Half$/);
+  if (legacyMatch) {
+    return { type: 'legacy', year: parseInt(legacyMatch[1], 10), half: legacyMatch[2] as '1st' | '2nd' };
+  }
+
+  return null;
 }
 
 /**
- * Compare two assessment periods
- * @param period1 - First assessment period
- * @param period2 - Second assessment period
- * @returns Negative if period1 < period2, positive if period1 > period2, 0 if equal
+ * Convert a parsed period to a numeric sort key for chronological ordering.
+ */
+function periodSortKey(parsed: ParsedPeriod): number {
+  switch (parsed.type) {
+    case 'monthly':
+      return parsed.year * 100 + parsed.month;
+    case 'quarterly':
+      return parsed.year * 100 + (parsed.quarter - 1) * 3;
+    case 'half-yearly':
+      return parsed.year * 100 + (parsed.half - 1) * 6;
+    case 'yearly':
+      return parsed.year * 100;
+    case 'legacy':
+      // Legacy mapping: "YYYY - 1st Half" covers Jul-Dec of YYYY (= YYYY H2),
+      // "YYYY - 2nd Half" covers Jan-Jun of YYYY+1 (= (YYYY+1) H1)
+      return parsed.half === '1st' ? parsed.year * 100 + 6 : (parsed.year + 1) * 100;
+  }
+}
+
+/**
+ * Compare two assessment periods chronologically.
+ * @returns Negative if p1 < p2, positive if p1 > p2, 0 if equal
  */
 export function compareAssessmentPeriods(period1: string, period2: string): number {
   const parsed1 = parseAssessmentPeriod(period1);
@@ -67,10 +138,5 @@ export function compareAssessmentPeriods(period1: string, period2: string): numb
 
   if (!parsed1 || !parsed2) return 0;
 
-  if (parsed1.year !== parsed2.year) {
-    return parsed1.year - parsed2.year;
-  }
-
-  // Same year, compare halves (1st < 2nd)
-  return parsed1.half === '1st' ? (parsed2.half === '1st' ? 0 : -1) : (parsed2.half === '2nd' ? 0 : 1);
+  return periodSortKey(parsed1) - periodSortKey(parsed2);
 }

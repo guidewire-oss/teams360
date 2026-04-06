@@ -1,6 +1,7 @@
 package integration_test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"github.com/agopalakrishnan/teams360/backend/application/services"
 	"github.com/agopalakrishnan/teams360/backend/infrastructure/persistence/postgres"
 	"github.com/agopalakrishnan/teams360/backend/interfaces/api/v1"
 	"github.com/agopalakrishnan/teams360/backend/tests/testhelpers"
@@ -19,9 +21,11 @@ import (
 
 var _ = Describe("Integration: Team Results API", func() {
 	var (
-		db      *sql.DB
-		router  *gin.Engine
-		cleanup func()
+		db         *sql.DB
+		router     *gin.Engine
+		cleanup    func()
+		jwtService *services.JWTService
+		userToken  string
 	)
 
 	BeforeEach(func() {
@@ -31,14 +35,21 @@ var _ = Describe("Integration: Team Results API", func() {
 		// Setup test database with helpers
 		db, cleanup = testhelpers.SetupTestDatabase()
 
+		// Initialize JWT service and generate a manager-level token for tests
+		// Manager (level-3) can access any team's data via TeamMembershipMiddleware
+		jwtService = services.NewJWTService()
+		tokenPair, tokenErr := jwtService.GenerateTokenPair(context.Background(), "test_manager", "test_manager", "manager@test.com", "level-3", nil)
+		Expect(tokenErr).NotTo(HaveOccurred())
+		userToken = tokenPair.AccessToken
+
 		// Initialize router with API routes
 		router = gin.New()
 		healthCheckRepo := postgres.NewHealthCheckRepository(db)
 		teamRepo := postgres.NewTeamRepository(db)
 		orgRepo := postgres.NewOrganizationRepository(db)
 
-		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo)
-		v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo)
+		v1.SetupHealthCheckRoutes(router, healthCheckRepo, orgRepo, jwtService, nil)
+		v1.SetupTeamRoutes(router, healthCheckRepo, teamRepo, jwtService)
 	})
 
 	AfterEach(func() {
@@ -99,6 +110,7 @@ var _ = Describe("Integration: Team Results API", func() {
 
 				// When: Request team sessions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/tr_alpha/sessions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -177,6 +189,7 @@ var _ = Describe("Integration: Team Results API", func() {
 
 				// When: Request with period filter
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/filterteam/sessions?assessmentPeriod=2024+-+1st+Half", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -210,6 +223,7 @@ var _ = Describe("Integration: Team Results API", func() {
 
 				// When: Request team sessions
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/emptyteam/sessions", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
@@ -230,6 +244,7 @@ var _ = Describe("Integration: Team Results API", func() {
 			It("should return 404 for non-existent route", func() {
 				// When: Request to a route that doesn't exist
 				req := httptest.NewRequest(http.MethodGet, "/api/v1/teams/nonexistent/nonexistent", nil)
+				req.Header.Set("Authorization", "Bearer "+userToken)
 				w := httptest.NewRecorder()
 				router.ServeHTTP(w, req)
 
