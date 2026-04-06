@@ -79,19 +79,10 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 
 				By("Completing first dimension with a comment")
 				// Select score (Green = 3)
+				// Note: e2e_demo is a Team Member (level-5) — trend input is hidden for individual surveys.
 				err = page.Locator("[data-dimension='mission'][data-score='3']").Click()
 				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
-
-				// Select trend (Improving) - wait for trend buttons to appear after score selection
-				err = page.Locator("[data-dimension='mission'][data-trend='improving']").WaitFor(playwright.LocatorWaitForOptions{
-					State:   playwright.WaitForSelectorStateVisible,
-					Timeout: playwright.Float(5000),
-				})
-				Expect(err).NotTo(HaveOccurred())
-				err = page.Locator("[data-dimension='mission'][data-trend='improving']").Click()
-				Expect(err).NotTo(HaveOccurred())
-				time.Sleep(500 * time.Millisecond) // Increased wait for React state update
+				time.Sleep(500 * time.Millisecond) // Wait for React state update
 
 				// Add a comment - THIS IS THE KEY TEST
 				commentTextarea := page.Locator("[data-dimension='mission'] ~ * textarea, textarea")
@@ -109,24 +100,24 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 				time.Sleep(500 * time.Millisecond)
 
 				By("Completing remaining dimensions without comments (for speed)")
-				dimensions := []struct {
+				// Note: e2e_demo is a Team Member (level-5) — trend input is hidden for individual surveys.
+				remainingDimensions := []struct {
 					id    string
 					score int
-					trend string
 				}{
-					{"value", 2, "stable"},
-					{"speed", 2, "stable"},
-					{"fun", 3, "improving"},
-					{"health", 2, "stable"},
-					{"learning", 3, "improving"},
-					{"support", 2, "stable"},
-					{"pawns", 3, "improving"},
-					{"release", 2, "stable"},
-					{"process", 2, "stable"},
-					{"teamwork", 3, "improving"},
+					{"value", 2},
+					{"speed", 2},
+					{"fun", 3},
+					{"health", 2},
+					{"learning", 3},
+					{"support", 2},
+					{"pawns", 3},
+					{"release", 2},
+					{"process", 2},
+					{"teamwork", 3},
 				}
 
-				for i, dim := range dimensions {
+				for i, dim := range remainingDimensions {
 					// Select score
 					scoreSelector := "[data-dimension='" + dim.id + "'][data-score='" + string(rune('0'+dim.score)) + "']"
 					err = page.Locator(scoreSelector).WaitFor(playwright.LocatorWaitForOptions{
@@ -136,24 +127,13 @@ var _ = Describe("E2E: User Home Page and Survey History", func() {
 					Expect(err).NotTo(HaveOccurred())
 					err = page.Locator(scoreSelector).Click()
 					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(500 * time.Millisecond) // Increased wait for React state update
-
-					// Select trend - wait for trend buttons to appear after score selection
-					trendSelector := "[data-dimension='" + dim.id + "'][data-trend='" + dim.trend + "']"
-					err = page.Locator(trendSelector).WaitFor(playwright.LocatorWaitForOptions{
-						State:   playwright.WaitForSelectorStateVisible,
-						Timeout: playwright.Float(5000), // Increased timeout
-					})
-					Expect(err).NotTo(HaveOccurred())
-					err = page.Locator(trendSelector).Click()
-					Expect(err).NotTo(HaveOccurred())
-					time.Sleep(500 * time.Millisecond) // Increased wait for React state update
+					time.Sleep(500 * time.Millisecond) // Wait for React state update
 
 					// Click Next (except for last dimension)
-					if i < len(dimensions)-1 {
+					if i < len(remainingDimensions)-1 {
 						err = page.Locator("button:has-text('Next')").Click()
 						Expect(err).NotTo(HaveOccurred())
-						time.Sleep(500 * time.Millisecond) // Increased wait for navigation
+						time.Sleep(500 * time.Millisecond)
 					}
 				}
 

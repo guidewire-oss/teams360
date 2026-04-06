@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
-import { getOrgConfig, getHierarchyLevel } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, List, Info, CheckCircle } from 'lucide-react';
+import { getOrgConfig, getHierarchyLevel, getUserPermissions } from '@/lib/org-config';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, List, Info, CheckCircle, Download } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { AlertCircle } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
 import { API_BASE_URL } from '@/lib/api/client';
@@ -358,6 +359,7 @@ export default function DashboardPage() {
 
   const config = getOrgConfig();
   const userLevel = getHierarchyLevel(user.hierarchyLevelId || '');
+  const userPermissions = getUserPermissions(user);
 
   // Get score color
   const getScoreColor = (score: number) => {
@@ -382,6 +384,61 @@ export default function DashboardPage() {
       : avg >= 1.5
       ? { backgroundColor: '#FEF3C7', color: '#92400E' }
       : { backgroundColor: '#FEE2E2', color: '#991B1B' };
+
+  const getScoreBandLabel = (avg: number): string => {
+    if (avg >= 2.7) return 'Excellent';
+    if (avg >= 2.3) return 'Good';
+    if (avg >= 1.7) return 'Fair';
+    return 'Poor';
+  };
+
+  const handleExportToExcel = () => {
+    const teamName = teamOptions.find(t => t.id === teamId)?.name || teamId;
+    const periodLabel = selectedPeriod || 'All Periods';
+
+    // Sheet 1: Summary — dimension averages with band labels
+    const summaryRows = healthSummary.map(h => ({
+      Dimension: h.dimension,
+      'Average Score': parseFloat(h.averageScore.toFixed(2)),
+      Band: getScoreBandLabel(h.averageScore),
+    }));
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+
+    // Sheet 2: Individual responses — one row per member per dimension
+    const responseRows = individualResponses.flatMap(r =>
+      r.responses.map(resp => ({
+        Member: r.userName,
+        'Survey Type': r.surveyType === 'post_workshop' ? 'Post-Workshop' : 'Individual',
+        Date: new Date(r.date).toLocaleDateString(),
+        Dimension: resp.dimensionName,
+        Score: resp.score,
+        'Score Label': resp.score === 3 ? 'Green' : resp.score === 2 ? 'Yellow' : 'Red',
+        Trend: resp.trend || '',
+        Comment: resp.comment || '',
+      }))
+    );
+    const responsesSheet = XLSX.utils.json_to_sheet(responseRows);
+
+    // Sheet 3: Distribution
+    const distributionRows = breakdownData.map(d => ({
+      Dimension: d.dimension,
+      Green: d.green,
+      Yellow: d.yellow,
+      Red: d.red,
+      Total: d.total,
+      'Health Score': parseFloat(d.healthScore.toFixed(2)),
+      Band: getScoreBandLabel(d.healthScore),
+    }));
+    const distributionSheet = XLSX.utils.json_to_sheet(distributionRows);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+    XLSX.utils.book_append_sheet(wb, responsesSheet, 'Individual Responses');
+    XLSX.utils.book_append_sheet(wb, distributionSheet, 'Distribution');
+
+    const fileName = `health-check-${teamName.replace(/\s+/g, '-').toLowerCase()}-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
 
   const getShortDimName = (name: string) => {
     const map: Record<string, string> = {
@@ -503,10 +560,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Assessment Period Filter */}
+        {/* Assessment Period Filter + Export */}
         <div className="mb-6 flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-900">Team Health Overview</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <label htmlFor="period-filter" className="text-sm text-gray-600">
               Assessment Period:
             </label>
@@ -522,6 +579,16 @@ export default function DashboardPage() {
                 <option key={period} value={period}>{period}</option>
               ))}
             </select>
+            {userPermissions.canExportData && healthSummary.length > 0 && (
+              <button
+                data-testid="export-excel-btn"
+                onClick={handleExportToExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Export to Excel
+              </button>
+            )}
           </div>
         </div>
 
@@ -599,7 +666,15 @@ export default function DashboardPage() {
                 {/* Radar Chart Tab */}
                 {activeTab === 'radar' && (
                   <div data-testid="radar-chart-section">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-6">Team Health Overview</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-4">Team Health Overview</h2>
+                    {/* Score Band Legend */}
+                    <div data-testid="score-band-legend" className="flex flex-wrap items-center gap-3 mb-6 p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs font-medium">
+                      <span className="text-gray-500 font-semibold">Score bands:</span>
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">2.7 – 3.0 Excellent</span>
+                      <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800">2.3 – 2.6 Good</span>
+                      <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">1.7 – 2.2 Fair</span>
+                      <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800">1.0 – 1.6 Poor</span>
+                    </div>
                     {healthSummary.length > 0 ? (
                       <div data-testid="radar-chart" style={{ width: '100%', height: 500 }}>
                       <ResponsiveContainer width="100%" height={500}>
@@ -708,8 +783,9 @@ export default function DashboardPage() {
                                   )}
                                 </div>
                                 <span
-                                  className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold w-12 text-center flex-shrink-0"
+                                  className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold text-center flex-shrink-0"
                                   style={getAvgBadgeStyle(d.healthScore)}
+                                  title={getScoreBandLabel(d.healthScore)}
                                 >
                                   {d.healthScore.toFixed(1)}
                                 </span>
