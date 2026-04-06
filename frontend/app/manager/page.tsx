@@ -6,8 +6,9 @@ import { getCurrentUser, logout, authenticatedFetch, User } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriods } from '@/lib/api/health-checks';
-import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid } from 'lucide-react';
+import { LogOut, Users, ChevronDown, AlertCircle, Activity, LineChart as LineChartIcon, CheckCircle, Clock, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, Download } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
 
 // Types matching backend API response
 interface DimensionSummary {
@@ -335,6 +336,49 @@ export default function ManagerPage() {
       ? { backgroundColor: '#FEF3C7', color: '#92400E' }
       : { backgroundColor: '#FEE2E2', color: '#991B1B' };
 
+  const getScoreBandLabel = (avg: number): string => {
+    if (avg >= 2.7) return 'Excellent';
+    if (avg >= 2.3) return 'Good';
+    if (avg >= 1.7) return 'Fair';
+    return 'Poor';
+  };
+
+  const handleExportToExcel = () => {
+    if (!dashboardData) return;
+    const periodLabel = selectedPeriod || 'All Periods';
+
+    // Sheet 1: Team summary
+    const teamRows = dashboardData.teams.map(t => ({
+      Team: t.teamName,
+      'Overall Health Score': parseFloat(t.overallHealth.toFixed(2)),
+      Band: getScoreBandLabel(t.overallHealth),
+      'Submission Count': t.submissionCount,
+    }));
+    const teamsSheet = XLSX.utils.json_to_sheet(teamRows);
+
+    // Sheet 2: Per-team dimension breakdown
+    const dimensionRows = dashboardData.teams.flatMap(t =>
+      t.dimensions.map(d => {
+        const dimInfo = HEALTH_DIMENSIONS.find(hd => hd.id === d.dimensionId);
+        return {
+          Team: t.teamName,
+          Dimension: dimInfo?.name || d.dimensionId,
+          'Average Score': parseFloat(d.avgScore.toFixed(2)),
+          Band: getScoreBandLabel(d.avgScore),
+          'Response Count': d.responseCount,
+        };
+      })
+    );
+    const dimensionsSheet = XLSX.utils.json_to_sheet(dimensionRows);
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, teamsSheet, 'Team Summary');
+    XLSX.utils.book_append_sheet(wb, dimensionsSheet, 'Dimension Breakdown');
+
+    const fileName = `health-check-manager-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
+    XLSX.writeFile(wb, fileName);
+  };
+
   const dimSparklines = HEALTH_DIMENSIONS.map((dim) => {
     const data = trendsData.map((t) => ({
       period: t.period as string,
@@ -398,10 +442,10 @@ export default function ManagerPage() {
       </div>
 
       <div className="container mx-auto px-4 py-8">
-        {/* Assessment Period Filter */}
-        <div className="mb-6 flex justify-between items-center">
+        {/* Assessment Period Filter + Score Band Legend + Export */}
+        <div className="mb-4 flex justify-between items-center">
           <h2 className="text-xl font-semibold text-gray-900">Team Health Overview</h2>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <label htmlFor="period-filter" className="text-sm text-gray-600">
               Assessment Period:
             </label>
@@ -417,7 +461,26 @@ export default function ManagerPage() {
                 <option key={period} value={period}>{period}</option>
               ))}
             </select>
+            {dashboardData && dashboardData.teams.length > 0 && (
+              <button
+                data-testid="export-excel-btn"
+                onClick={handleExportToExcel}
+                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              >
+                <Download className="w-4 h-4" />
+                Export to Excel
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Score Band Legend */}
+        <div data-testid="score-band-legend" className="mb-6 flex flex-wrap items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs font-medium">
+          <span className="text-gray-500 font-semibold">Score bands:</span>
+          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">2.7 – 3.0 Excellent</span>
+          <span className="px-2.5 py-1 rounded-full bg-green-100 text-green-800">2.3 – 2.6 Good</span>
+          <span className="px-2.5 py-1 rounded-full bg-yellow-100 text-yellow-800">1.7 – 2.2 Fair</span>
+          <span className="px-2.5 py-1 rounded-full bg-red-100 text-red-800">1.0 – 1.6 Poor</span>
         </div>
 
         {/* Tab Navigation */}
