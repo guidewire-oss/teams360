@@ -1321,28 +1321,92 @@ export default function DashboardPage() {
                             })}
                           </div>
                         ) : (
-                          /* Overview — original 11-line chart */
-                          <div data-testid="trends-chart" style={{ width: '100%', height: 500 }}>
-                          <ResponsiveContainer width="100%" height={500}>
-                            <LineChart data={trends}>
-                              <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="period" />
-                              <YAxis domain={[0, 3]} />
-                              <Tooltip />
-                              <Legend />
-                              {HEALTH_DIMENSIONS.map((dim, idx) => (
-                                <Line
-                                  key={dim.id}
-                                  type="monotone"
-                                  dataKey={dim.id}
-                                  name={dim.name}
-                                  stroke={`hsl(${idx * 30}, 70%, 50%)`}
-                                  strokeWidth={2}
-                                />
-                              ))}
-                            </LineChart>
-                          </ResponsiveContainer>
-                          </div>
+                          /* Overview — 11-line chart with perceptual palette + focused tooltip */
+                          (() => {
+                            // Hand-picked perceptually-distinct colours (hue + lightness varied)
+                            const DIM_COLORS = [
+                              '#6366f1', // indigo
+                              '#10b981', // emerald
+                              '#f59e0b', // amber
+                              '#ef4444', // red
+                              '#3b82f6', // blue
+                              '#8b5cf6', // violet
+                              '#14b8a6', // teal
+                              '#f97316', // orange
+                              '#ec4899', // pink
+                              '#84cc16', // lime
+                              '#64748b', // slate
+                            ];
+                            // Dash patterns to distinguish lines beyond colour alone
+                            const DASHES = ['0', '6 3', '3 3', '8 3 3 3', '6 3 3 3', '0', '6 3', '3 3', '8 3 3 3', '6 3 3 3', '0'];
+                            return (
+                              <div data-testid="trends-chart">
+                                <ResponsiveContainer width="100%" height={420}>
+                                  <LineChart
+                                    data={trends}
+                                    margin={{ top: 8, right: 24, left: 0, bottom: 8 }}
+                                  >
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                                    <XAxis
+                                      dataKey="period"
+                                      tick={{ fontSize: 12, fill: '#6b7280' }}
+                                    />
+                                    <YAxis
+                                      domain={[0.8, 3.2]}
+                                      ticks={[1, 1.5, 2, 2.5, 3]}
+                                      tickFormatter={(v) => v === 1 ? 'Red' : v === 2 ? 'Yellow' : v === 3 ? 'Green' : String(v)}
+                                      tick={{ fontSize: 11, fill: '#9ca3af' }}
+                                      width={52}
+                                    />
+                                    <Tooltip
+                                      contentStyle={{
+                                        fontSize: '12px',
+                                        padding: '8px 12px',
+                                        borderRadius: '8px',
+                                        backgroundColor: '#1f2937',
+                                        border: '1px solid #374151',
+                                        color: '#f9fafb',
+                                        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+                                      }}
+                                      labelStyle={{ color: '#9ca3af', fontWeight: 600, marginBottom: '6px' }}
+                                      itemStyle={{ color: '#f9fafb', padding: '1px 0' }}
+                                      formatter={(value: number, name: string) => [value.toFixed(2), name]}
+                                      labelFormatter={(period) => `Period: ${period}`}
+                                    />
+                                    {HEALTH_DIMENSIONS.map((dim, idx) => (
+                                      <Line
+                                        key={dim.id}
+                                        type="monotone"
+                                        dataKey={dim.id}
+                                        name={dim.name}
+                                        stroke={DIM_COLORS[idx]}
+                                        strokeWidth={2}
+                                        strokeDasharray={DASHES[idx]}
+                                        dot={{ r: 3, fill: DIM_COLORS[idx], strokeWidth: 0 }}
+                                        activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff' }}
+                                      />
+                                    ))}
+                                  </LineChart>
+                                </ResponsiveContainer>
+                                {/* Compact legend grid below chart */}
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1.5 mt-3 px-1">
+                                  {HEALTH_DIMENSIONS.map((dim, idx) => (
+                                    <div key={dim.id} className="flex items-center gap-2 min-w-0">
+                                      <svg width="20" height="10" className="flex-shrink-0">
+                                        <line
+                                          x1="0" y1="5" x2="20" y2="5"
+                                          stroke={DIM_COLORS[idx]}
+                                          strokeWidth="2"
+                                          strokeDasharray={DASHES[idx]}
+                                        />
+                                      </svg>
+                                      <span className="text-xs text-gray-600 truncate">{dim.name}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()
                         )}
                       </>
 
