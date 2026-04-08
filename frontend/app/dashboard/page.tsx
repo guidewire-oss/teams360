@@ -311,14 +311,6 @@ export default function DashboardPage() {
     [matrixDims, individualResponses]
   );
 
-  const matrixOverallAvg = useMemo(
-    () => matrixDimAvgs.length > 0
-      ? matrixDimAvgs.filter((a) => a > 0).reduce((a, b) => a + b, 0) /
-        (matrixDimAvgs.filter((a) => a > 0).length || 1)
-      : 0,
-    [matrixDimAvgs]
-  );
-
   // Breakdown view: percentage bars sorted worst-first
   const breakdownData = useMemo(
     () => [...distribution]
@@ -815,12 +807,19 @@ export default function DashboardPage() {
                           /* Chart view — original grouped bar chart */
                           <div data-testid="distribution-chart" style={{ width: '100%', height: 500 }}>
                           <ResponsiveContainer width="100%" height={500}>
-                            <BarChart data={distribution}>
+                            <BarChart data={distribution} margin={{ top: 8, right: 16, left: 0, bottom: 80 }}>
                               <CartesianGrid strokeDasharray="3 3" />
-                              <XAxis dataKey="dimension" />
+                              <XAxis
+                                dataKey="dimension"
+                                interval={0}
+                                angle={-35}
+                                textAnchor="end"
+                                tick={{ fontSize: 12, fill: '#374151' }}
+                                height={80}
+                              />
                               <YAxis />
                               <Tooltip />
-                              <Legend />
+                              <Legend verticalAlign="top" />
                               <Bar dataKey="red" fill="#EF4444" name="Red (Poor)" />
                               <Bar dataKey="yellow" fill="#F59E0B" name="Yellow (Medium)" />
                               <Bar dataKey="green" fill="#10B981" name="Green (Good)" />
@@ -894,18 +893,10 @@ export default function DashboardPage() {
                                         </span>
                                       </th>
                                     ))}
-                                    <th className="px-3 py-3 text-center font-semibold text-gray-700 min-w-[64px] border-l border-gray-200">
-                                      Avg
-                                    </th>
                                   </tr>
                                 </thead>
                                 <tbody>
                                   {individualResponses.map((response, idx) => {
-                                    const memberScores = response.responses.filter((r) => r.score > 0);
-                                    const memberAvg =
-                                      memberScores.length > 0
-                                        ? memberScores.reduce((sum, r) => sum + r.score, 0) / memberScores.length
-                                        : 0;
                                     return (
                                       <tr
                                         key={idx}
@@ -990,14 +981,6 @@ export default function DashboardPage() {
                                             </td>
                                           );
                                         })}
-                                        <td className="px-3 py-3 text-center border-l border-gray-200">
-                                          <span
-                                            className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
-                                            style={getAvgBadgeStyle(memberAvg)}
-                                          >
-                                            {memberAvg > 0 ? memberAvg.toFixed(1) : '—'}
-                                          </span>
-                                        </td>
                                       </tr>
                                     );
                                   })}
@@ -1016,14 +999,6 @@ export default function DashboardPage() {
                                         </span>
                                       </td>
                                     ))}
-                                    <td className="px-3 py-3 text-center border-l border-gray-200">
-                                      <span
-                                        className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
-                                        style={getAvgBadgeStyle(matrixOverallAvg)}
-                                      >
-                                        {matrixOverallAvg > 0 ? matrixOverallAvg.toFixed(1) : '—'}
-                                      </span>
-                                    </td>
                                   </tr>
                                 </tbody>
                               </table>
@@ -1209,8 +1184,11 @@ export default function DashboardPage() {
                     <div className="flex justify-between items-center mb-6">
                       <div>
                         <h2 className="text-xl font-semibold text-gray-900">Health Trends Over Time</h2>
-                        {trendsView === 'dimensions' && trends.length > 0 && (
-                          <p className="text-xs text-gray-400 mt-0.5">One card per dimension — score vs. time</p>
+                        {trends.length > 0 && (
+                          <p className="text-xs text-gray-400 mt-0.5 flex items-center gap-1">
+                            <Info className="w-3 h-3 flex-shrink-0" />
+                            Hover over a dot to see the assessment period and score
+                          </p>
                         )}
                       </div>
                       {trends.length > 0 && (
@@ -1309,8 +1287,8 @@ export default function DashboardPage() {
                                           dataKey="value"
                                           stroke={lineColor}
                                           strokeWidth={2}
-                                          dot={{ r: 2, fill: lineColor }}
-                                          activeDot={{ r: 3 }}
+                                          dot={{ r: 3, fill: lineColor }}
+                                          activeDot={{ r: 4 }}
                                         />
                                         <Tooltip
                                           contentStyle={{
@@ -1329,7 +1307,7 @@ export default function DashboardPage() {
                                           itemStyle={{ color: '#d1fae5' }}
                                           cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '3 3' }}
                                           formatter={(v: number) => [v.toFixed(2), 'Score']}
-                                          labelFormatter={(period) => period}
+                                          labelFormatter={(period) => `Period: ${period}`}
                                         />
                                       </LineChart>
                                     </ResponsiveContainer>
@@ -1337,13 +1315,6 @@ export default function DashboardPage() {
                                     <div className="h-[52px] flex items-center justify-center text-xs text-gray-300">
                                       Single period
                                     </div>
-                                  )}
-
-                                  {/* Latest period label */}
-                                  {data.length > 0 && (
-                                    <p className="text-xs text-gray-400 truncate text-right">
-                                      {data[data.length - 1].period}
-                                    </p>
                                   )}
                                 </div>
                               );
