@@ -200,6 +200,27 @@ function SurveyPageContent() {
     return () => window.removeEventListener('beforeunload', handler);
   }, [responses.length, submitted]);
 
+  // Auto-show help panel once on the first dimension for first-time survey takers.
+  // Must be here (before any early returns) to comply with Rules of Hooks.
+  useEffect(() => {
+    if (
+      user &&
+      user.hierarchyLevelId === 'level-5' &&
+      !helpAutoShown.current &&
+      currentDimension === 0 &&
+      !localStorage.getItem(`survey_help_seen:${user.id}`)
+    ) {
+      helpAutoShown.current = true;
+      localStorage.setItem(`survey_help_seen:${user.id}`, 'true');
+      const t1 = setTimeout(() => {
+        setShowHelpPanel(true);
+        const t2 = setTimeout(() => setShowHelpPanel(false), 3000);
+        return () => clearTimeout(t2);
+      }, 600);
+      return () => clearTimeout(t1);
+    }
+  }, [user, currentDimension]);
+
   const handleScoreSelect = (score: 1 | 2 | 3) => {
     const dimension = HEALTH_DIMENSIONS[currentDimension];
     const existingIndex = responses.findIndex(r => r.dimensionId === dimension.id);
@@ -417,26 +438,6 @@ function SurveyPageContent() {
 
   const isTeamLead = user.hierarchyLevelId === 'level-4';
   const isTeamMember = user.hierarchyLevelId === 'level-5';
-
-  // Auto-show help panel once on the first dimension for first-time survey takers.
-  // Runs in useEffect to avoid state updates during render.
-  useEffect(() => {
-    if (
-      isTeamMember &&
-      !helpAutoShown.current &&
-      currentDimension === 0 &&
-      !localStorage.getItem(`survey_help_seen:${user.id}`)
-    ) {
-      helpAutoShown.current = true;
-      localStorage.setItem(`survey_help_seen:${user.id}`, 'true');
-      const t1 = setTimeout(() => {
-        setShowHelpPanel(true);
-        const t2 = setTimeout(() => setShowHelpPanel(false), 3000);
-        return () => clearTimeout(t2);
-      }, 600);
-      return () => clearTimeout(t1);
-    }
-  }, [isTeamMember, currentDimension, user.id]);
 
   // Compute display period from team cadence
   const surveyPeriod = team ? getAssessmentPeriod(new Date(), toCadence(team.cadence)) : '';
