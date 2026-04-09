@@ -129,6 +129,17 @@ func (h *ActionItemHandler) CreateActionItem(c *gin.Context) {
 		return
 	}
 
+	// Enforce that assignedTo (if set) is a member of this team.
+	if req.AssignedTo != nil {
+		var exists bool
+		if err := h.db.QueryRowContext(c.Request.Context(),
+			`SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id=$1 AND user_id=$2)`,
+			teamID, *req.AssignedTo).Scan(&exists); err != nil || !exists {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "assignedTo user is not a member of this team"})
+			return
+		}
+	}
+
 	id := uuid.New().String()
 	now := time.Now()
 
@@ -176,6 +187,17 @@ func (h *ActionItemHandler) UpdateActionItem(c *gin.Context) {
 	if !dto.ValidDueDate(req.DueDate) {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid dueDate format, expected YYYY-MM-DD"})
 		return
+	}
+
+	// Enforce that assignedTo (if set) is a member of this team.
+	if req.AssignedTo != nil {
+		var exists bool
+		if err := h.db.QueryRowContext(c.Request.Context(),
+			`SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id=$1 AND user_id=$2)`,
+			teamID, *req.AssignedTo).Scan(&exists); err != nil || !exists {
+			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "assignedTo user is not a member of this team"})
+			return
+		}
 	}
 
 	res, err := h.db.ExecContext(c.Request.Context(), `
