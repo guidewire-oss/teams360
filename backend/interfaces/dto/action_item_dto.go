@@ -1,5 +1,20 @@
 package dto
 
+import (
+	"regexp"
+)
+
+// dueDatePattern matches YYYY-MM-DD format
+var dueDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// ValidDueDate returns true if s is nil or a valid YYYY-MM-DD string.
+func ValidDueDate(s *string) bool {
+	if s == nil {
+		return true
+	}
+	return dueDatePattern.MatchString(*s)
+}
+
 // CreateActionItemRequest is the request body for POST /api/v1/teams/:teamId/action-items
 type CreateActionItemRequest struct {
 	DimensionID      *string `json:"dimensionId"`
@@ -14,7 +29,7 @@ type CreateActionItemRequest struct {
 type UpdateActionItemRequest struct {
 	DimensionID      *string `json:"dimensionId"`
 	AssignedTo       *string `json:"assignedTo"`
-	Title            *string `json:"title"`
+	Title            *string `json:"title" binding:"omitempty,max=500"`
 	Description      *string `json:"description"`
 	Status           *string `json:"status"`
 	DueDate          *string `json:"dueDate"`

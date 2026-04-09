@@ -56,7 +56,12 @@ const STATUS_BTN_LABEL: Record<ActionItem['status'], string | null> = {
 
 function isOverdue(dueDate: string | null): boolean {
   if (!dueDate) return false;
-  return new Date(dueDate) < new Date(new Date().toDateString());
+  // Parse YYYY-MM-DD as a local date (not UTC) to avoid off-by-one in non-UTC time zones.
+  const [year, month, day] = dueDate.split('-').map(Number);
+  const due = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return due < today;
 }
 
 export default function ActionItemsTab({

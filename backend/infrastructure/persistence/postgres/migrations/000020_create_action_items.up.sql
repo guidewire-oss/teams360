@@ -11,7 +11,14 @@ CREATE TABLE action_items (
     due_date          DATE,
     assessment_period VARCHAR(50),
     created_at        TIMESTAMPTZ   DEFAULT NOW(),
-    updated_at        TIMESTAMPTZ   DEFAULT NOW()
+    updated_at        TIMESTAMPTZ   DEFAULT NOW(),
+    -- Enforce that assigned_to is a member of the same team
+    CONSTRAINT fk_assigned_to_team_member CHECK (
+        assigned_to IS NULL OR EXISTS (
+            SELECT 1 FROM team_members tm
+            WHERE tm.team_id = team_id AND tm.user_id = assigned_to
+        )
+    )
 );
 
 CREATE INDEX idx_action_items_team_id ON action_items(team_id);

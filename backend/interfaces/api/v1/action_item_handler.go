@@ -124,6 +124,10 @@ func (h *ActionItemHandler) CreateActionItem(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid request", Message: err.Error()})
 		return
 	}
+	if !dto.ValidDueDate(req.DueDate) {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid dueDate format, expected YYYY-MM-DD"})
+		return
+	}
 
 	id := uuid.New().String()
 	now := time.Now()
@@ -168,6 +172,10 @@ func (h *ActionItemHandler) UpdateActionItem(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid status", Message: "status must be open, in_progress, or done"})
 			return
 		}
+	}
+	if !dto.ValidDueDate(req.DueDate) {
+		c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "Invalid dueDate format, expected YYYY-MM-DD"})
+		return
 	}
 
 	res, err := h.db.ExecContext(c.Request.Context(), `
@@ -225,6 +233,13 @@ func (h *ActionItemHandler) DeleteActionItem(c *gin.Context) {
 func (h *ActionItemHandler) GetTeamsActionSummary(c *gin.Context) {
 	managerID := c.Param("managerId")
 
+	// Enforce that the authenticated user can only read their own summary.
+	claims, ok := middleware.GetClaimsFromContext(c)
+	if !ok || claims.UserID != managerID {
+		c.JSON(http.StatusForbidden, dto.ErrorResponse{Error: "Forbidden"})
+		return
+	}
+
 	rows, err := h.db.QueryContext(c.Request.Context(), `
 		SELECT t.id, t.name, COUNT(ai.id) AS open_count
 		FROM teams t
@@ -242,9 +257,14 @@ func (h *ActionItemHandler) GetTeamsActionSummary(c *gin.Context) {
 	for rows.Next() {
 		var s dto.TeamActionSummaryResponse
 		if err := rows.Scan(&s.TeamID, &s.TeamName, &s.OpenCount); err != nil {
-			continue
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read action summaries", Message: err.Error()})
+			return
 		}
 		summaries = append(summaries, s)
+	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read action summaries", Message: err.Error()})
+		return
 	}
 
 	c.JSON(http.StatusOK, dto.TeamsActionSummaryResponse{Teams: summaries})
