@@ -134,7 +134,10 @@ func (h *ActionItemHandler) CreateActionItem(c *gin.Context) {
 		var exists bool
 		if err := h.db.QueryRowContext(c.Request.Context(),
 			`SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id=$1 AND user_id=$2)`,
-			teamID, *req.AssignedTo).Scan(&exists); err != nil || !exists {
+			teamID, *req.AssignedTo).Scan(&exists); err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to validate assignee", Message: err.Error()})
+			return
+		} else if !exists {
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "assignedTo user is not a member of this team"})
 			return
 		}
@@ -194,7 +197,10 @@ func (h *ActionItemHandler) UpdateActionItem(c *gin.Context) {
 		var exists bool
 		if err := h.db.QueryRowContext(c.Request.Context(),
 			`SELECT EXISTS(SELECT 1 FROM team_members WHERE team_id=$1 AND user_id=$2)`,
-			teamID, *req.AssignedTo).Scan(&exists); err != nil || !exists {
+			teamID, *req.AssignedTo).Scan(&exists); err != nil {
+			c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to validate assignee", Message: err.Error()})
+			return
+		} else if !exists {
 			c.JSON(http.StatusBadRequest, dto.ErrorResponse{Error: "assignedTo user is not a member of this team"})
 			return
 		}

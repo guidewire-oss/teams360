@@ -212,12 +212,15 @@ function SurveyPageContent() {
     ) {
       helpAutoShown.current = true;
       localStorage.setItem(`survey_help_seen:${user.id}`, 'true');
+      let t2: ReturnType<typeof setTimeout>;
       const t1 = setTimeout(() => {
         setShowHelpPanel(true);
-        const t2 = setTimeout(() => setShowHelpPanel(false), 3000);
-        return () => clearTimeout(t2);
+        t2 = setTimeout(() => setShowHelpPanel(false), 3000);
       }, 600);
-      return () => clearTimeout(t1);
+      return () => {
+        clearTimeout(t1);
+        clearTimeout(t2);
+      };
     }
   }, [user, currentDimension]);
 

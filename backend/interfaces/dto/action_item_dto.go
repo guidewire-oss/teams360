@@ -1,18 +1,16 @@
 package dto
 
 import (
-	"regexp"
+	"time"
 )
 
-// dueDatePattern matches YYYY-MM-DD format
-var dueDatePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
-
-// ValidDueDate returns true if s is nil or a valid YYYY-MM-DD string.
+// ValidDueDate returns true if s is nil or a valid YYYY-MM-DD calendar date.
 func ValidDueDate(s *string) bool {
 	if s == nil {
 		return true
 	}
-	return dueDatePattern.MatchString(*s)
+	_, err := time.Parse("2006-01-02", *s)
+	return err == nil
 }
 
 // CreateActionItemRequest is the request body for POST /api/v1/teams/:teamId/action-items

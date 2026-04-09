@@ -12,8 +12,6 @@ CREATE TABLE action_items (
     assessment_period VARCHAR(50),
     created_at        TIMESTAMPTZ   DEFAULT NOW(),
     updated_at        TIMESTAMPTZ   DEFAULT NOW()
-    -- Note: assigned_to team-membership is enforced at the application layer
-    -- because PostgreSQL CHECK constraints cannot contain subqueries.
 );
 
 CREATE INDEX idx_action_items_team_id ON action_items(team_id);
