@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { getCurrentUser, logout, authenticatedFetch } from '@/lib/auth';
 import { HEALTH_DIMENSIONS } from '@/lib/data';
 import { getOrgConfig, getHierarchyLevel, getUserPermissions } from '@/lib/org-config';
-import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, List, Info, CheckCircle, Download } from 'lucide-react';
+import { LogOut, Building2, ChevronDown, BarChart3, LineChart as LineChartIcon, Users as UsersIcon, Activity, ClipboardList, TrendingUp, TrendingDown, Minus, LayoutGrid, List, Info, CheckCircle, Download, ListTodo } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { AlertCircle } from 'lucide-react';
 import { getTeamSubmissionStatus, getAssessmentPeriods, TeamSubmissionStatus } from '@/lib/api/health-checks';
@@ -13,8 +13,10 @@ import { API_BASE_URL } from '@/lib/api/client';
 import { getAssessmentPeriod, toCadence } from '@/lib/assessment-period';
 import { getTeamInfoCached } from '@/lib/api/teams';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, LineChart, Line, ResponsiveContainer } from 'recharts';
+import OnboardingModal from '@/components/OnboardingModal';
+import ActionItemsTab from '@/components/ActionItemsTab';
 
-type TabType = 'radar' | 'distribution' | 'responses' | 'trends';
+type TabType = 'radar' | 'distribution' | 'responses' | 'trends' | 'actions';
 
 interface HealthSummary {
   dimension: string;
@@ -67,6 +69,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null);
   const [responseView, setResponseView] = useState<'matrix' | 'cards'>('matrix');
   const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{id: string, name: string}[]>([]);
   const [brandingName, setBrandingName] = useState<string>('');
   const [brandingLogo, setBrandingLogo] = useState<string | null>(null);
   const [collapsedCards, setCollapsedCards] = useState<Set<number>>(new Set());
@@ -80,6 +83,7 @@ export default function DashboardPage() {
     trend: string;
     comment: string;
   } | null>(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -88,6 +92,9 @@ export default function DashboardPage() {
       return;
     }
     setUser(currentUser);
+    if (!localStorage.getItem(`onboarding_complete:${currentUser.id}`)) {
+      setShowOnboarding(true);
+    }
 
     // Fetch branding from public config endpoint
     fetch(`${API_BASE_URL}/api/v1/config`)
@@ -103,14 +110,16 @@ export default function DashboardPage() {
       const firstTeamId = currentUser.teamIds[0];
       setTeamId(firstTeamId);
       fetchDashboardData(firstTeamId, '');
-      // Fetch team info for cadence, then compute current period for submission status
+      // Fetch team info for cadence, members, and submission status
       getTeamInfoCached(firstTeamId)
         .then((teamInfo) => {
+          setTeamMembers(teamInfo.members.map(m => ({ id: m.id, name: m.fullName })));
           const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
           return getTeamSubmissionStatus(firstTeamId, currentPeriod);
         })
         .catch(() => {
-          // Fallback: use default cadence if team info fetch fails
+          // Fallback: use default cadence if team info fetch fails; clear stale members
+          setTeamMembers([]);
           const currentPeriod = getAssessmentPeriod(new Date());
           return getTeamSubmissionStatus(firstTeamId, currentPeriod);
         })
@@ -275,9 +284,10 @@ export default function DashboardPage() {
     setTeamId(newTeamId);
     setSelectedPeriod('');
     fetchDashboardData(newTeamId, '');
-    // Re-fetch submission status for the new team
+    // Re-fetch team info (members + submission status) for the new team
     getTeamInfoCached(newTeamId)
       .then((teamInfo) => {
+        setTeamMembers(teamInfo.members.map(m => ({ id: m.id, name: m.fullName })));
         const currentPeriod = getAssessmentPeriod(new Date(), toCadence(teamInfo.cadence));
         return getTeamSubmissionStatus(newTeamId, currentPeriod);
       })
@@ -384,7 +394,7 @@ export default function DashboardPage() {
     return 'Poor';
   };
 
-  const handleExportToExcel = () => {
+  const handleExportToExcel = async () => {
     const teamName = teamOptions.find(t => t.id === teamId)?.name || teamId;
     const periodLabel = selectedPeriod || 'All Periods';
 
@@ -423,10 +433,26 @@ export default function DashboardPage() {
     }));
     const distributionSheet = XLSX.utils.json_to_sheet(distributionRows);
 
+    // Sheet 4: Action items
+    const { listActionItems } = await import('@/lib/api/action-items');
+    const actionItems = await listActionItems(teamId).catch(() => []);
+    const actionRows = actionItems.map(a => ({
+      Title: a.title,
+      Dimension: a.dimensionName || '',
+      Status: a.status === 'in_progress' ? 'In Progress' : a.status === 'done' ? 'Done' : 'Open',
+      'Assigned To': a.assigneeName || '',
+      'Due Date': a.dueDate ? new Date(a.dueDate).toLocaleDateString() : '',
+      Description: a.description || '',
+      'Created By': a.createdByName || '',
+      'Created At': new Date(a.createdAt).toLocaleDateString(),
+    }));
+    const actionsSheet = XLSX.utils.json_to_sheet(actionRows.length > 0 ? actionRows : [{ Title: 'No action items' }]);
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
     XLSX.utils.book_append_sheet(wb, responsesSheet, 'Individual Responses');
     XLSX.utils.book_append_sheet(wb, distributionSheet, 'Distribution');
+    XLSX.utils.book_append_sheet(wb, actionsSheet, 'Action Items');
 
     const fileName = `health-check-${teamName.replace(/\s+/g, '-').toLowerCase()}-${periodLabel.replace(/\s+/g, '-').toLowerCase()}.xlsx`;
     XLSX.writeFile(wb, fileName);
@@ -635,6 +661,18 @@ export default function DashboardPage() {
               >
                 <LineChartIcon className="w-4 h-4" />
                 Trends
+              </button>
+              <button
+                data-testid="actions-tab"
+                onClick={() => setActiveTab('actions')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'actions'
+                    ? 'bg-indigo-50 text-indigo-600 font-medium'
+                    : 'text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                <ListTodo className="w-4 h-4" />
+                Actions
               </button>
             </div>
           </div>
@@ -1415,6 +1453,26 @@ export default function DashboardPage() {
                     )}
                   </div>
                 )}
+
+                {/* Actions Tab */}
+                {activeTab === 'actions' && (
+                  <div data-testid="actions-tab-panel">
+                    <ActionItemsTab
+                      teamId={teamId}
+                      assessmentPeriod={selectedPeriod || ''}
+                      defaultDimensionId={
+                        healthSummary.length > 0
+                          ? (() => {
+                              const worstName = [...healthSummary].sort((a, b) => a.averageScore - b.averageScore)[0]?.dimension;
+                              return HEALTH_DIMENSIONS.find(d => d.name === worstName)?.id;
+                            })()
+                          : undefined
+                      }
+                      teamMembers={teamMembers}
+                      canEdit={true}
+                    />
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1444,6 +1502,15 @@ export default function DashboardPage() {
             )}
           </div>
         </div>
+      )}
+      {showOnboarding && user && (
+        <OnboardingModal
+          userLevel={user.hierarchyLevelId}
+          onDismiss={() => {
+            localStorage.setItem(`onboarding_complete:${user.id}`, 'true');
+            setShowOnboarding(false);
+          }}
+        />
       )}
     </div>
   );
