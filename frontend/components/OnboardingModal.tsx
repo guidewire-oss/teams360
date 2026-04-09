@@ -20,8 +20,7 @@ const SLIDES = [
         </p>
         <p>
           Your answers help your team identify areas that need support and track improvements
-          over time. This is <span className="font-medium text-red-600">never</span> used to
-          compare teams against each other.
+          over time.
         </p>
       </div>
     ),
@@ -99,6 +98,7 @@ function getRoleSlideContent(userLevel: string) {
             'View your team\'s health on the Dashboard — radar, distribution, individual responses, and trends.',
             'Use the Actions tab to create improvement tasks tied to specific dimensions.',
             'Take the survey yourself to contribute your own perspective.',
+            'After the team workshop, fill out the post-workshop survey to record the collective outcome agreed upon by the team.',
             'Track your team\'s progress across assessment periods.',
           ].map((item) => (
             <li key={item} className="flex items-start gap-2">
