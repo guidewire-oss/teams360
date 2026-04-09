@@ -57,6 +57,8 @@ function SurveyPageContent() {
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const draftInitialized = useRef(false);
   const [teamOptions, setTeamOptions] = useState<{id: string, name: string}[]>([]);
+  const [showHelpPanel, setShowHelpPanel] = useState(false);
+  const helpAutoShown = useRef(false);
 
   useEffect(() => {
     const currentUser = getCurrentUser();
@@ -416,6 +418,21 @@ function SurveyPageContent() {
   const isTeamLead = user.hierarchyLevelId === 'level-4';
   const isTeamMember = user.hierarchyLevelId === 'level-5';
 
+  // Auto-show help panel once on the first dimension for first-time survey takers
+  if (
+    isTeamMember &&
+    !helpAutoShown.current &&
+    currentDimension === 0 &&
+    !localStorage.getItem(`survey_help_seen:${user.id}`)
+  ) {
+    helpAutoShown.current = true;
+    setTimeout(() => {
+      setShowHelpPanel(true);
+      setTimeout(() => setShowHelpPanel(false), 3000);
+    }, 600);
+    localStorage.setItem(`survey_help_seen:${user.id}`, 'true');
+  }
+
   // Compute display period from team cadence
   const surveyPeriod = team ? getAssessmentPeriod(new Date(), toCadence(team.cadence)) : '';
 
@@ -502,6 +519,47 @@ function SurveyPageContent() {
                 >
                   <X className="w-4 h-4" />
                 </button>
+              </div>
+            )}
+
+            {/* Score guidance panel (Team Members only) */}
+            {isTeamMember && (
+              <div className="mb-6">
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => setShowHelpPanel((v) => !v)}
+                    className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${
+                      showHelpPanel
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+                    }`}
+                    aria-label="Toggle scoring guide"
+                    data-testid="survey-help-toggle"
+                  >
+                    <Info className="w-3.5 h-3.5" />
+                    Scoring guide
+                  </button>
+                </div>
+                {showHelpPanel && (
+                  <div
+                    className="mt-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-gray-700 space-y-2"
+                    data-testid="survey-help-panel"
+                  >
+                    <p className="font-semibold text-indigo-800 text-xs uppercase tracking-wide">How to score</p>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 w-3 h-3 rounded-full bg-red-500 flex-shrink-0" />
+                      <span><span className="font-medium text-red-700">Red</span> — {dimension.badDescription}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 w-3 h-3 rounded-full bg-yellow-400 flex-shrink-0" />
+                      <span><span className="font-medium text-yellow-700">Yellow</span> — Some problems, but we are working on it</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="mt-1 w-3 h-3 rounded-full bg-green-500 flex-shrink-0" />
+                      <span><span className="font-medium text-green-700">Green</span> — {dimension.goodDescription}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
