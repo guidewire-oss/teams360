@@ -105,6 +105,10 @@ func (h *ActionItemHandler) ListActionItems(c *gin.Context) {
 
 		items = append(items, item)
 	}
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, dto.ErrorResponse{Error: "Failed to read action items", Message: err.Error()})
+		return
+	}
 
 	c.JSON(http.StatusOK, dto.ActionItemsResponse{ActionItems: items})
 }

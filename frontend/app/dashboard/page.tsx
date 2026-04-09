@@ -118,7 +118,8 @@ export default function DashboardPage() {
           return getTeamSubmissionStatus(firstTeamId, currentPeriod);
         })
         .catch(() => {
-          // Fallback: use default cadence if team info fetch fails
+          // Fallback: use default cadence if team info fetch fails; clear stale members
+          setTeamMembers([]);
           const currentPeriod = getAssessmentPeriod(new Date());
           return getTeamSubmissionStatus(firstTeamId, currentPeriod);
         })

@@ -235,7 +235,7 @@ export default function ActionItemsTab({
                                 : 'text-gray-400'
                             }`}
                           >
-                            Due {new Date(item.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                            Due {(() => { const [y, m, d] = item.dueDate.split('-').map(Number); return new Date(y, m - 1, d).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); })()}
                             {isOverdue(item.dueDate) && item.status !== 'done' && ' ⚠'}
                           </span>
                         )}

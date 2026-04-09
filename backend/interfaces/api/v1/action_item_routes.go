@@ -23,9 +23,10 @@ func SetupActionItemRoutes(router *gin.Engine, db *sql.DB, jwtService *services.
 		teamRoutes.DELETE("/:id", handler.DeleteActionItem)
 	}
 
-	// Manager summary route — requires JWT only
+	// Manager summary route — requires JWT + manager or above role
 	managerRoutes := router.Group("/api/v1/managers/:managerId/teams/action-items")
 	managerRoutes.Use(middleware.JWTAuthMiddleware(jwtService))
+	managerRoutes.Use(middleware.ManagerOrAboveMiddleware())
 	{
 		managerRoutes.GET("", handler.GetTeamsActionSummary)
 	}
