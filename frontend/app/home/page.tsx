@@ -28,6 +28,12 @@ function getNextSurveyDate(lastSurveyDate: string, cadence: string): Date {
     case 'quarterly':
       next.setMonth(last.getMonth() + 3);
       break;
+    case 'half-yearly':
+      next.setMonth(last.getMonth() + 6);
+      break;
+    case 'yearly':
+      next.setFullYear(last.getFullYear() + 1);
+      break;
     default:
       next.setMonth(last.getMonth() + 1);
   }
