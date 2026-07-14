@@ -35,6 +35,37 @@ View aggregated health metrics across all supervised teams with trend analysis.
 ### Team Lead Dashboard
 Monitor your team's health with detailed breakdowns and individual response tracking.
 
+### Admin Dashboard
+<table>
+   <tr>
+      <td align="center" valign="top" width="50%">
+         <img src="assets/admin-dashboard/image-1.png" alt="Hierarchy Configuration" width="100%" />
+         <br />
+         <sub><strong>Hierarchy</strong> - Admin can add new roles and customize hierarchy levels.</sub>
+      </td>
+      <td align="center" valign="top" width="50%">
+         <img src="assets/admin-dashboard/image-2.png" alt="Manage Teams" width="100%" />
+         <br />
+         <sub><strong>Teams</strong> - Admin can view and add teams and assign leads.</sub>
+      </td>
+   </tr>
+   <tr>
+      <td align="center" valign="top" width="50%">
+         <img src="assets/admin-dashboard/image-3.png" alt="Manage Users" width="100%" />
+         <br />
+         <sub><strong>Users</strong> - Admin can view and add users, set roles, and manage reporting chains.</sub>
+      </td>
+      <td align="center" valign="top" width="50%">
+         <img src="assets/admin-dashboard/image.png" alt="System Settings" width="100%" />
+         <br />
+         <sub><strong>Settings</strong> - Admin can configure health dimensions and add new ones.</sub>
+      </td>
+   </tr>
+</table>
+
+<p><em>These screenshots show the admin dashboard using seeded sample data from the local database.</em></p>
+
+
 ## Quick Start
 
 ### Prerequisites
