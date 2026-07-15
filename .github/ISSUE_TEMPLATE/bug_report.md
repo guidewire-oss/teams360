@@ -7,9 +7,10 @@ assignees: []
 ---
 
 <!--
-Thanks for helping improve Team Health Check! Please keep the section headings below —
-they mirror the structure the maintainers use for every tracked issue, which
-keeps the backlog consistent and quick to triage.
+Thanks for helping improve Team Health Check! Before opening, please skim the
+contributing guide: https://github.com/guidewire-oss/teams360/blob/main/CONTRIBUTING.md
+Please keep the section headings below — they mirror the structure the maintainers
+use for every tracked issue, which keeps the backlog consistent and quick to triage.
 Delete this comment. You may delete any "(optional)" section you can't fill in.
 -->
 
@@ -46,6 +47,10 @@ Delete this comment. You may delete any "(optional)" section you can't fill in.
 - Version / tag / commit:
 - Browser / OS:
 - Deployment (local, Docker, Kubernetes):
+
+## Logs / Screenshots (optional)
+<!-- Paste relevant logs (backend/CI output, browser console) or attach screenshots.
+     Use code fences for logs; redact any secrets or personal data first. -->
 
 ---
 <!-- Triage — a maintainer will confirm/adjust these. -->

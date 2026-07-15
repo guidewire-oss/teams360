@@ -7,6 +7,8 @@ assignees: []
 ---
 
 <!--
+Before opening, please skim the contributing guide:
+https://github.com/guidewire-oss/teams360/blob/main/CONTRIBUTING.md
 Keep the headings — they mirror the structure maintainers use for tracked issues.
 Team Health Check's ethos is "support, not surveillance": features should help teams improve,
 never be weaponized for performance review. Please keep that in mind.
