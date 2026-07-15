@@ -4,8 +4,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: "🔒 Report a security vulnerability"
-    url: "https://github.com/guidewire-oss/teams360/security/advisories/new"
-    about: "Report vulnerabilities privately via a security advisory — never as a public issue."
+    url: "https://github.com/guidewire-oss/teams360/security/policy"
+    about: "Report vulnerabilities privately per our security policy — never as a public issue."
   - name: "💬 Questions & discussion"
     url: "https://github.com/guidewire-oss/teams360/discussions"
     about: "Ask questions, share ideas, or get help using Team Health Check."

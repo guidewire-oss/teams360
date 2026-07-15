@@ -51,4 +51,4 @@ Delete this comment. You may delete any "(optional)" section you can't fill in.
 <!-- Triage — a maintainer will confirm/adjust these. -->
 **Severity:** <!-- Critical / High / Medium / Low --> &nbsp;·&nbsp; **Area:** <!-- Security / Frontend / Data / Build-CI / Docs -->
 
-> 🔒 **Is this a security vulnerability?** Do **not** file it here. Report it privately — see [SECURITY.md](../SECURITY.md) and open a [security advisory](https://github.com/guidewire-oss/teams360/security/advisories/new).
+> 🔒 **Is this a security vulnerability?** Do **not** file it here. Report it privately following our [security policy](https://github.com/guidewire-oss/teams360/security/policy).
