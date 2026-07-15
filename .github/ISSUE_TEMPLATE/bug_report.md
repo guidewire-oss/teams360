@@ -1,13 +1,13 @@
 ---
 name: "🐛 Bug report"
-about: "Report a defect in Team360 (backend, frontend, data, build/CI)"
+about: "Report a defect in Team Health Check (backend, frontend, data, build/CI)"
 title: "[Bug] <short summary>"
 labels: ["bug"]
 assignees: []
 ---
 
 <!--
-Thanks for helping improve Team360! Please keep the section headings below —
+Thanks for helping improve Team Health Check! Please keep the section headings below —
 they mirror the structure the maintainers use for every tracked issue, which
 keeps the backlog consistent and quick to triage.
 Delete this comment. You may delete any "(optional)" section you can't fill in.

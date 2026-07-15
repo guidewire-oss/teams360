@@ -1,6 +1,6 @@
 ---
 name: "✨ Feature request / enhancement"
-about: "Suggest a capability or improvement for Team360"
+about: "Suggest a capability or improvement for Team Health Check"
 title: "[Feature] <short summary>"
 labels: ["enhancement"]
 assignees: []
@@ -8,7 +8,7 @@ assignees: []
 
 <!--
 Keep the headings — they mirror the structure maintainers use for tracked issues.
-Team360's ethos is "support, not surveillance": features should help teams improve,
+Team Health Check's ethos is "support, not surveillance": features should help teams improve,
 never be weaponized for performance review. Please keep that in mind.
 -->
 
