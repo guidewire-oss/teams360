@@ -147,7 +147,9 @@ export const authenticatedFetch = async (
       if (typeof window !== 'undefined') {
         window.location.href = '/login?expired=true';
       }
-      return response;
+      // Return early so callers don't process the 401 response
+      // during the brief window before navigation completes.
+      throw new Error('SESSION_EXPIRED');
     }
   }
 
