@@ -96,6 +96,9 @@ var _ = Describe("E2E: Team Lead Dashboard", func() {
 			visible, _ := loadingEl.IsVisible()
 			return !visible
 		}, 20*time.Second, 500*time.Millisecond).Should(BeTrue(), "Dashboard should finish loading")
+
+		// Dismiss onboarding modal if shown (fresh Playwright context has empty localStorage)
+		dismissOnboardingIfVisible(page)
 	}
 
 	Describe("Radar Chart View", func() {
