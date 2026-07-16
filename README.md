@@ -46,9 +46,9 @@ Monitor your team's health with detailed breakdowns and individual response trac
 
 ### Prerequisites
 
-- **Node.js 18+** (for frontend)
+- **Node.js 22+** (for frontend)
 - **Go 1.25+** (for backend)
-- **PostgreSQL 14+** (for database)
+- **PostgreSQL 17+** (for database)
 - **Docker** (recommended, for running PostgreSQL)
 
 ### One-Command Setup
@@ -90,7 +90,7 @@ docker run -d \
   -e POSTGRES_PASSWORD=postgres \
   -e POSTGRES_DB=teams360 \
   -p 5432:5432 \
-  postgres:16-alpine
+  postgres:17-alpine
 ```
 
 Or use an existing PostgreSQL instance and set the connection string.
