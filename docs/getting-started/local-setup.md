@@ -11,7 +11,7 @@
 The easiest way to run Team Health Check locally:
 
 ```bash
-git clone https://github.com/anthropics/teams360.git
+git clone https://github.com/guidewire-oss/teams360.git
 cd teams360
 make run
 ```
@@ -32,7 +32,7 @@ If you prefer manual control or don't have Docker:
 #### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/anthropics/teams360.git
+git clone https://github.com/guidewire-oss/teams360.git
 cd teams360
 ```
 
