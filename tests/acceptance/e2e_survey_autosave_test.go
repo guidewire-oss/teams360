@@ -79,6 +79,7 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 			Timeout: playwright.Float(10000),
 		})
 		Expect(err).NotTo(HaveOccurred())
+		dismissOnboardingIfVisible(page)
 
 		By("Navigating to survey")
 		_, err = page.Goto(frontendURL + "/survey")
@@ -308,6 +309,7 @@ var _ = Describe("E2E: Survey Autosave", Label("e2e"), func() {
 				Timeout: playwright.Float(10000),
 			})
 			Expect(err).NotTo(HaveOccurred())
+			dismissOnboardingIfVisible(page)
 
 			By("Navigating back to survey")
 			surveyBtn := page.Locator("[data-testid='take-survey-btn']")
