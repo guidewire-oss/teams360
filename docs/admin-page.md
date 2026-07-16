@@ -22,7 +22,7 @@ Before teams can start using Team360, an administrator needs to configure the or
 
 
 <div align="center">
-   <img src="../assets/admin-dashboard/image-1.png" alt="Hierarchy Configuration" width="80%" />
+   <img src="../assets/admin-dashboard/admin-dashboard-hierarchy.png" alt="Hierarchy Configuration" width="80%" />
    <p>Admin can add new roles and customize hierarchy levels.</p>
 </div>
 
@@ -53,7 +53,7 @@ To customize hierarchy levels:
 Teams are the core unit for health assessments. Each team has members and a designated lead.
 
 <div align="center">
-   <img src="../assets/admin-dashboard/image-2.png" alt="Manage Teams" width="80%" />
+   <img src="../assets/admin-dashboard/admin-dashboard-teams.png" alt="Manage Teams" width="80%" />
    <p>Admin can view and add teams and assign leads.</p>
 </div>
 
@@ -72,7 +72,7 @@ Teams are the core unit for health assessments. Each team has members and a desi
 Create user accounts for everyone who will participate in health checks.
 
 <div align="center">
-   <img src="../assets/admin-dashboard/image-3.png" alt="Manage Users" width="80%" />
+   <img src="../assets/admin-dashboard/admin-dashboard-users.png" alt="Manage Users" width="80%" />
    <p>Admin can view and add users, set roles, and manage reporting chains. Supervisors are chosen from higher hierarchy levels.</p>
 </div>
 
@@ -91,10 +91,10 @@ Create user accounts for everyone who will participate in health checks.
 Use the System Settings area to manage the health dimensions shown to users. Admins can review the current dimensions and add new ones as needed.
 
 <div align="center">
-   <img src="../assets/admin-dashboard/image.png" alt="System Settings" width="80%" />
+   <img src="../assets/admin-dashboard/admin-dashboard-settings.png" alt="System Settings" width="80%" />
    <p>Admin can configure health dimensions and add new ones, along with company branding, logo upload, email/slack notifications, and notify-on-submission.</p>
 
-   <img src="../assets/admin-dashboard/image-4.png" alt="Customize Dimensions" width="80%" />
+   <img src="../assets/admin-dashboard/admin-dashboard-add-dimensions.png" alt="Customize Dimensions" width="80%" />
    <p>Admin can add or customize health dimensions.</p>
 </div>
 
