@@ -14,7 +14,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/playwright-community/playwright-go"
+	"github.com/mxschmitt/playwright-go"
 
 	"github.com/golang-migrate/migrate/v4"
 	migratePostgres "github.com/golang-migrate/migrate/v4/database/postgres"
