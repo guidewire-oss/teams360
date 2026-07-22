@@ -1,6 +1,6 @@
-# Team360 Architecture Documentation
+# Team Health Check Architecture Documentation
 
-This document provides a comprehensive overview of Team360's architecture, including system design, data flow, database schema, and technology decisions.
+This document provides a comprehensive overview of Team Health Check's architecture, including system design, data flow, database schema, and technology decisions.
 
 ## Table of Contents
 
@@ -19,11 +19,11 @@ This document provides a comprehensive overview of Team360's architecture, inclu
 
 ## System Overview
 
-Team360 is a full-stack web application built with a **decoupled frontend-backend architecture**:
+Team Health Check is a full-stack web application built with a **decoupled frontend-backend architecture**:
 
 ```
 ┌─────────────────┐     HTTP/JSON     ┌─────────────────┐     SQL      ┌─────────────────┐
-│   Next.js 15    │ ◄──────────────► │   Go/Gin API    │ ◄──────────► │   PostgreSQL    │
+│   Next.js 15    │ ◄──────────────►  │   Go/Gin API    │ ◄──────────► │   PostgreSQL    │
 │   (Frontend)    │     REST API      │   (Backend)     │    Queries   │   (Database)    │
 │   Port 3000     │                   │   Port 8080     │              │   Port 5432     │
 └─────────────────┘                   └─────────────────┘              └─────────────────┘
@@ -105,31 +105,31 @@ Team360 is a full-stack web application built with a **decoupled frontend-backen
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                                    FRONTEND                                       │
+│                                    FRONTEND                                      │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                           Next.js 15 (App Router)                            │ │
+│  │                           Next.js 15 (App Router)                           │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
 │  │  │   /login    │  │   /survey   │  │  /dashboard │  │     /manager        │ │ │
 │  │  │  (Auth UI)  │  │ (Team Mbr)  │  │ (Team Lead) │  │ (Mgr/Dir/VP View)   │ │ │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
-│  │  ┌─────────────┐  ┌─────────────┐  ┌───────────────────────────────────────┐ │ │
-│  │  │   /home     │  │   /admin    │  │              /api/v1/*                │ │ │
-│  │  │ (Mbr Home)  │  │ (Admin UI)  │  │         (Proxy to Backend)            │ │ │
-│  │  └─────────────┘  └─────────────┘  └───────────────────────────────────────┘ │ │
+│  │  ┌─────────────┐  ┌─────────────┐  ┌──────────────────────────────────────┐ │ │
+│  │  │   /home     │  │   /admin    │  │              /api/v1/*               │ │ │
+│  │  │ (Mbr Home)  │  │ (Admin UI)  │  │         (Proxy to Backend)           │ │ │
+│  │  └─────────────┘  └─────────────┘  └──────────────────────────────────────┘ │ │
 │  └─────────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────────┘
                                         │
                                         │ HTTP/JSON (REST)
                                         ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                                    BACKEND                                        │
+│                                    BACKEND                                       │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                              Gin HTTP Router                                 │ │
-│  │                          /api/v1/* endpoints                                 │ │
+│  │                              Gin HTTP Router                                │ │
+│  │                          /api/v1/* endpoints                                │ │
 │  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                        │                                          │
+│                                        │                                         │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                          INTERFACES LAYER (API)                              │ │
+│  │                          INTERFACES LAYER (API)                             │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
 │  │  │ AuthHandler │  │ HealthCheck │  │TeamDashboard│  │   ManagerHandler    │ │ │
 │  │  │             │  │  Handler    │  │   Handler   │  │                     │ │ │
@@ -138,20 +138,20 @@ Team360 is a full-stack web application built with a **decoupled frontend-backen
 │  │  │ UserHandler │  │ TeamHandler │  │HierarchyAdm │  │ SettingsAdminHdlr   │ │ │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
 │  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                        │                                          │
+│                                        │                                         │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                            DOMAIN LAYER (DDD)                                │ │
+│  │                            DOMAIN LAYER (DDD)                               │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
 │  │  │    User     │  │    Team     │  │ HealthCheck │  │    Organization     │ │ │
 │  │  │ (Aggregate) │  │ (Aggregate) │  │ (Aggregate) │  │    (Aggregate)      │ │ │
 │  │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────────────┘ │ │
 │  └─────────────────────────────────────────────────────────────────────────────┘ │
-│                                        │                                          │
+│                                        │                                         │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                        INFRASTRUCTURE LAYER                                  │ │
+│  │                        INFRASTRUCTURE LAYER                                 │ │
 │  │  ┌───────────────────────────────────────────────────────────────────────┐  │ │
-│  │  │                    PostgreSQL Repositories                             │  │ │
-│  │  │  UserRepo │ TeamRepo │ HealthCheckRepo │ OrganizationRepo              │  │ │
+│  │  │                    PostgreSQL Repositories                            │  │ │
+│  │  │  UserRepo │ TeamRepo │ HealthCheckRepo │ OrganizationRepo             │  │ │
 │  │  └───────────────────────────────────────────────────────────────────────┘  │ │
 │  └─────────────────────────────────────────────────────────────────────────────┘ │
 └──────────────────────────────────────────────────────────────────────────────────┘
@@ -159,9 +159,9 @@ Team360 is a full-stack web application built with a **decoupled frontend-backen
                                         │ SQL (pgx driver)
                                         ▼
 ┌──────────────────────────────────────────────────────────────────────────────────┐
-│                                  DATABASE                                         │
+│                                  DATABASE                                        │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐ │
-│  │                              PostgreSQL 14+                                  │ │
+│  │                              PostgreSQL 14+                                 │ │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐ │ │
 │  │  │    users    │  │    teams    │  │health_check_│  │  hierarchy_levels   │ │ │
 │  │  │             │  │             │  │  sessions   │  │                     │ │ │
@@ -323,7 +323,7 @@ func (r *PostgresUserRepository) FindByID(ctx context.Context, id string) (*User
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                              DATABASE SCHEMA                                 │
+│                              DATABASE SCHEMA                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────┐       ┌─────────────────────┐
