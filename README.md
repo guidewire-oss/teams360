@@ -32,15 +32,25 @@ Team360 enables teams to regularly assess their working environment across multi
 | **Flexible Cadences** | Configure weekly, biweekly, monthly, or quarterly check-ins per team |
 
 ## Screenshots
+The screenshots below provide a glimpse of the Teams360 dashboards and user experience. Teams360 includes additional features and capabilities beyond the views shown here. Explore the product to learn more about the complete feature set.
+
 
 ### Team Member Survey
 Complete health check surveys with intuitive red/yellow/green selections and optional comments.
 
+![Team Member Survey](docs/images/team-member.png)
+
 ### Manager Dashboard
 View aggregated health metrics across all supervised teams with trend analysis.
 
+![Manager Dashboard](docs/images/manager-dashboard.png)
+
+
 ### Team Lead Dashboard
 Monitor your team's health with detailed breakdowns and individual response tracking.
+
+![Team Lead Dashboard](docs/images/team-lead.png)
+
 
 ## Quick Start
 
